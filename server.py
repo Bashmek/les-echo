@@ -668,8 +668,6 @@ async def market_action(p: dict[str, Any], msg: dict[str, Any]) -> None:
             await tell(p["id"], f"Продано: {GEAR[item_id]['name']} за {earnings} монет."); return
         await tell(p["id"], "Не удалось определить предмет для продажи."); return
     if action == "enchant":
-        if not near_wizard(p):
-            await tell(p["id"], "Зачарования накладывает волшебник у святилища в лагере. Подойди к нему и нажми G."); return
         enchant_id = item_id; spec = ENCHANT_CATALOG.get(enchant_id)
         if not spec:
             await tell(p["id"], "Такого зачарования нет."); return
@@ -691,9 +689,7 @@ async def market_action(p: dict[str, Any], msg: dict[str, Any]) -> None:
     await tell(p["id"], "Неизвестная операция лавки.")
 
 async def forge_action(p: dict[str, Any], msg: dict[str, Any]) -> None:
-    if not near_forge(p):
-        await tell(p["id"], "Подойди к кузнице у восточной тропы в лагере и нажми H.")
-        return
+    # Stations are available from their interface anywhere; server-side resource and item validation remains authoritative.
     action, item_id = str(msg.get("action", "")), str(msg.get("id", ""))
     inv = p["inventory"]
     if action == "craft":
@@ -738,9 +734,7 @@ async def forge_action(p: dict[str, Any], msg: dict[str, Any]) -> None:
 
 
 async def wizard_action(p: dict[str, Any], msg: dict[str, Any]) -> None:
-    if not near_wizard(p):
-        await tell(p["id"], "Подойди к синему святилищу волшебника у костра и нажми G.")
-        return
+    # The station can be opened from the HUD; validate each purchase/enchantment below, not a stale player coordinate.
     action, item_id = str(msg.get("action", "")), str(msg.get("id", ""))
     if action == "buy_staff":
         offer_price = SHOP_CATALOG["apprentice_staff"]["price"]
