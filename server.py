@@ -295,6 +295,9 @@ def scaled_mob(kind: str, level: int, index: int, x: float, y: float) -> dict[st
             "respawn_at": 0.0, "telegraph_until": 0.0, "alert_until": 0.0,
             "burn_until": 0.0, "burn_next": 0.0, "burn_owner": "", "burn_damage": 0.0,
             "burn_tick": .75, "slow_until": 0.0, "slow_factor": .45,
+            "stun_until": 0.0,
+            "poison_until": 0.0, "poison_next": 0.0, "poison_owner": "", "poison_damage": 0.0,
+            "poison_tick": .8,
             "boss": bool(spec.get("boss") or kind == "colossus")}
 
 
@@ -524,7 +527,11 @@ def snapshot(for_id: str) -> dict[str, Any]:
             "mobs": [{**{k: mob[k] for k in ("id", "kind", "level", "x", "y", "hp", "max_hp", "boss")},
                       "telegraphing": mob["telegraph_until"] > now,
                       "burning": float(mob.get("burn_until", 0) or 0) > now,
-                      "slowed": float(mob.get("slow_until", 0) or 0) > now}
+                      "slowed": float(mob.get("slow_until", 0) or 0) > now,
+                      "stunned": float(mob.get("stun_until", 0) or 0) > now,
+                      "poisoned": float(mob.get("poison_until", 0) or 0) > now,
+                      "marked": any(float((pl_.get("eagle_marks") or {}).get(mob["id"], 0) or 0) > now
+                                    for pl_ in players.values())}
                      for mob in mobs if mob["hp"] > 0],
             "nodes": [{k: n[k] for k in ("id", "kind", "x", "y", "active", "zone")} for n in nodes],
             "arrows": [{k: a[k] for k in ("x", "y", "vx", "vy", "life", "kind", "radius", "element", "spell_id", "spell_kind", "spell_rarity", "spell_mastery", "spell_variant", "spell_palette", "max_distance", "travelled") if k in a} for a in arrows],
@@ -677,6 +684,20 @@ def player_effects(p: dict[str, Any], now: float) -> list[dict[str, Any]]:
         effects.append({"kind": "roar", "name": "Свирепый рык", "remaining": round(roar_until - now, 2)})
     if guard_until > now:
         effects.append({"kind": "guard", "name": "Железная стойка", "remaining": round(guard_until - now, 2)})
+    bloodhunt_until = float(p.get("bloodhunt_until", 0) or 0)
+    if bloodhunt_until > now:
+        effects.append({"kind": "bloodhunt", "name": "Жажда крови", "remaining": round(bloodhunt_until - now, 2)})
+    marks = p.get("eagle_marks") if isinstance(p.get("eagle_marks"), dict) else {}
+    for mob_id, until in list(marks.items()):
+        try:
+            until_value = float(until or 0)
+        except (TypeError, ValueError):
+            marks.pop(mob_id, None); continue
+        if until_value <= now:
+            marks.pop(mob_id, None)
+        else:
+            effects.append({"kind": "eagle_mark", "name": "Метка орла", "target": mob_id,
+                            "remaining": round(until_value - now, 2)})
     return effects
 
 
@@ -1006,7 +1027,7 @@ def attack_release(p: dict[str, Any], now: float, ax: float, ay: float) -> None:
                                     "weapon": weapon_id, "weapon_kind": spec["kind"],
                                     "x": p["x"], "y": p["y"], "aim_x": ax, "aim_y": ay,
                                     "charge": charge}))
-    reach = float(spec.get("range", 44)) + 12 * charge
+    reach = (float(spec.get("range", 44)) + 12 * charge) * melee_reach_factor(p)
     hits = []
     for mob in mobs:
         if mob["hp"] <= 0: continue
@@ -1020,6 +1041,10 @@ def attack_release(p: dict[str, Any], now: float, ax: float, ay: float) -> None:
         mob["hp"] -= damage
         vampirism = enchant_level(p, "weapon", weapon_id, "vampirism")
         if vampirism: p["hp"] = min(p["max_hp"], p["hp"] + round(damage * .06 * vampirism))
+        if float(p.get("bloodhunt_until", 0) or 0) > now:
+            heal = int(ABILITY_CATALOG["bloodhunt"].get("heal_per_hit", 12))
+            p["hp"] = min(p["max_hp"], p["hp"] + heal)
+            asyncio.create_task(send_event({"type": "hit_player_heal", "id": p["id"], "heal": heal}))
         mob["alert_until"] = now + 4
         if mob["hp"] <= 0:
             mob["hp"] = 0
@@ -1321,6 +1346,10 @@ async def wizard_action(p: dict[str, Any], msg: dict[str, Any]) -> None:
 
 def spell_damage(p: dict[str, Any], mob: dict[str, Any], damage: float, now: float) -> None:
     if mob["hp"] <= 0: return
+    # «Метка орла» усиливает весь урон владельца метки по помеченной цели.
+    mark = p.get("eagle_marks") if isinstance(p.get("eagle_marks"), dict) else {}
+    if float(mark.get(mob["id"], 0) or 0) > now:
+        damage *= 1 + float(ABILITY_CATALOG.get("eagle_mark", {}).get("bonus_mult", .25))
     dealt = max(1, round(damage)); mob["hp"] -= dealt; mob["alert_until"] = now + 4
     if mob["hp"] <= 0:
         mob["hp"] = 0; mob["respawn_at"] = now + random.uniform(24, 40); award_drop(p, mob)
@@ -1562,6 +1591,70 @@ async def use_ability(p: dict[str, Any], now: float, ability_id: str, aim_x: flo
                      "slow_factor": float(spec.get("slow_factor", .45) or .45)}
             arrows.append(arrow)
         await send_event(event)
+    elif ability_id == "bash":
+        for mob in list(mobs):
+            if mob["hp"] <= 0:
+                continue
+            if math.hypot(mob["x"] - p["x"], mob["y"] - p["y"]) <= float(spec["radius"]) + (40 if mob.get("boss") else 12):
+                spell_damage(p, mob, power, now); hits += 1
+                if mob["hp"] > 0:
+                    mob["stun_until"] = now + float(spec.get("stun_duration", 1.6))
+                    knock = float(spec.get("knockback", 70.0))
+                    ddx, ddy = mob["x"] - p["x"], mob["y"] - p["y"]
+                    dd = max(.01, math.hypot(ddx, ddy))
+                    mob["x"] = max(25.0, min(WORLD_W - 25.0, mob["x"] + ddx / dd * knock))
+                    mob["y"] = max(25.0, min(WORLD_H - 25.0, mob["y"] + ddy / dd * knock))
+        _damage_players_around(p, now, p["x"], p["y"], float(spec["radius"]), power, "bash")
+        await send_event(event)
+    elif ability_id == "bloodhunt":
+        p["bloodhunt_until"] = max(float(p.get("bloodhunt_until", 0) or 0), now + float(spec["duration"]))
+        await send_event(event)
+        await tell(p["id"], f"Жажда крови: каждый удар восстановит {spec['heal_per_hit']} здоровья на {spec['duration']:.0f} с.")
+    elif ability_id == "seismic_slam":
+        for mob in list(mobs):
+            if mob["hp"] <= 0:
+                continue
+            if math.hypot(mob["x"] - p["x"], mob["y"] - p["y"]) <= float(spec["radius"]) + (48 if mob.get("boss") else 12):
+                spell_damage(p, mob, power, now); hits += 1
+                if mob["hp"] > 0:
+                    mob["slow_until"] = now + float(spec.get("slow_duration", 2.5))
+                    mob["slow_factor"] = float(spec.get("slow_factor", .5))
+        _damage_players_around(p, now, p["x"], p["y"], float(spec["radius"]), power, "seismic_slam")
+        await send_event(event)
+    elif ability_id == "poison_arrow":
+        arrow = {"x": p["x"] + aim_x * 18, "y": p["y"] + aim_y * 18,
+                 "vx": aim_x * 760.0, "vy": aim_y * 760.0, "damage": max(1, round(power)),
+                 "owner": p["id"], "life": float(spec.get("range", 760)) / 760.0 + .08,
+                 "max_distance": float(spec.get("range", 760)), "travelled": 0.0, "kind": "ability_arrow",
+                 "element": "poison", "pierce": int(spec.get("pierce", 0)), "hit_ids": [],
+                 "poison_duration": float(spec.get("poison_duration", 4.0)),
+                 "poison_tick": float(spec.get("poison_tick", .8)),
+                 "poison_damage": max(1, round(power * float(spec.get("poison_mult", .14))))}
+        arrows.append(arrow)
+        await send_event(event)
+    elif ability_id == "blackout_bolt":
+        arrow = {"x": p["x"] + aim_x * 18, "y": p["y"] + aim_y * 18,
+                 "vx": aim_x * 760.0, "vy": aim_y * 760.0, "damage": max(1, round(power)),
+                 "owner": p["id"], "life": float(spec.get("range", 700)) / 760.0 + .08,
+                 "max_distance": float(spec.get("range", 700)), "travelled": 0.0, "kind": "ability_arrow",
+                 "element": "shadow", "pierce": int(spec.get("pierce", 0)), "hit_ids": [],
+                 "stun_duration": float(spec.get("stun_duration", 1.8))}
+        arrows.append(arrow)
+        await send_event(event)
+    elif ability_id == "eagle_mark":
+        marked = None
+        candidates = [m for m in mobs if m["hp"] > 0 and math.hypot(m["x"] - tx, m["y"] - ty) <= 96]
+        if candidates:
+            marked = min(candidates, key=lambda m: math.hypot(m["x"] - tx, m["y"] - ty))
+        marks = p.setdefault("eagle_marks", {})
+        if marked is not None:
+            marks[marked["id"]] = now + float(spec["duration"])
+            event["target_x"], event["target_y"] = round(marked["x"], 1), round(marked["y"], 1)
+            await send_event(event)
+            await tell(p["id"], f"Метка орла нанесена: урон по цели +{int(float(spec['bonus_mult']) * 100)}% на {spec['duration']:.0f} с.")
+        else:
+            await send_event(event)
+            await tell(p["id"], "Метку не удалось нанести: рядом с точкой прицела нет живой цели.")
     award_mastery(p, tree, 8 + int(spec["mastery"]) * 2)
     if hits:
         try:
@@ -2073,8 +2166,17 @@ async def world_tick() -> None:
                     spell_damage(owner, mob, float(mob.get("burn_damage", 1) or 1), now)
                 if mob["hp"] <= 0:
                     continue
+            if float(mob.get("poison_until", 0) or 0) > now and float(mob.get("poison_next", 0) or 0) <= now:
+                owner = players.get(str(mob.get("poison_owner", "")))
+                mob["poison_next"] = now + max(.35, float(mob.get("poison_tick", .8) or .8))
+                if owner and owner.get("respawn_at", 0) <= now:
+                    spell_damage(owner, mob, float(mob.get("poison_damage", 1) or 1), now)
+                if mob["hp"] <= 0:
+                    continue
             slow_active = float(mob.get("slow_until", 0) or 0) > now
             mob_speed = float(mob["speed"]) * (float(mob.get("slow_factor", .45) or .45) if slow_active else 1.0)
+            if float(mob.get("stun_until", 0) or 0) > now:
+                continue
             target = min((p for p in players.values() if p["respawn_at"] <= now and
                           zone_for_x(p["x"])["danger"] > 0 and
                           zone_for_x(p["x"])["id"] == zone_for_x(mob["x"])["id"]),
@@ -2208,6 +2310,19 @@ async def world_tick() -> None:
                     elif element == "ice" and target["hp"] > 0:
                         target["slow_until"] = now + float(arrow.get("slow_duration", 0) or 0)
                         target["slow_factor"] = float(arrow.get("slow_factor", .45) or .45)
+                    elif element == "poison" and target["hp"] > 0:
+                        until = now + float(arrow.get("poison_duration", 0) or 0)
+                        # Яд обновляет длительность, но не складывается в несколько DoT.
+                        if until > float(target.get("poison_until", 0) or 0):
+                            target["poison_until"] = until
+                        target["poison_next"] = min(float(target.get("poison_next", now) or now), now + .05)
+                        target["poison_owner"] = owner["id"]
+                        target["poison_damage"] = float(arrow.get("poison_damage", 1) or 1)
+                        target["poison_tick"] = float(arrow.get("poison_tick", .8) or .8)
+                        target["poison_until"] = max(float(target.get("poison_until", 0) or 0), until)
+                    elif element == "shadow" and target["hp"] > 0:
+                        target["stun_until"] = now + float(arrow.get("stun_duration", 1.8) or 1.8)
+                        target["telegraph_until"] = 0.0
                 hit_ids.append(target["id"])
                 await send_event({"type": "ability_impact", "ability": "arrow", "element": arrow.get("element", ""),
                                   "x": round(target["x"], 1), "y": round(target["y"], 1),
@@ -2288,7 +2403,8 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
          "magic_mana_spent": 0, "market_starter_grant": False,
          "mana_regen_level": 0, "magic_damage_level": 0,
          "class": None, "mastery": default_mastery(), "ability_cooldowns": {},
-         "roar_until": 0.0, "guard_until": 0.0, "ability_lock_until": 0.0,
+         "roar_until": 0.0, "guard_until": 0.0, "bloodhunt_until": 0.0, "eagle_marks": {},
+         "ability_lock_until": 0.0,
          "dodge_at": 0.0, "dodge_until": 0.0, "weapon": "sword", "weapons": ["sword", "axe", "bow"],
          "gear": "traveler", "gear_inventory": [],
          "inventory": {"wood": 0, "herb": 0, "ore": 0, "hide": 0, "slime": 0, "crystal": 0, "shard": 0, "potion": 2, "arrows": 18},
@@ -2309,6 +2425,9 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     }
     p["roar_until"] = 0.0
     p["guard_until"] = 0.0
+    p["bloodhunt_until"] = 0.0
+    if not isinstance(p.get("eagle_marks"), dict):
+        p["eagle_marks"] = {}
     p["ability_lock_until"] = 0.0
     p["x"] = max(25.0, min(WORLD_W - 25.0, float(p["x"])))
     p["y"] = max(25.0, min(WORLD_H - 25.0, float(p["y"])))
