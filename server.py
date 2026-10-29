@@ -135,6 +135,7 @@ mobs: list[dict[str, Any]] = []
 nodes: list[dict[str, Any]] = []
 arrows: list[dict[str, Any]] = []
 thorn_fields: list[dict[str, Any]] = []
+ground_effects: list[dict[str, Any]] = []
 SPELLS = {
     "fireball": {"name": "Огненный шар", "kind": "Огонь", "rarity": 1, "mana": 18, "cooldown": 2.8, "damage": 48, "radius": 100},
     "lightning": {"name": "Молния", "kind": "Молния", "rarity": 2, "mana": 26, "cooldown": 4.5, "damage": 58, "radius": 125},
@@ -146,6 +147,70 @@ SPELLS = {
     "frost_nova": {"name": "Кольцо инея", "kind": "Лёд", "rarity": 2, "mana": 32, "cooldown": 8.0, "damage": 65, "radius": 142, "unlock_spent": 320, "unlock_level": 6},
     "shadow_bolt": {"name": "Сумрачный снаряд", "kind": "Тень", "rarity": 2, "mana": 28, "cooldown": 3.2, "damage": 64, "radius": 62, "unlock_spent": 160, "unlock_level": 4},
 }
+
+CLASS_MIN_LEVEL = 5
+MASTERY_MAX_LEVEL = 5
+MASTERY_TREES = ("warrior", "ranger", "mage")
+MASTERY_NAMES = {"warrior": "Воин", "ranger": "Следопыт", "mage": "Маг"}
+TREE_WEAPON_KIND = {"warrior": "melee", "ranger": "bow", "mage": "staff"}
+WEAPON_TREE = {"melee": "warrior", "bow": "ranger", "staff": "mage"}
+CLASSES = {
+    "warrior": {
+        "name": "Воин", "title": "Стальной клинок", "style": "Ближний бой",
+        "description": "Держит удар в самой гуще схватки. Сила и живучесть выше, способности открываются по мере владения оружием.",
+        "stat_bonus": {"might": 3, "vitality": 2},
+        "abilities": ["roar", "lunge", "whirlwind", "iron_guard"],
+    },
+    "ranger": {
+        "name": "Следопыт", "title": "Глаз бури", "style": "Дальний бой",
+        "description": "Бьёт с дистанции и управляет полем боя. Ловкость и точность выше, стрелы получают стихийные эффекты.",
+        "stat_bonus": {"agility": 3, "precision": 2},
+        "abilities": ["arrow_rain", "piercing_shot", "fire_arrow", "ice_arrow", "double_shot"],
+    },
+    "mage": {
+        "name": "Маг", "title": "Хранитель чар", "style": "Магия посоха",
+        "description": "Использует прежнюю систему заклинаний и созданных чар. Сила магии растёт вместе с мастерством направления.",
+        "stat_bonus": {"vitality": 1, "magic_damage": 1, "mana_regen": 1},
+        "abilities": [],
+    },
+}
+ABILITY_CATALOG = {
+    "roar": {"tree": "warrior", "name": "Свирепый рык", "icon": "🗣", "mastery": 1,
+             "cost": 18, "cooldown": 14.0, "duration": 6.0, "heal_per_sec": 6.0, "key": "KeyR",
+             "desc": "На 6 секунд ускоряет восстановление здоровья на 6 ед./с."},
+    "lunge": {"tree": "warrior", "name": "Выпад", "icon": "➹", "mastery": 2,
+              "cost": 22, "cooldown": 8.0, "distance": 155.0, "range": 205.0, "width": 34.0,
+              "mult": 1.35, "key": "KeyT",
+              "desc": "Рывок вперёд до 155 ед. с ударом по линии; не выходит за границы мира."},
+    "whirlwind": {"tree": "warrior", "name": "Круговой удар", "icon": "⟳", "mastery": 3,
+                  "cost": 26, "cooldown": 9.0, "radius": 112.0, "mult": 1.05, "key": "KeyC",
+                  "desc": "Разворачивает оружие по кругу и задевает всех врагов в радиусе 112."},
+    "iron_guard": {"tree": "warrior", "name": "Железная стойка", "icon": "🛡", "mastery": 4,
+                   "cost": 16, "cooldown": 16.0, "duration": 5.0, "armor": 14, "key": "KeyV",
+                   "desc": "На 5 секунд добавляет 14 брони и снижает входящий урон."},
+    "arrow_rain": {"tree": "ranger", "name": "Дождь стрел", "icon": "☔", "mastery": 1,
+                   "cost": 28, "arrows": 3, "cooldown": 15.0, "range": 520.0, "radius": 122.0,
+                   "duration": 2.4, "telegraph": 0.9, "tick": 0.55, "mult": 0.52, "key": "KeyR",
+                   "desc": "Отмечает область; через 0,9 с по ней трижды бьёт дождь стрел."},
+    "piercing_shot": {"tree": "ranger", "name": "Пронзающий выстрел", "icon": "➶", "mastery": 2,
+                      "cost": 20, "arrows": 1, "cooldown": 7.0, "range": 900.0, "pierce": 3,
+                      "mult": 1.25, "key": "KeyT",
+                      "desc": "Стрела проходит сквозь трёх врагов по линии прицела."},
+    "fire_arrow": {"tree": "ranger", "name": "Огненная стрела", "icon": "🔥", "mastery": 3,
+                   "cost": 22, "arrows": 1, "cooldown": 8.0, "range": 900.0, "mult": 1.0,
+                   "burn_duration": 5.0, "burn_tick": 0.75, "burn_mult": 0.16, "key": "KeyC",
+                   "desc": "Поджигает цель на 5 секунд; горение не складывается бесконечно."},
+    "ice_arrow": {"tree": "ranger", "name": "Ледяная стрела", "icon": "❄", "mastery": 3,
+                  "cost": 22, "arrows": 1, "cooldown": 8.0, "range": 900.0, "mult": 0.95,
+                  "slow_duration": 4.0, "slow_factor": 0.45, "key": "KeyV",
+                  "desc": "Замедляет цель до 45% скорости на 4 секунды."},
+    "double_shot": {"tree": "ranger", "name": "Двойной залп", "icon": "⇉", "mastery": 4,
+                    "cost": 26, "arrows": 2, "cooldown": 6.5, "range": 760.0, "shots": 2,
+                    "spread": 0.09, "mult": 0.78, "key": "KeyX",
+                    "desc": "Выпускает две стрелы веером по направлению прицела."},
+}
+for _ability_id, _ability_spec in ABILITY_CATALOG.items():
+    _ability_spec["id"] = _ability_id
 
 MANA_GROWTH_COEF, MANA_GROWTH_CAP = 1.15, 90
 ELEMENT_FX = {
@@ -195,6 +260,8 @@ def scaled_mob(kind: str, level: int, index: int, x: float, y: float) -> dict[st
             "wander_x": random.uniform(-1, 1), "wander_y": random.uniform(-1, 1),
             "wander_at": time.monotonic() + random.uniform(.5, 3), "attack_at": 0.0,
             "respawn_at": 0.0, "telegraph_until": 0.0, "alert_until": 0.0,
+            "burn_until": 0.0, "burn_next": 0.0, "burn_owner": "", "burn_damage": 0.0,
+            "burn_tick": .75, "slow_until": 0.0, "slow_factor": .45,
             "boss": bool(spec.get("boss") or kind == "colossus")}
 
 
@@ -366,7 +433,14 @@ def player_row(pid: str, p: dict[str, Any], now: float) -> dict[str, Any]:
                   "charge": min(1.0, max(0.0, (now - a["started"]) / spec["charge"])),
                   "aim_x": a["aim_x"], "aim_y": a["aim_y"]}
     zone = zone_for_x(p["x"])
+    tree = action_tree(p)
+    chosen_class = p.get("class") if p.get("class") in CLASSES else None
     return {"id": pid, "name": p["name"], "x": round(p["x"], 1), "y": round(p["y"], 1),
+            "class": chosen_class, "class_name": CLASSES[chosen_class]["name"] if chosen_class else "Путник",
+            "class_offer": p["level"] >= CLASS_MIN_LEVEL and not chosen_class,
+            "class_compatible": class_compatible(p, tree), "action_tree": tree,
+            "weapon_kind": weapon_kind(p), "mastery": mastery_view(p),
+            "abilities": abilities_view(p, now), "effects": player_effects(p, now),
             "face_x": p["face_x"], "face_y": p["face_y"], "hp": p["hp"], "max_hp": p["max_hp"],
             "stamina": round(p["stamina"], 1), "max_stamina": p["max_stamina"],
             "mana": round(p.get("mana", 0), 1), "max_mana": p.get("max_mana", 0), "xp": p["xp"],
@@ -412,13 +486,22 @@ def snapshot(for_id: str) -> dict[str, Any]:
     now = time.monotonic()
     return {"type": "state", "you": for_id, "world": {"w": WORLD_W, "h": WORLD_H},
             "zones": ZONES, "elements": ELEMENT_FX, "power_sites": POWER_SITES,
+            "classes": CLASSES,
             "players": [player_row(pid, p, now) for pid, p in players.items()],
             "mobs": [{**{k: mob[k] for k in ("id", "kind", "level", "x", "y", "hp", "max_hp", "boss")},
-                      "telegraphing": mob["telegraph_until"] > now}
+                      "telegraphing": mob["telegraph_until"] > now,
+                      "burning": float(mob.get("burn_until", 0) or 0) > now,
+                      "slowed": float(mob.get("slow_until", 0) or 0) > now}
                      for mob in mobs if mob["hp"] > 0],
             "nodes": [{k: n[k] for k in ("id", "kind", "x", "y", "active", "zone")} for n in nodes],
-            "arrows": [{k: a[k] for k in ("x", "y", "vx", "vy", "life", "kind", "radius", "spell_id", "spell_kind", "spell_rarity", "spell_mastery", "spell_variant", "spell_palette", "max_distance", "travelled") if k in a} for a in arrows],
-            "thorn_fields": [{k: field[k] for k in ("x", "y", "radius", "until", "owner")} for field in thorn_fields]}
+            "arrows": [{k: a[k] for k in ("x", "y", "vx", "vy", "life", "kind", "radius", "element", "spell_id", "spell_kind", "spell_rarity", "spell_mastery", "spell_variant", "spell_palette", "max_distance", "travelled") if k in a} for a in arrows],
+            "thorn_fields": [{k: field[k] for k in ("x", "y", "radius", "until", "owner")} for field in thorn_fields],
+            "ground_effects": [{"id": field["id"], "kind": field["kind"], "x": round(field["x"], 1),
+                                 "y": round(field["y"], 1), "radius": field["radius"],
+                                 "owner": field.get("owner"), "remaining": round(max(0.0, field["until"] - now), 2),
+                                 "telegraph": round(max(0.0, field.get("activate_at", now) - now), 2),
+                                 "duration": round(max(.01, field["until"] - field["started"]), 2)}
+                                for field in ground_effects]}
 
 
 async def send_event(event: dict[str, Any]) -> None:
@@ -473,6 +556,157 @@ def upgrades_view(p: dict[str, Any]) -> dict[str, dict[str, Any]]:
         "fortune": {"level": int(stats.get("fortune", 1)), "effect": f"+{min(20, (int(stats.get('fortune', 1))-1)*2.5):.1f}% шанс редкой добычи"},
     }
 
+
+
+def mastery_required_xp(level: int) -> int:
+    level = max(1, min(MASTERY_MAX_LEVEL, int(level)))
+    return 0 if level >= MASTERY_MAX_LEVEL else 80 + level * 40
+
+
+def default_mastery() -> dict[str, dict[str, Any]]:
+    return {tree: {"level": 1, "xp": 0, "next": mastery_required_xp(1),
+                   "unlocked": [aid for aid, spec in ABILITY_CATALOG.items()
+                                if spec["tree"] == tree and spec["mastery"] <= 1]}
+            for tree in MASTERY_TREES}
+
+
+def normalize_mastery(raw: Any) -> dict[str, dict[str, Any]]:
+    """Migrate old or damaged saves to neutral mastery without touching character progress."""
+    source = raw if isinstance(raw, dict) else {}
+    result: dict[str, dict[str, Any]] = {}
+    for tree in MASTERY_TREES:
+        entry = source.get(tree) if isinstance(source.get(tree), dict) else {}
+        level = max(1, min(MASTERY_MAX_LEVEL, int(entry.get("level", 1) or 1)))
+        xp = max(0, min(100000, int(entry.get("xp", 0) or 0)))
+        needed = mastery_required_xp(level)
+        if needed and xp >= needed:
+            xp = max(0, needed - 1)
+        result[tree] = {
+            "level": level, "xp": xp, "next": needed,
+            "total_xp": max(0, min(1000000, int(entry.get("total_xp", xp) or xp))),
+            "unlocked": [aid for aid, spec in ABILITY_CATALOG.items()
+                         if spec["tree"] == tree and spec["mastery"] <= level],
+        }
+    return result
+
+
+def mastery_level(p: dict[str, Any], tree: str) -> int:
+    entry = p.get("mastery", {}).get(tree, {}) if isinstance(p.get("mastery"), dict) else {}
+    return max(1, min(MASTERY_MAX_LEVEL, int(entry.get("level", 1) or 1)))
+
+
+def mastery_view(p: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    view: dict[str, dict[str, Any]] = {}
+    for tree in MASTERY_TREES:
+        entry = p.get("mastery", {}).get(tree, {}) if isinstance(p.get("mastery"), dict) else {}
+        level = mastery_level(p, tree)
+        unlocked = [aid for aid, spec in ABILITY_CATALOG.items()
+                    if spec["tree"] == tree and spec["mastery"] <= level]
+        view[tree] = {"name": MASTERY_NAMES[tree], "level": level, "max": MASTERY_MAX_LEVEL,
+                      "xp": max(0, int(entry.get("xp", 0) or 0)),
+                      "next": mastery_required_xp(level), "unlocked": unlocked}
+    return view
+
+
+def ability_unlocked(p: dict[str, Any], ability_id: str) -> bool:
+    spec = ABILITY_CATALOG.get(ability_id)
+    return bool(spec and spec["mastery"] <= mastery_level(p, spec["tree"]))
+
+
+def ability_cooldown_seconds(p: dict[str, Any], ability_id: str) -> float:
+    spec = ABILITY_CATALOG.get(ability_id, {})
+    mastery = mastery_level(p, str(spec.get("tree", "warrior")))
+    return round(max(1.5, float(spec.get("cooldown", 8.0)) * (1 - .03 * (mastery - 1))), 2)
+
+
+def weapon_kind(p: dict[str, Any]) -> str:
+    return str(WEAPONS.get(p.get("weapon", ""), {}).get("kind", "melee"))
+
+
+def action_tree(p: dict[str, Any]) -> str:
+    return WEAPON_TREE.get(weapon_kind(p), "warrior")
+
+
+def class_compatible(p: dict[str, Any], tree: str | None = None) -> bool:
+    tree = tree or action_tree(p)
+    chosen = p.get("class")
+    if not chosen:
+        # Before the class choice the old spell system stays available with any weapon.
+        return tree == "mage"
+    return chosen == tree
+
+
+def player_effects(p: dict[str, Any], now: float) -> list[dict[str, Any]]:
+    effects: list[dict[str, Any]] = []
+    roar_until = float(p.get("roar_until", 0) or 0)
+    guard_until = float(p.get("guard_until", 0) or 0)
+    if roar_until > now:
+        effects.append({"kind": "roar", "name": "Свирепый рык", "remaining": round(roar_until - now, 2)})
+    if guard_until > now:
+        effects.append({"kind": "guard", "name": "Железная стойка", "remaining": round(guard_until - now, 2)})
+    return effects
+
+
+def abilities_view(p: dict[str, Any], now: float) -> dict[str, dict[str, Any]]:
+    cooldowns = p.get("ability_cooldowns", {}) if isinstance(p.get("ability_cooldowns"), dict) else {}
+    result: dict[str, dict[str, Any]] = {}
+    for ability_id, spec in ABILITY_CATALOG.items():
+        until = float(cooldowns.get(ability_id, 0) or 0)
+        result[ability_id] = {
+            "id": ability_id, "tree": spec["tree"], "name": spec["name"], "icon": spec.get("icon", "✦"),
+            "desc": spec["desc"], "cost": int(spec.get("cost", 0)), "arrows": int(spec.get("arrows", 0)),
+            "mastery_required": int(spec["mastery"]), "unlocked": ability_unlocked(p, ability_id),
+            "key": spec.get("key", ""), "cooldown": ability_cooldown_seconds(p, ability_id),
+            "range": float(spec.get("range", 0) or 0), "radius": float(spec.get("radius", 0) or 0),
+            "distance": float(spec.get("distance", 0) or 0), "width": float(spec.get("width", 0) or 0),
+            "telegraph": float(spec.get("telegraph", 0) or 0),
+            "remaining": max(0.0, round(until - now, 2)),
+        }
+    return result
+
+
+def weapon_power(p: dict[str, Any]) -> float:
+    spec = WEAPONS.get(p.get("weapon", ""), WEAPONS["sword"])
+    upgrade = 0 if spec.get("kind") == "staff" else 6 * item_upgrade_level(p, "weapon", p.get("weapon", ""))
+    return (float(spec.get("damage", 0)) + float(spec.get("bonus", 0)) * .55
+            + (int(p.get("stats", {}).get("might", 1)) - 1) * 2.2
+            + 8 * enchant_level(p, "weapon", p.get("weapon", ""), "sharpness") + upgrade)
+
+
+def award_mastery(p: dict[str, Any], tree: str, amount: int) -> bool:
+    if tree not in MASTERY_TREES or amount <= 0:
+        return False
+    mastery = p.setdefault("mastery", normalize_mastery({}))
+    entry = mastery.setdefault(tree, {"level": 1, "xp": 0, "total_xp": 0, "unlocked": []})
+    entry["level"] = max(1, min(MASTERY_MAX_LEVEL, int(entry.get("level", 1) or 1)))
+    entry["xp"] = max(0, int(entry.get("xp", 0) or 0)) + int(amount)
+    entry["total_xp"] = max(0, int(entry.get("total_xp", 0) or 0)) + int(amount)
+    leveled = False
+    while entry["level"] < MASTERY_MAX_LEVEL:
+        needed = mastery_required_xp(entry["level"])
+        if entry["xp"] < needed:
+            break
+        entry["xp"] -= needed
+        entry["level"] += 1
+        leveled = True
+    entry["next"] = mastery_required_xp(entry["level"])
+    entry["unlocked"] = [aid for aid, spec in ABILITY_CATALOG.items()
+                         if spec["tree"] == tree and spec["mastery"] <= entry["level"]]
+    if leveled:
+        try:
+            asyncio.get_running_loop().create_task(send_event({
+                "type": "mastery_update", "target": p.get("id"), "tree": tree,
+                "mastery": mastery_view(p), "level": entry["level"],
+                "unlocked": entry["unlocked"],
+            }))
+            names = [ABILITY_CATALOG[aid]["name"] for aid in entry["unlocked"]
+                     if ABILITY_CATALOG[aid]["mastery"] == entry["level"]]
+            text = (f"Мастерство «{MASTERY_NAMES[tree]}» достигло {entry['level']} уровня."
+                    + (f" Открыто: {', '.join(names)}." if names else ""))
+            asyncio.get_running_loop().create_task(tell(str(p.get("id", "")), text))
+        except RuntimeError:
+            pass
+    return leveled
 
 
 def stats_updated_event(pid: str, p: dict[str, Any]) -> dict[str, Any]:
@@ -536,6 +770,14 @@ def add_xp(p: dict[str, Any], amount: int) -> None:
                     pass
                 break
         asyncio.create_task(send_event({"type": "notice", "text": f"{p['name']} достиг(ла) {p['level']} уровня — доступно очко развития"}))
+        if p["level"] >= CLASS_MIN_LEVEL and not p.get("class"):
+            try:
+                asyncio.get_running_loop().create_task(send_event({
+                    "type": "class_offer", "target": p.get("id"), "level": p["level"],
+                    "classes": CLASSES,
+                }))
+            except RuntimeError:
+                pass
 
 
 QUESTS = [
@@ -723,7 +965,9 @@ def attack_release(p: dict[str, Any], now: float, ax: float, ay: float) -> None:
         arrows.append({"x": p["x"] + ax * 18, "y": p["y"] + ay * 18,
                        "vx": ax * speed, "vy": ay * speed, "damage": charged_damage,
                        "owner": p["id"], "life": arrow_range / max(1, speed),
-                       "max_distance": arrow_range, "travelled": 0.0, "kind": "arrow", "critical": critical})
+                       "max_distance": arrow_range, "travelled": 0.0, "kind": "arrow", "critical": critical,
+                       "hit_ids": []})
+        award_mastery(p, "ranger", 5 + int(charge * 3))
         return
     asyncio.create_task(send_event({"type": "weapon_action", "action": "attack", "id": p["id"],
                                     "weapon": weapon_id, "weapon_kind": spec["kind"],
@@ -774,6 +1018,7 @@ def attack_release(p: dict[str, Any], now: float, ax: float, ay: float) -> None:
                 other["gathering"] = None
                 asyncio.create_task(tell(other["id"], f"Ты пал в дуэли с {p['name']}. Через несколько секунд вернёшься в лагерь."))
                 asyncio.create_task(tell(p["id"], f"Победа в дуэли над {other['name']}!"))
+    award_mastery(p, "warrior", 4 + min(6, len(hits)))
 
 
 def start_attack(p: dict[str, Any], now: float, ax: float, ay: float) -> None:
@@ -859,7 +1104,9 @@ def item_upgrade_level(p: dict[str, Any], target: str, item_id: str) -> int:
 def player_defense(p: dict[str, Any]) -> int:
     gear_id = p.get("gear", "traveler")
     base = GEAR.get(gear_id, GEAR["traveler"])["defense"]
-    return base + 3 * item_upgrade_level(p, "gear", gear_id) + 2 * enchant_level(p, "gear", gear_id, "protection")
+    guard = 14 if float(p.get("guard_until", 0) or 0) > time.monotonic() else 0
+    return (base + 3 * item_upgrade_level(p, "gear", gear_id)
+            + 2 * enchant_level(p, "gear", gear_id, "protection") + guard)
 
 
 def near_wizard(p: dict[str, Any]) -> bool:
@@ -1063,11 +1310,244 @@ def spell_fx_event(p: dict[str, Any], spell_id: str, spec: dict[str, Any], x: fl
             "rarity": spec.get("rarity", 1), **spell_visual(p, spell_id, spec)}
 
 
+def _ability_event(p: dict[str, Any], ability_id: str, target_x: float, target_y: float,
+                   aim_x: float, aim_y: float, **extra: Any) -> dict[str, Any]:
+    spec = ABILITY_CATALOG[ability_id]
+    return {"type": "ability_cast", "id": p["id"], "ability": ability_id,
+            "tree": spec["tree"], "name": spec["name"], "icon": spec.get("icon", "✦"),
+            "x": round(p["x"], 1), "y": round(p["y"], 1),
+            "from_x": round(p["x"], 1), "from_y": round(p["y"], 1),
+            "target_x": round(target_x, 1), "target_y": round(target_y, 1),
+            "aim_x": aim_x, "aim_y": aim_y,
+            "radius": spec.get("radius", 0), "duration": spec.get("duration", 0), **extra}
+
+
+def _damage_players_around(p: dict[str, Any], now: float, x: float, y: float, radius: float,
+                           damage: float, source: str = "ability") -> None:
+    if zone_for_x(p["x"])["danger"] == 0:
+        return
+    for other in list(players.values()):
+        if other["id"] == p["id"] or other.get("respawn_at", 0) > now:
+            continue
+        if zone_for_x(other["x"])["danger"] == 0:
+            continue
+        if math.hypot(other["x"] - x, other["y"] - y) > radius:
+            continue
+        actual = max(1, round(damage * .72) - player_defense(other))
+        other["hp"] = max(0, other["hp"] - actual)
+        asyncio.create_task(send_event({"type": "pvp_hit", "attacker": p["id"], "id": other["id"],
+                                        "damage": actual, "x": other["x"], "y": other["y"], "source": source}))
+        if other["hp"] <= 0:
+            other["respawn_at"] = now + 5
+            other["attack"] = None
+            other["gathering"] = None
+            asyncio.create_task(tell(other["id"], f"Ты пал в бою с {p['name']}. Через несколько секунд вернёшься в лагерь."))
+            asyncio.create_task(tell(p["id"], f"Победа над {other['name']}!"))
+
+
+async def choose_class(p: dict[str, Any], msg: dict[str, Any]) -> None:
+    chosen = str(msg.get("class", ""))
+    if p.get("class"):
+        await tell(p["id"], f"Класс уже выбран: {CLASSES.get(p['class'], {}).get('name', p['class'])}. Изменить его нельзя.")
+        return
+    if int(p.get("level", 1)) < CLASS_MIN_LEVEL:
+        await tell(p["id"], f"Класс выбирается на {CLASS_MIN_LEVEL}-м уровне. Сейчас у тебя {int(p.get('level', 1))}.")
+        return
+    if chosen not in CLASSES:
+        await tell(p["id"], "Неизвестный класс. Выбери Воина, Следопыта или Мага.")
+        return
+    p["class"] = chosen
+    bonus = CLASSES[chosen].get("stat_bonus", {})
+    applied: list[str] = []
+    for key, value in bonus.items():
+        amount = max(0, min(20, int(value)))
+        if key in p.get("stats", {}):
+            p["stats"][key] = int(p["stats"].get(key, 1)) + amount
+            applied.append(f"{stat_names.get(key, key)} +{amount}")
+        elif key == "mana_regen":
+            p["mana_regen_level"] = max(0, int(p.get("mana_regen_level", 0))) + amount
+            applied.append(f"восстановление маны +{amount}")
+        elif key == "magic_damage":
+            p["magic_damage_level"] = max(0, int(p.get("magic_damage_level", 0))) + amount
+            applied.append(f"сила магии +{amount * 8}%")
+    p["stats_revision"] = int(p.get("stats_revision", 0)) + 1
+    update_derived(p, heal=True)
+    try:
+        save_character(p)
+    except sqlite3.Error:
+        pass
+    await send_event({"type": "class_selected", "target": p["id"], "class": chosen,
+                      "class_name": CLASSES[chosen]["name"], "bonus": applied,
+                      "player": player_row(p["id"], p, time.monotonic())})
+    await send_event(stats_updated_event(p["id"], p))
+    await tell(p["id"], f"Класс выбран: {CLASSES[chosen]['name']}. Постоянные бонусы: {', '.join(applied) or 'нет'}.")
+
+
+async def use_ability(p: dict[str, Any], now: float, ability_id: str, aim_x: float,
+                      aim_y: float, target_x: float | None = None, target_y: float | None = None) -> None:
+    spec = ABILITY_CATALOG.get(ability_id)
+    if not spec:
+        await tell(p["id"], "Неизвестная боевая способность.")
+        return
+    tree = spec["tree"]
+    if not p.get("class"):
+        await tell(p["id"], f"Сначала выбери класс на {CLASS_MIN_LEVEL}-м уровне.")
+        return
+    if p.get("class") != tree:
+        await tell(p["id"], f"Способность «{spec['name']}» доступна классу «{MASTERY_NAMES[tree]}».")
+        return
+    if weapon_kind(p) != TREE_WEAPON_KIND[tree]:
+        need = {"melee": "оружие ближнего боя", "bow": "лук", "staff": "посох"}[TREE_WEAPON_KIND[tree]]
+        await tell(p["id"], f"Для этой способности нужно подходящее оружие: {need}.")
+        return
+    if p.get("respawn_at", 0) > now:
+        await tell(p["id"], "Нельзя применять способности во время возвращения в лагерь.")
+        return
+    if now < float(p.get("ability_lock_until", 0) or 0):
+        await tell(p["id"], "Персонаж ещё не завершил предыдущее действие.")
+        return
+    if not ability_unlocked(p, ability_id):
+        await tell(p["id"], f"Способность откроется на {spec['mastery']}-м уровне мастерства «{MASTERY_NAMES[tree]}».")
+        return
+    cooldowns = p.setdefault("ability_cooldowns", {})
+    if float(cooldowns.get(ability_id, 0) or 0) > now:
+        await tell(p["id"], f"«{spec['name']}» перезаряжается: {float(cooldowns[ability_id]) - now:.1f} с.")
+        return
+    cost = int(spec.get("cost", 0))
+    if float(p.get("stamina", 0)) < cost:
+        await tell(p["id"], f"Мало выносливости: нужно {cost}, сейчас {int(p.get('stamina', 0))}.")
+        return
+    arrow_cost = int(spec.get("arrows", 0))
+    if arrow_cost and int(p.get("inventory", {}).get("arrows", 0)) < arrow_cost:
+        await tell(p["id"], f"Нужно стрел: {arrow_cost}. Пополни колчан в лагере или изготовь стрелы.")
+        return
+    # Normalize and clamp every client-provided direction and target.
+    if not all(math.isfinite(float(v)) for v in (aim_x, aim_y)):
+        aim_x, aim_y = p.get("face_x", 1.0), p.get("face_y", 0.0)
+    length = math.hypot(aim_x, aim_y)
+    if length < .01:
+        aim_x, aim_y = p.get("face_x", 1.0), p.get("face_y", 0.0)
+        length = max(.01, math.hypot(aim_x, aim_y))
+    aim_x, aim_y = aim_x / length, aim_y / length
+    max_range = float(spec.get("range", 0) or 0)
+    if target_x is not None and target_y is not None and all(math.isfinite(float(v)) for v in (target_x, target_y)):
+        tx, ty = float(target_x), float(target_y)
+        dx, dy = tx - p["x"], ty - p["y"]
+        distance = math.hypot(dx, dy)
+        if max_range and distance > max_range:
+            tx, ty = p["x"] + dx / max(1, distance) * max_range, p["y"] + dy / max(1, distance) * max_range
+        tx = max(0.0, min(WORLD_W, tx)); ty = max(0.0, min(WORLD_H, ty))
+    else:
+        tx = max(0.0, min(WORLD_W, p["x"] + aim_x * (max_range or 180)))
+        ty = max(0.0, min(WORLD_H, p["y"] + aim_y * (max_range or 180)))
+    p["stamina"] -= cost
+    if arrow_cost:
+        p["inventory"]["arrows"] = max(0, int(p["inventory"].get("arrows", 0)) - arrow_cost)
+    cooldowns[ability_id] = now + ability_cooldown_seconds(p, ability_id)
+    p["ability_lock_until"] = now + .18
+    p["gathering"] = None
+    p["attack"] = None
+    p["face_x"], p["face_y"] = aim_x, aim_y
+    p["last_ability"] = ability_id
+    event = _ability_event(p, ability_id, tx, ty, aim_x, aim_y)
+    power = weapon_power(p) * float(spec.get("mult", 1.0))
+    hits = 0
+    if ability_id == "roar":
+        p["roar_until"] = max(float(p.get("roar_until", 0) or 0), now + float(spec["duration"]))
+        await send_event(event)
+        await tell(p["id"], f"Свирепый рык: восстановление здоровья усилено на {spec['duration']:.0f} с.")
+    elif ability_id == "iron_guard":
+        p["guard_until"] = max(float(p.get("guard_until", 0) or 0), now + float(spec["duration"]))
+        await send_event(event)
+        await tell(p["id"], f"Железная стойка: +{spec['armor']} брони на {spec['duration']:.0f} с.")
+    elif ability_id == "lunge":
+        start_x, start_y = p["x"], p["y"]
+        travel = float(spec["distance"])
+        end_x = max(25.0, min(WORLD_W - 25.0, start_x + aim_x * travel))
+        end_y = max(25.0, min(WORLD_H - 25.0, start_y + aim_y * travel))
+        # The world has no wall geometry; movement is still stepped and clamped to the
+        # authoritative world bounds so a client cannot teleport outside it.
+        steps = max(1, int(math.ceil(math.hypot(end_x - start_x, end_y - start_y) / 12)))
+        for step in range(1, steps + 1):
+            nx = start_x + (end_x - start_x) * step / steps
+            ny = start_y + (end_y - start_y) * step / steps
+            p["x"] = max(25.0, min(WORLD_W - 25.0, nx))
+            p["y"] = max(25.0, min(WORLD_H - 25.0, ny))
+        seg_x, seg_y = p["x"] - start_x, p["y"] - start_y
+        seg_len = max(.01, math.hypot(seg_x, seg_y))
+        for mob in list(mobs):
+            if mob["hp"] <= 0:
+                continue
+            rel_x, rel_y = mob["x"] - start_x, mob["y"] - start_y
+            projection = (rel_x * seg_x + rel_y * seg_y) / seg_len
+            if projection < -8 or projection > seg_len + 12:
+                continue
+            perp = abs(rel_x * seg_y - rel_y * seg_x) / seg_len
+            if perp <= float(spec["width"]) + (52 if mob.get("boss") else 18):
+                spell_damage(p, mob, power, now); hits += 1
+        _damage_players_around(p, now, p["x"], p["y"], 58, power, "lunge")
+        event["from_x"], event["from_y"] = round(start_x, 1), round(start_y, 1)
+        event["x"], event["y"] = round(p["x"], 1), round(p["y"], 1)
+        event["target_x"], event["target_y"] = round(p["x"], 1), round(p["y"], 1)
+        await send_event(event)
+    elif ability_id == "whirlwind":
+        for mob in list(mobs):
+            if mob["hp"] > 0 and math.hypot(mob["x"] - p["x"], mob["y"] - p["y"]) <= float(spec["radius"]):
+                spell_damage(p, mob, power, now); hits += 1
+        _damage_players_around(p, now, p["x"], p["y"], float(spec["radius"]), power, "whirlwind")
+        await send_event(event)
+    elif ability_id == "arrow_rain":
+        field = {"id": f"rain-{uuid.uuid4().hex[:8]}", "kind": "arrow_rain", "owner": p["id"],
+                 "x": tx, "y": ty, "radius": float(spec["radius"]), "damage": power,
+                 "started": now, "activate_at": now + float(spec["telegraph"]),
+                 "until": now + float(spec["telegraph"]) + float(spec["duration"]),
+                 "next_hit": now + float(spec["telegraph"]), "tick": float(spec["tick"])}
+        ground_effects.append(field)
+        event["ground"] = {"id": field["id"], "kind": "arrow_rain", "x": round(tx, 1), "y": round(ty, 1),
+                           "radius": field["radius"], "telegraph": field["activate_at"] - now,
+                           "duration": field["until"] - field["activate_at"]}
+        await send_event(event)
+    elif ability_id in {"piercing_shot", "fire_arrow", "ice_arrow", "double_shot"}:
+        shots = int(spec.get("shots", 1))
+        spread = float(spec.get("spread", 0))
+        speed = 760.0
+        for index in range(shots):
+            offset = (index - (shots - 1) / 2) * spread
+            ca, sa = math.cos(offset), math.sin(offset)
+            sx, sy = aim_x * ca - aim_y * sa, aim_x * sa + aim_y * ca
+            max_distance = float(spec.get("range", 760))
+            arrow = {"x": p["x"] + sx * 18, "y": p["y"] + sy * 18,
+                     "vx": sx * speed, "vy": sy * speed, "damage": max(1, round(power)),
+                     "owner": p["id"], "life": max_distance / speed + .08,
+                     "max_distance": max_distance, "travelled": 0.0, "kind": "ability_arrow",
+                     "element": "fire" if ability_id == "fire_arrow" else "ice" if ability_id == "ice_arrow" else "",
+                     "pierce": int(spec.get("pierce", 0)), "hit_ids": [],
+                     "burn_duration": float(spec.get("burn_duration", 0) or 0),
+                     "burn_tick": float(spec.get("burn_tick", .75) or .75),
+                     "burn_damage": max(1, round(power * float(spec.get("burn_mult", .16) or .16))),
+                     "slow_duration": float(spec.get("slow_duration", 0) or 0),
+                     "slow_factor": float(spec.get("slow_factor", .45) or .45)}
+            arrows.append(arrow)
+        await send_event(event)
+    award_mastery(p, tree, 8 + int(spec["mastery"]) * 2)
+    if hits:
+        try:
+            save_character(p)
+        except sqlite3.Error:
+            pass
+
+
 async def cast_spell(p: dict[str, Any], now: float, spell_id: str, aim_x: float, aim_y: float,
                      target_x: float | None = None, target_y: float | None = None) -> None:
     catalog = all_spells(p)
     spec = catalog.get(spell_id)
     if not spec: await tell(p["id"], "Неизвестное заклинание."); return
+    if p.get("class") and p.get("class") != "mage":
+        await tell(p["id"], "Заклинания доступны классу «Маг». Воин и Следопыт используют свои боевые способности.")
+        return
+    if p.get("class") == "mage" and weapon_kind(p) != "staff":
+        await tell(p["id"], "Для заклинаний нужен посох. Сейчас в руках другое оружие.")
+        return
     if not spell_unlocked(p, spell_id):
         await tell(p["id"], f"Заклинание откроется на уровне {spec['unlock_level']} после расхода {spec['unlock_spent']} маны. Потрачено: {int(p.get('magic_mana_spent', 0))}."); return
     if p.get("respawn_at", 0) > now: await tell(p["id"], "Нельзя колдовать во время возвращения в лагерь."); return
@@ -1097,9 +1577,12 @@ async def cast_spell(p: dict[str, Any], now: float, spell_id: str, aim_x: float,
     staff_power = float(equipped_weapon.get("spell_power", 0))
     staff_upgrade = (6 * item_upgrade_level(p, "weapon", p.get("weapon", ""))
                      if equipped_weapon.get("kind") == "staff" else 0)
-    power = 1.0 + staff_power + 0.08 * int(p.get("magic_damage_level", 0))
+    power = (1.0 + staff_power + 0.08 * int(p.get("magic_damage_level", 0))
+             + 0.02 * (mastery_level(p, "mage") - 1))
     spell_damage_base = float(spec.get("damage", 0)) + staff_upgrade
     update_derived(p)
+    if equipped_weapon.get("kind") == "staff":
+        award_mastery(p, "mage", 4 + int(spec.get("mana", 0)) // 8)
     for unlocked_id, unlocked_spec in catalog.items():
         threshold = int(unlocked_spec.get("unlock_spent", 0))
         if threshold and old_spent < threshold <= p["magic_mana_spent"]:
@@ -1281,6 +1764,19 @@ async def handle_message(pid: str, p: dict[str, Any], msg: dict[str, Any], now: 
         await bind_custom_spell_key(p, msg)
     elif kind == "delete_custom_spell":
         await delete_custom_spell(p, msg)
+    elif kind == "choose_class":
+        await choose_class(p, msg)
+    elif kind == "ability":
+        try:
+            aim_x = float(msg.get("aim_x", 0)); aim_y = float(msg.get("aim_y", 0))
+            target_x = float(msg["target_x"]) if msg.get("target_x") is not None else None
+            target_y = float(msg["target_y"]) if msg.get("target_y") is not None else None
+            await use_ability(p, now, str(msg.get("ability", "")), aim_x, aim_y, target_x, target_y)
+        except (TypeError, ValueError, KeyError):
+            await tell(pid, "Не удалось прочитать направление способности.")
+        except Exception as exc:
+            print(f"ability action failed for {pid}: {exc}")
+            await tell(pid, "Способность не удалось применить. Соединение сохранено.")
     elif kind == "spell":
         try:
             await cast_spell(p, now, str(msg.get("spell", "")), float(msg.get("aim_x", 0)), float(msg.get("aim_y", 0)),
@@ -1295,8 +1791,22 @@ async def handle_message(pid: str, p: dict[str, Any], msg: dict[str, Any], now: 
     elif kind == "weapon":
         weapon = str(msg.get("id", ""))
         if weapon in p["weapons"] and weapon in WEAPONS:
+            if now < float(p.get("ability_lock_until", 0) or 0):
+                await tell(pid, "Дождись завершения текущей способности, затем смени оружие.")
+                return
             p["weapon"] = weapon
+            # Changing a weapon cancels an unfinished wind-up instead of letting it fire
+            # with the old weapon's data.
+            p["attack"] = None
+            p["gathering"] = None
+            p["ability_lock_until"] = now + .12
             await sync_station_state(p)
+            tree = action_tree(p)
+            if p.get("class") and p.get("class") != tree:
+                if tree == "mage":
+                    await tell(pid, "Оружие экипировано, но заклинания доступны только классу «Маг».")
+                else:
+                    await tell(pid, f"Оружие экипировано, но способности «{MASTERY_NAMES.get(tree, tree)}» недоступны твоему классу.")
         else:
             await tell(pid, "Оружие не найдено в сумке.")
     elif kind == "gather_start": start_gather(p, now)
@@ -1369,6 +1879,7 @@ PERSIST_FIELDS = (
     "gold", "kills", "weapon", "weapons", "gear", "gear_inventory",
     "inventory", "quest_stage", "quest_active", "quest_kills", "quest_gather",
     "enchantments", "market_starter_grant", "magic_mana_spent", "upgrades", "mana_regen_level", "magic_damage_level", "spell_uses", "custom_spells",
+    "class", "mastery", "ability_cooldowns",
 )
 
 
@@ -1451,7 +1962,15 @@ def load_character(name: str) -> dict[str, Any]:
 
 
 def save_character(p: dict[str, Any]) -> None:
-    data = {key: p[key] for key in PERSIST_FIELDS}
+    data = {key: p[key] for key in PERSIST_FIELDS if key in p}
+    # Store cooldowns as remaining seconds: monotonic clocks restart with the process,
+    # while the player's cooldown progress should survive a normal reconnect.
+    now = time.monotonic()
+    data["ability_cooldowns"] = {
+        str(ability_id): round(max(0.0, min(300.0, float(until) - now)), 2)
+        for ability_id, until in (p.get("ability_cooldowns", {}) or {}).items()
+        if str(ability_id) in ABILITY_CATALOG
+    }
     with sqlite3.connect(DB_PATH) as connection:
         connection.execute(
             "INSERT INTO character_saves(name, data, updated_at) VALUES (?, ?, ?) "
@@ -1476,6 +1995,8 @@ async def world_tick() -> None:
             p["y"] = max(25, min(WORLD_H - 25, p["y"] + p["my"] * speed * dt))
             p["stamina"] = min(p["max_stamina"], p["stamina"] + (15 + p["stats"]["agility"] * .35) * dt)
             p["mana"] = min(p["max_mana"], p.get("mana", 0) + (9.0 + 1.5 * p.get("mana_regen_level", 0)) * dt)
+            if float(p.get("roar_until", 0) or 0) > now:
+                p["hp"] = min(p["max_hp"], p["hp"] + 6.0 * dt)
             for site in POWER_SITES:
                 if math.hypot(p["x"] - site["x"], p["y"] - site["y"]) <= site["radius"]:
                     if site["id"] == "spring": p["hp"] = min(p["max_hp"], p["hp"] + 2.0 * dt)
@@ -1512,6 +2033,15 @@ async def world_tick() -> None:
                 if mob["respawn_at"] <= now:
                     mob.update(scaled_mob(mob["kind"], mob["level"], int(mob["id"].split("-")[-1]), mob["spawn_x"], mob["spawn_y"]))
                 continue
+            if float(mob.get("burn_until", 0) or 0) > now and float(mob.get("burn_next", 0) or 0) <= now:
+                owner = players.get(str(mob.get("burn_owner", "")))
+                mob["burn_next"] = now + max(.35, float(mob.get("burn_tick", .75) or .75))
+                if owner and owner.get("respawn_at", 0) <= now:
+                    spell_damage(owner, mob, float(mob.get("burn_damage", 1) or 1), now)
+                if mob["hp"] <= 0:
+                    continue
+            slow_active = float(mob.get("slow_until", 0) or 0) > now
+            mob_speed = float(mob["speed"]) * (float(mob.get("slow_factor", .45) or .45) if slow_active else 1.0)
             target = min((p for p in players.values() if p["respawn_at"] <= now and
                           zone_for_x(p["x"])["danger"] > 0 and
                           zone_for_x(p["x"])["id"] == zone_for_x(mob["x"])["id"]),
@@ -1520,8 +2050,8 @@ async def world_tick() -> None:
                 if now > mob["wander_at"]:
                     mob["wander_x"], mob["wander_y"] = random.uniform(-1, 1), random.uniform(-1, 1)
                     mob["wander_at"] = now + random.uniform(1.2, 3.3)
-                mob["x"] += mob["wander_x"] * mob["speed"] * .16 * dt
-                mob["y"] += mob["wander_y"] * mob["speed"] * .16 * dt
+                mob["x"] += mob["wander_x"] * mob_speed * .16 * dt
+                mob["y"] += mob["wander_y"] * mob_speed * .16 * dt
                 continue
             dx, dy = target["x"] - mob["x"], target["y"] - mob["y"]
             dist = math.hypot(dx, dy)
@@ -1529,8 +2059,8 @@ async def world_tick() -> None:
                 mob["wander_x"], mob["wander_y"] = random.uniform(-1, 1), random.uniform(-1, 1)
                 mob["wander_at"] = now + 2
             elif dist < 260 and dist > MONSTERS[mob["kind"]]["range"] * .72:
-                mob["x"] += dx / max(1, dist) * mob["speed"] * dt
-                mob["y"] += dy / max(1, dist) * mob["speed"] * dt
+                mob["x"] += dx / max(1, dist) * mob_speed * dt
+                mob["y"] += dy / max(1, dist) * mob_speed * dt
             if dist <= MONSTERS[mob["kind"]]["range"] and mob["attack_at"] <= now:
                 if mob["telegraph_until"] <= now:
                     mob["telegraph_until"] = now + .72
@@ -1561,6 +2091,25 @@ async def world_tick() -> None:
                         if mob["hp"] > 0 and math.hypot(mob["x"] - field["x"], mob["y"] - field["y"]) <= field["radius"]:
                             spell_damage(owner, mob, field["damage"], now)
                 field["next_hit"] = now + .65
+        for field in list(ground_effects):
+            if field["until"] <= now:
+                ground_effects.remove(field)
+                continue
+            if now < float(field.get("activate_at", 0) or 0) or now < float(field.get("next_hit", 0) or 0):
+                continue
+            field["next_hit"] = now + max(.25, float(field.get("tick", .55) or .55))
+            owner = players.get(field.get("owner"))
+            if not owner or owner.get("respawn_at", 0) > now:
+                continue
+            radius = float(field.get("radius", 0) or 0)
+            for mob in list(mobs):
+                if mob["hp"] > 0 and math.hypot(mob["x"] - field["x"], mob["y"] - field["y"]) <= radius:
+                    spell_damage(owner, mob, float(field.get("damage", 1) or 1), now)
+            _damage_players_around(owner, now, float(field["x"]), float(field["y"]),
+                                   radius, float(field.get("damage", 1) or 1) * .8, "arrow_rain")
+            await send_event({"type": "ground_pulse", "id": field["id"], "kind": field["kind"],
+                              "x": round(float(field["x"]), 1), "y": round(float(field["y"]), 1),
+                              "radius": radius, "owner": field.get("owner")})
         for arrow in list(arrows):
             step_distance = math.hypot(arrow["vx"] * dt, arrow["vy"] * dt)
             arrow["x"] += arrow["vx"] * dt; arrow["y"] += arrow["vy"] * dt
@@ -1570,9 +2119,12 @@ async def world_tick() -> None:
                 if arrow["travelled"] >= float(arrow["max_distance"]):
                     arrow["life"] = 0
             shooter = players.get(arrow.get("owner"))
+            is_ability_arrow = arrow.get("kind") == "ability_arrow"
+            hit_ids = arrow.setdefault("hit_ids", []) if is_ability_arrow else []
             player_target = next((p for p in players.values()
                                   if arrow.get("kind") != "spell_projectile"
                                   and p["id"] != arrow.get("owner") and p["respawn_at"] <= now
+                                  and p["id"] not in hit_ids
                                   and zone_for_x(p["x"])["danger"] > 0
                                   and math.hypot(p["x"] - arrow["x"], p["y"] - arrow["y"]) < 28), None)
             if player_target and shooter and zone_for_x(shooter["x"])["danger"] > 0:
@@ -1580,13 +2132,19 @@ async def world_tick() -> None:
                 actual = max(1, round(arrow["damage"] * .72) - defense)
                 player_target["hp"] = max(0, player_target["hp"] - actual)
                 await send_event({"type": "pvp_hit", "attacker": shooter["id"], "id": player_target["id"],
-                                  "damage": actual, "x": player_target["x"], "y": player_target["y"]})
+                                  "damage": actual, "x": player_target["x"], "y": player_target["y"],
+                                  **({"element": arrow.get("element", "")} if is_ability_arrow else {})})
                 if player_target["hp"] <= 0:
                     player_target["respawn_at"] = now + 5
                     player_target["attack"] = None
                     player_target["gathering"] = None
                     await tell(player_target["id"], f"Ты пал в дуэли с {shooter['name']}. Через несколько секунд вернёшься в лагерь.")
                     await tell(shooter["id"], f"Победа в дуэли над {player_target['name']}!")
+                if is_ability_arrow:
+                    hit_ids.append(player_target["id"])
+                    arrow["pierce"] = int(arrow.get("pierce", 0)) - 1
+                    if arrow["pierce"] > 0:
+                        continue
                 arrows.remove(arrow)
                 continue
             safe_player = next((p for p in players.values() if p["id"] != arrow.get("owner")
@@ -1595,8 +2153,37 @@ async def world_tick() -> None:
             if safe_player:
                 arrows.remove(arrow)
                 continue
-            target = next((m for m in mobs if m["hp"] > 0 and math.hypot(m["x"] - arrow["x"], m["y"] - arrow["y"]) < (52 if m["boss"] else 30)), None)
+            target = next((m for m in mobs if m["hp"] > 0 and m["id"] not in hit_ids
+                           and math.hypot(m["x"] - arrow["x"], m["y"] - arrow["y"]) < (52 if m["boss"] else 30)), None)
             expired = arrow["life"] <= 0 or not (0 <= arrow["x"] <= WORLD_W and 0 <= arrow["y"] <= WORLD_H)
+            if is_ability_arrow and target:
+                owner = players.get(arrow.get("owner"))
+                if owner:
+                    spell_damage(owner, target, float(arrow["damage"]), now)
+                    element = str(arrow.get("element", "") or "")
+                    if element == "fire" and target["hp"] > 0:
+                        until = now + float(arrow.get("burn_duration", 0) or 0)
+                        # Igniting an already burning target refreshes the timer but never stacks
+                        # a second independent damage-over-time instance.
+                        if until > float(target.get("burn_until", 0) or 0):
+                            target["burn_until"] = until
+                        target["burn_next"] = min(float(target.get("burn_next", now) or now), now + .05)
+                        target["burn_owner"] = owner["id"]
+                        target["burn_damage"] = float(arrow.get("burn_damage", 1) or 1)
+                        target["burn_tick"] = float(arrow.get("burn_tick", .75) or .75)
+                        target["burn_until"] = max(float(target.get("burn_until", 0) or 0), until)
+                    elif element == "ice" and target["hp"] > 0:
+                        target["slow_until"] = now + float(arrow.get("slow_duration", 0) or 0)
+                        target["slow_factor"] = float(arrow.get("slow_factor", .45) or .45)
+                hit_ids.append(target["id"])
+                await send_event({"type": "ability_impact", "ability": "arrow", "element": arrow.get("element", ""),
+                                  "x": round(target["x"], 1), "y": round(target["y"], 1),
+                                  "owner": arrow.get("owner")})
+                arrow["pierce"] = int(arrow.get("pierce", 0)) - 1
+                if arrow["pierce"] > 0 and not expired:
+                    continue
+                arrows.remove(arrow)
+                continue
             if arrow.get("kind") == "spell_projectile" and (target or expired):
                 owner = players.get(arrow.get("owner")); spell_id = arrow.get("spell_id", "fireball")
                 if owner:
@@ -1667,6 +2254,8 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
          "enchantments": {"weapon": {}, "gear": {}}, "upgrades": {"weapon": {}, "gear": {}},
          "magic_mana_spent": 0, "market_starter_grant": False,
          "mana_regen_level": 0, "magic_damage_level": 0,
+         "class": None, "mastery": default_mastery(), "ability_cooldowns": {},
+         "roar_until": 0.0, "guard_until": 0.0, "ability_lock_until": 0.0,
          "dodge_at": 0.0, "dodge_until": 0.0, "weapon": "sword", "weapons": ["sword", "axe", "bow"],
          "gear": "traveler", "gear_inventory": [],
          "inventory": {"wood": 0, "herb": 0, "ore": 0, "hide": 0, "slime": 0, "crystal": 0, "shard": 0, "potion": 2, "arrows": 18},
@@ -1674,6 +2263,20 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
          "gathering": None, "last_chat": 0.0}
     saved = load_character(name)
     p.update(saved)
+    # Safe migration for old saves: missing class/mastery/cooldowns become neutral,
+    # while every existing level, item, spell and statistic is kept intact.
+    if p.get("class") not in CLASSES:
+        p["class"] = None
+    p["mastery"] = normalize_mastery(p.get("mastery"))
+    saved_cooldowns = p.get("ability_cooldowns") if isinstance(p.get("ability_cooldowns"), dict) else {}
+    p["ability_cooldowns"] = {
+        str(ability_id): time.monotonic() + max(0.0, min(300.0, float(remaining)))
+        for ability_id, remaining in saved_cooldowns.items()
+        if str(ability_id) in ABILITY_CATALOG
+    }
+    p["roar_until"] = 0.0
+    p["guard_until"] = 0.0
+    p["ability_lock_until"] = 0.0
     p["x"] = max(25.0, min(WORLD_W - 25.0, float(p["x"])))
     p["y"] = max(25.0, min(WORLD_H - 25.0, float(p["y"])))
     p["level"] = max(1, int(p.get("level", 1)))
@@ -1716,6 +2319,9 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     update_derived(p)
     players[pid] = p; clients[pid] = websocket
     await websocket.send_text(json.dumps(snapshot(pid), ensure_ascii=False))
+    if p["level"] >= CLASS_MIN_LEVEL and not p["class"]:
+        await send_event({"type": "class_offer", "target": pid, "level": p["level"],
+                          "classes": CLASSES})
     await send_event({"type": "notice", "text": f"{name} прибыл(а) в Лес Эхо."})
     try:
         while True:
