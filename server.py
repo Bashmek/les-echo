@@ -159,13 +159,14 @@ CLASSES = {
         "name": "Воин", "title": "Стальной клинок", "style": "Ближний бой",
         "description": "Держит удар в самой гуще схватки. Сила и живучесть выше, способности открываются по мере владения оружием.",
         "stat_bonus": {"might": 3, "vitality": 2},
-        "abilities": ["roar", "lunge", "whirlwind", "iron_guard"],
+        "abilities": ["roar", "lunge", "whirlwind", "iron_guard", "bash", "bloodhunt", "seismic_slam"],
     },
     "ranger": {
         "name": "Следопыт", "title": "Глаз бури", "style": "Дальний бой",
         "description": "Бьёт с дистанции и управляет полем боя. Ловкость и точность выше, стрелы получают стихийные эффекты.",
         "stat_bonus": {"agility": 3, "precision": 2},
-        "abilities": ["arrow_rain", "piercing_shot", "fire_arrow", "ice_arrow", "double_shot"],
+        "abilities": ["arrow_rain", "piercing_shot", "fire_arrow", "ice_arrow", "double_shot",
+                      "poison_arrow", "blackout_bolt", "eagle_mark"],
     },
     "mage": {
         "name": "Маг", "title": "Хранитель чар", "style": "Магия посоха",
@@ -208,9 +209,41 @@ ABILITY_CATALOG = {
                     "cost": 26, "arrows": 2, "cooldown": 6.5, "range": 760.0, "shots": 2,
                     "spread": 0.09, "mult": 0.78, "key": "KeyX",
                     "desc": "Выпускает две стрелы веером по направлению прицела."},
+    # Расширение воина: три дополнительные ближние техники.
+    "bash": {"tree": "warrior", "name": "Оглушающий удар", "icon": "⛨", "mastery": 2,
+             "cost": 17, "cooldown": 7.0, "radius": 95.0, "mult": 0.55,
+             "stun_duration": 1.6, "knockback": 70.0, "key": "KeyZ",
+             "desc": "Резкий выпад: оглушает ближайших врагов на 1,6 с и отбрасывает их назад."},
+    "bloodhunt": {"tree": "warrior", "name": "Жажда крови", "icon": "🩸", "mastery": 3,
+                  "cost": 15, "cooldown": 16.0, "duration": 6.0, "heal_per_hit": 12, "key": "KeyZ",
+                  "desc": "6 секунд каждый удар по врагу восстанавливает тебе 12 здоровья."},
+    "seismic_slam": {"tree": "warrior", "name": "Сейсмический удар", "icon": "☄", "mastery": 5,
+                    "cost": 26, "cooldown": 12.0, "radius": 135.0, "mult": 1.15,
+                    "slow_duration": 2.5, "slow_factor": 0.5, "key": "KeyZ",
+                    "desc": "Удар о землю: волна поражает всех вокруг и замедляет врагов на 2,5 с."},
+    # Расширение следопыта: три дополнительные дальнобойные техники.
+    "poison_arrow": {"tree": "ranger", "name": "Отравленная стрела", "icon": "☠", "mastery": 2,
+                     "cost": 14, "arrows": 1, "cooldown": 5.5, "range": 760.0, "pierce": 0, "mult": 0.9,
+                     "poison_duration": 4.0, "poison_tick": 0.8, "poison_mult": 0.14, "key": "KeyR",
+                     "desc": "Стрела впрыскивает яд: урон с течением времени в течение 4 секунд."},
+    "blackout_bolt": {"tree": "ranger", "name": "Ослепляющий выстрел", "icon": "◌", "mastery": 3,
+                      "cost": 17, "arrows": 1, "cooldown": 8.5, "range": 700.0, "pierce": 0, "mult": 0.85,
+                      "stun_duration": 1.8, "key": "KeyR",
+                      "desc": "Тёмный болт оглушает цель на 1,8 секунды и прерывает её атаки."},
+    "eagle_mark": {"tree": "ranger", "name": "Метка орла", "icon": "🦅", "mastery": 5,
+                   "cost": 12, "arrows": 0, "cooldown": 14.0, "range": 620.0,
+                   "duration": 8.0, "bonus_mult": 0.25, "key": "KeyR",
+                   "desc": "Метка на цели: 8 секунд весь твой урон по ней усилен на 25%."},
 }
 for _ability_id, _ability_spec in ABILITY_CATALOG.items():
     _ability_spec["id"] = _ability_id
+
+# Воин наносит удары на полтора раза дальше обычного ближнего боя.
+CLASS_MELEE_REACH = {"warrior": 1.5}
+
+
+def melee_reach_factor(p: dict[str, Any]) -> float:
+    return CLASS_MELEE_REACH.get(str(p.get("class") or ""), 1.0)
 
 MANA_GROWTH_COEF, MANA_GROWTH_CAP = 1.15, 90
 ELEMENT_FX = {
