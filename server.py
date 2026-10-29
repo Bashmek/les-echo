@@ -22,7 +22,7 @@ import uvicorn
 BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = BASE_DIR / "echo_saves.sqlite3"
 WORLD_W, WORLD_H = 12600, 7200
-TICK = 0.05
+TICK = 0.025
 MAX_PLAYERS = 8
 
 ZONES = [
@@ -243,7 +243,7 @@ CLASS_MELEE_REACH = {"warrior": 1.5}
 
 
 def melee_reach_factor(p: dict[str, Any]) -> float:
-    return CLASS_MELEE_REACH.get(str(p.get("class") or ""), 1.0)
+    return CLASS_MELEE_REACH.get(str(p.get("class") or ""), 1.5)
 
 MANA_GROWTH_COEF, MANA_GROWTH_CAP = 1.15, 90
 ELEMENT_FX = {
