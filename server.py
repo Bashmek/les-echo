@@ -24,6 +24,12 @@ DB_PATH = BASE_DIR / "echo_saves.sqlite3"
 WORLD_W, WORLD_H = 12600, 7200
 TICK = 0.025
 MAX_PLAYERS = 8
+# Молчание клиента дольше этого времени означает, что вкладка закрыта/уснула,
+# но TCP-соединение осталось «висеть» на сервере. Такой слот принудительно
+# освобождается (с сохранением персонажа), чтобы не забирать место у живых игроков.
+IDLE_TIMEOUT = 45.0
+CLEANUP_INTERVAL = 5.0
+HEARTBEAT_INTERVAL = 10.0
 
 ZONES = [
     {"id": "camp", "name": "Лагерь Следопытов", "x0": 0, "x1": 1400, "level": "Безопасная зона", "danger": 0},
@@ -256,6 +262,9 @@ app = FastAPI(title="Лес Эхо: Пробуждение")
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 players: dict[str, dict[str, Any]] = {}
 clients: dict[str, WebSocket] = {}
+# Heartbeat bookkeeping for the idle watchdog (see close_stale_clients).
+last_seen_at: dict[str, float] = {}
+last_ping_at: dict[str, float] = {}
 mobs: list[dict[str, Any]] = []
 nodes: list[dict[str, Any]] = []
 arrows: list[dict[str, Any]] = []
@@ -648,7 +657,8 @@ def player_row(pid: str, p: dict[str, Any], now: float) -> dict[str, Any]:
             "class_offer": p["level"] >= CLASS_MIN_LEVEL and not chosen_class,
             "class_compatible": class_compatible(p, tree), "action_tree": tree,
             "weapon_kind": weapon_kind(p), "mastery": mastery_view(p),
-            "abilities": abilities_view(p, now), "effects": player_effects(p, now),
+            "abilities": abilities_view(p, now), "spells": spells_view(p, now),
+            "effects": player_effects(p, now),
             "face_x": p["face_x"], "face_y": p["face_y"], "hp": p["hp"], "max_hp": p["max_hp"],
             "stamina": round(p["stamina"], 1), "max_stamina": p["max_stamina"],
             "mana": round(p.get("mana", 0), 1), "max_mana": p.get("max_mana", 0), "xp": p["xp"],
@@ -717,14 +727,96 @@ def snapshot(for_id: str) -> dict[str, Any]:
                                 for field in ground_effects]}
 
 
+def drop_client(pid: str, *, save: bool = True) -> dict[str, Any] | None:
+    """Remove a player from the live world and persist their progress.
+
+    Called both by the WebSocket handler (clean disconnect) and by the idle
+    watchdog (a tab was closed but the TCP connection stayed half-open).
+    Returns the removed player so the caller can announce the departure, or
+    ``None`` when the slot was already freed by someone else.
+    """
+    player = players.pop(pid, None)
+    clients.pop(pid, None)
+    last_seen_at.pop(pid, None)
+    last_ping_at.pop(pid, None)
+    if player is not None and save:
+        try:
+            save_character(player)
+        except sqlite3.Error:
+            pass
+    return player
+
+
+async def sweep_stale_clients() -> None:
+    """One watchdog pass: ping live sockets and evict silent ones."""
+    now = time.monotonic()
+    for pid, socket in list(clients.items()):
+        last_seen = float(last_seen_at.get(pid, now))
+        if now - last_seen > IDLE_TIMEOUT:
+            player = drop_client(pid)
+            if player is not None:
+                await send_event({"type": "notice",
+                                  "text": f"{player['name']} потерял(а) связь и был(а) "
+                                          f"выгружен(а) из мира."})
+            try:
+                await socket.send_json({"type": "kick",
+                                        "message": "Связь с миром потеряна — войди снова, чтобы продолжить."})
+            except Exception:
+                pass
+            try:
+                await socket.close(code=1000, reason="IDLE_TIMEOUT")
+            except Exception:
+                pass
+            continue
+        if now - float(last_ping_at.get(pid, 0)) >= HEARTBEAT_INTERVAL:
+            last_ping_at[pid] = now
+            try:
+                await socket.send_json({"type": "ping", "t": round(now, 2)})
+            except Exception:
+                # The transport is already broken: free the slot right away.
+                player = drop_client(pid)
+                if player is not None:
+                    await send_event({"type": "notice", "text": f"{player['name']} покинул(а) мир."})
+
+
+async def close_stale_clients_once() -> None:
+    """Immediate sweep used when the world looks full but someone wants in.
+
+    Ghost connections of closed tabs are usually older than the heartbeat
+    interval, so a quick double ping flushes their buffers and reveals the dead
+    transports; anything still silent afterwards gets evicted.
+    """
+    await sweep_stale_clients()
+    await asyncio.sleep(0.35)
+    await sweep_stale_clients()
+
+
+async def close_stale_clients() -> None:
+    """Periodically kick connections that stopped answering the heartbeat.
+
+    A browser tab that is closed (or a device that loses network) does not
+    always send a TCP FIN/RST, so the endpoint stays blocked in
+    ``receive_text()`` forever and keeps occupying one of the MAX_PLAYERS slots.
+    Every CLEANUP_INTERVAL we ping such sockets; when a client stays silent
+    longer than IDLE_TIMEOUT we force-close it and free its slot.
+    """
+    while True:
+        await asyncio.sleep(CLEANUP_INTERVAL)
+        await sweep_stale_clients()
+
+
 async def send_event(event: dict[str, Any]) -> None:
     payload = json.dumps(event, ensure_ascii=False)
     for pid, socket in list(clients.items()):
         try:
             await socket.send_text(payload)
         except Exception:
-            clients.pop(pid, None)
-            players.pop(pid, None)
+            # Broken transport: free the world slot instead of leaving a ghost.
+            drop_client(pid)
+
+
+async def announce_departure(name: str) -> None:
+    await send_event({"type": "notice", "text": f"{name} покинул(а) мир."})
 
 
 async def tell(pid: str, text: str) -> None:
@@ -866,9 +958,18 @@ def class_compatible(p: dict[str, Any], tree: str | None = None) -> bool:
     tree = tree or action_tree(p)
     chosen = p.get("class")
     if not chosen:
-        # Before the class choice the old spell system stays available with any weapon.
-        return tree == "mage"
+        # No qualification yet: nothing is available — neither abilities nor magic.
+        return False
     return chosen == tree
+
+
+def spells_allowed(p: dict[str, Any]) -> tuple[bool, str]:
+    """Magic is reserved for the Mage qualification (server side gate)."""
+    if p.get("class") != "mage":
+        return False, "Сначала выбери квалификацию «Маг» — заклинания доступны только магам."
+    if weapon_kind(p) != "staff":
+        return False, "Для заклинаний нужен посох. Сейчас в руках другое оружие."
+    return True, ""
 
 
 def player_effects(p: dict[str, Any], now: float) -> list[dict[str, Any]]:
@@ -1368,6 +1469,43 @@ def spell_cooldown_seconds(p: dict[str, Any], spell_id: str) -> float:
     return round(float(spec.get("cooldown", 0)) * (1 - .04 * (mastery - 1)), 2)
 
 
+SPELL_ICONS = {"fireball": "✦", "lightning": "ϟ", "heal": "✚", "thorns": "❖", "ice_lance": "❄",
+               "arcane_burst": "◉", "meteor": "☄", "frost_nova": "✧", "shadow_bolt": "◈"}
+
+
+def spells_view(p: dict[str, Any], now: float) -> dict[str, dict[str, Any]]:
+    """Spell deck for the Mage, shaped like abilities_view() so the client can render
+    every spell as a card with name, icon, key, cost, cooldown and unlock conditions."""
+    allowed, reason = spells_allowed(p)
+    catalog = all_spells(p)
+    cooldowns = p.get("spell_cooldowns", {}) if isinstance(p.get("spell_cooldowns"), dict) else {}
+    order = list(SPELLS) + [sid for sid in catalog if sid not in SPELLS]
+    result: dict[str, dict[str, Any]] = {}
+    for spell_id in order:
+        spec = catalog.get(spell_id)
+        if not isinstance(spec, dict):
+            continue
+        until = float(cooldowns.get(spell_id, 0) or 0)
+        is_custom = str(spell_id).startswith("custom_")
+        result[spell_id] = {
+            "id": spell_id, "tree": "mage", "name": spec.get("name", spell_id),
+            "icon": spec.get("icon") or SPELL_ICONS.get(spell_id, "✧" if is_custom else "✦"),
+            "kind": spec.get("kind", "Аркана"), "rarity": int(spec.get("rarity", 1) or 1),
+            "desc": f"{spec.get('kind', 'Аркана')} · {'лечение' if spec.get('heal') else 'урон'} "
+                    f"{int(spec.get('heal') or spec.get('damage') or 0)} · область {int(spec.get('radius', 0) or 0)}",
+            "cost": int(spec.get("mana", 0)), "key": spec.get("key", "") if is_custom else "",
+            "unlocked": spell_unlocked(p, spell_id), "allowed": allowed, "reason": reason,
+            "unlock_level": int(spec.get("unlock_level", 1) or 1),
+            "unlock_spent": int(spec.get("unlock_spent", 0) or 0),
+            "level": spell_mastery_level(p, spell_id),
+            "uses": int(p.get("spell_uses", {}).get(spell_id, 0) or 0),
+            "cooldown": spell_cooldown_seconds(p, spell_id),
+            "remaining": max(0.0, round(until - now, 2)),
+            "crafted": bool(is_custom or spec.get("crafted")),
+        }
+    return result
+
+
 def item_upgrade_level(p: dict[str, Any], target: str, item_id: str) -> int:
     return max(0, min(MAX_ITEM_UPGRADE,
                       int(p.get("upgrades", {}).get(target, {}).get(item_id, 0))))
@@ -1641,6 +1779,12 @@ async def choose_class(p: dict[str, Any], msg: dict[str, Any]) -> None:
         await tell(p["id"], "Неизвестный класс. Выбери Воина, Следопыта или Мага.")
         return
     p["class"] = chosen
+    if chosen == "mage":
+        # A Mage is nothing without a staff: grant and equip one so the spell deck
+        # becomes usable right after the qualification is picked.
+        if "apprentice_staff" not in p["weapons"]:
+            p["weapons"].append("apprentice_staff")
+        p["weapon"] = "apprentice_staff"
     bonus = CLASSES[chosen].get("stat_bonus", {})
     bonus_total = sum(max(0, min(20, int(value))) for value in bonus.values())
     # The class grants a one-time bundle of development points; the signature
@@ -1926,14 +2070,12 @@ async def use_ability(p: dict[str, Any], now: float, ability_id: str, aim_x: flo
 
 async def cast_spell(p: dict[str, Any], now: float, spell_id: str, aim_x: float, aim_y: float,
                      target_x: float | None = None, target_y: float | None = None) -> None:
+    allowed, reason = spells_allowed(p)
     catalog = all_spells(p)
     spec = catalog.get(spell_id)
     if not spec: await tell(p["id"], "Неизвестное заклинание."); return
-    if p.get("class") and p.get("class") != "mage":
-        await tell(p["id"], "Заклинания доступны классу «Маг». Воин и Следопыт используют свои боевые способности.")
-        return
-    if p.get("class") == "mage" and weapon_kind(p) != "staff":
-        await tell(p["id"], "Для заклинаний нужен посох. Сейчас в руках другое оружие.")
+    if not allowed:
+        await tell(p["id"], reason)
         return
     if not spell_unlocked(p, spell_id):
         await tell(p["id"], f"Заклинание откроется на уровне {spec['unlock_level']} после расхода {spec['unlock_spent']} маны. Потрачено: {int(p.get('magic_mana_spent', 0))}."); return
@@ -2045,6 +2187,9 @@ def name_spell_profile(name: str) -> dict[str, Any]:
 
 
 async def create_custom_spell(p: dict[str, Any], msg: dict[str, Any]) -> None:
+    allowed, reason = spells_allowed(p)
+    if not allowed:
+        await tell(p["id"], reason + " Сотворение чар доступно только Магу."); return
     learned = all_spells(p)
     a, b = str(msg.get("a", "")), str(msg.get("b", ""))
     name = " ".join(str(msg.get("name", "")).strip().split())[:28]
@@ -2796,7 +2941,9 @@ async def world_tick() -> None:
         if clients:
             for pid, ws in list(clients.items()):
                 try: await ws.send_text(json.dumps(snapshot(pid), ensure_ascii=False))
-                except Exception: pass
+                except Exception:
+                    # Соединение сломано — освобождаем слот сразу, не дожидаясь watchdog'а.
+                    drop_client(pid)
         await asyncio.sleep(TICK)
 
 
@@ -2804,12 +2951,16 @@ async def world_tick() -> None:
 async def startup() -> None:
     init_database()
     app.state.tick_task = asyncio.create_task(world_tick())
+    # Watchdog: закрывает «висячие» соединения закрытых вкладок, чтобы они
+    # не удерживали персонажей в мире и не занимали слоты MAX_PLAYERS.
+    app.state.cleanup_task = asyncio.create_task(close_stale_clients())
 
 
 @app.on_event("shutdown")
 async def shutdown() -> None:
-    task = getattr(app.state, "tick_task", None)
-    if task: task.cancel()
+    for attribute in ("tick_task", "cleanup_task"):
+        task = getattr(app.state, attribute, None)
+        if task: task.cancel()
 
 
 @app.post("/api/stats/upgrade")
@@ -2853,6 +3004,10 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
         await websocket.close(code=1008, reason="AUTH_REQUIRED")
         return
     await websocket.accept()
+    if len(players) >= MAX_PLAYERS:
+        # Мир «полон» из-за призраков — закрытые вкладки, чьи TCP-соединения
+        # остались висеть. Освобождаем протухшие слоты и пробуем пустить игрока.
+        await close_stale_clients_once()
     if len(players) >= MAX_PLAYERS:
         await websocket.send_text(json.dumps({"type": "error", "message": "Мир полон. Максимум 8 следопытов."}, ensure_ascii=False))
         await websocket.close(code=1008); return
@@ -2931,6 +3086,7 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     p["quest_stage"] = max(0, min(len(QUESTS), int(p["quest_stage"])))
     update_derived(p)
     players[pid] = p; clients[pid] = websocket
+    last_seen_at[pid] = time.monotonic(); last_ping_at[pid] = 0.0
     await websocket.send_text(json.dumps(snapshot(pid), ensure_ascii=False))
     if p["level"] >= CLASS_MIN_LEVEL and not p["class"]:
         await send_event({"type": "class_offer", "target": pid, "level": p["level"],
@@ -2939,20 +3095,23 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     try:
         while True:
             raw = await websocket.receive_text()
+            # Любая активность клиента (включая автоматический 'pong' на heartbeat)
+            # подтверждает, что вкладка жива — обновляем отметку для watchdog'а.
+            last_seen_at[pid] = time.monotonic()
             if len(raw) > 2048: continue
             try: message = json.loads(raw)
             except json.JSONDecodeError: continue
-            if isinstance(message, dict): await handle_message(pid, p, message, time.monotonic())
+            if isinstance(message, dict):
+                kind = message.get("type")
+                if kind == "pong":
+                    continue  # heartbeat answer — only refreshes last_seen_at
+                await handle_message(pid, p, message, time.monotonic())
     except WebSocketDisconnect:
         pass
     finally:
-        if pid in players:
-            try:
-                save_character(players[pid])
-            except sqlite3.Error:
-                pass
-        clients.pop(pid, None); players.pop(pid, None)
-        await send_event({"type": "notice", "text": f"{name} покинул(а) мир."})
+        departed = drop_client(pid)
+        if departed is not None:
+            await send_event({"type": "notice", "text": f"{name} покинул(а) мир."})
 
 
 if __name__ == "__main__":
