@@ -734,8 +734,10 @@ async def tell(pid: str, text: str) -> None:
 def broadcast(event: dict[str, Any]) -> None:
     """Fire-and-forget an event without crashing outside the running loop."""
     try:
-        broadcast(event)
+        asyncio.get_running_loop().create_task(send_event(event))
     except RuntimeError:
+        # No event loop here (e.g. called from a login/reconcile path): the
+        # player will receive fresh data with the next full snapshot anyway.
         pass
 
 
