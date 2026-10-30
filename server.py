@@ -475,7 +475,7 @@ async def auth_me(request: Request) -> dict[str, Any]:
     token = request.cookies.get("echo_session")
     account = _account_for_token(token)
     return {"authenticated": bool(account), "username": account["username"] if account else None,
-            "accounts": browser_account_roster(token)}
+            "accounts": browser_account_roster(_browser_marker(request))}
 
 
 @app.post("/api/auth/switch")
@@ -487,10 +487,9 @@ async def auth_switch(request: Request, response: Response) -> dict[str, Any]:
     switch so a shared or unattended browser cannot be used to jump into
     someone else's character.
     """
-    token = request.cookies.get("echo_session")
-    if not token or len(token) > 200:
+    browser_id = _browser_marker(request)
+    if not browser_id:
         raise HTTPException(status_code=401, detail="Требуется вход в аккаунт.")
-    browser_id = hashlib.sha256(("echo-browser|" + token).encode("utf-8")).hexdigest()[:16]
     try:
         payload = await request.json()
     except Exception:
@@ -518,6 +517,7 @@ async def auth_switch(request: Request, response: Response) -> dict[str, Any]:
         raise HTTPException(status_code=401, detail="Неверный пароль для этого аккаунта.")
     # Keep the old session alive so switching back stays possible; issue a new cookie.
     _issue_session(wanted[0], request, response)
+    _set_browser_marker(response, request)
     return {"ok": True, "username": wanted[1]}
 
 
@@ -540,6 +540,7 @@ async def auth_register(request: Request, response: Response) -> dict[str, Any]:
     except sqlite3.IntegrityError:
         raise HTTPException(status_code=409, detail="Это имя уже занято. Выберите другое или войдите.")
     _issue_session(username_key, request, response)
+    _set_browser_marker(response, request)
     return {"ok": True, "username": username}
 
 
@@ -569,6 +570,7 @@ async def auth_login(request: Request, response: Response) -> dict[str, Any]:
     if not hmac.compare_digest(_password_hash(password, salt).hex(), row[1]):
         raise HTTPException(status_code=401, detail="Неверное имя пользователя или пароль.")
     _issue_session(username_key, request, response)
+    _set_browser_marker(response, request)
     return {"ok": True, "username": row[2]}
 
 
@@ -2195,6 +2197,20 @@ def _account_for_token(token: str | None) -> dict[str, str] | None:
     return {"username": row[0], "username_key": row[1]} if row else None
 
 
+def _browser_marker(request: Request) -> str | None:
+    """Stable per-browser id derived from the persistent echo_browser cookie."""
+    marker = request.cookies.get("echo_browser")
+    if not marker or len(marker) > 64 or not re.fullmatch(r"[A-Za-z0-9_-]+", marker):
+        return None
+    return marker
+
+
+def _set_browser_marker(response: Response, request: Request) -> None:
+    marker = _browser_marker(request) or secrets.token_urlsafe(24)
+    response.set_cookie("echo_browser", marker, max_age=400 * 86400,
+                        secure=request.url.scheme == "https", samesite="lax", path="/")
+
+
 def _issue_session(username_key: str, request: Request, response: Response) -> None:
     token = secrets.token_urlsafe(32)
     token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
@@ -2202,24 +2218,29 @@ def _issue_session(username_key: str, request: Request, response: Response) -> N
     with sqlite3.connect(DB_PATH) as connection:
         # Remember every session this browser has signed into (max 6), so the
         # account-switch menu can list them later. Sessions for other players'
-        # browsers live under different cookie values and stay invisible here.
+        # browsers live under different markers and stay invisible here.
         connection.execute(
             "CREATE TABLE IF NOT EXISTS browser_sessions ("
             "browser_id TEXT NOT NULL, username_key TEXT NOT NULL, last_seen INTEGER NOT NULL, "
             "PRIMARY KEY(browser_id, username_key))"
         )
-        # Stable per-browser marker: derived from the previous session cookie,
-        # so re-logins and switches from the same browser share one roster.
-        previous_token = request.cookies.get("echo_session")
-        if previous_token and len(previous_token) <= 200:
-            browser_id = hashlib.sha256(("echo-browser|" + previous_token).encode("utf-8")).hexdigest()[:16]
-        else:
-            browser_id = secrets.token_hex(8)
+        # Stable per-browser marker: a long-lived non-httpOnly cookie that
+        # survives logout and session expiry, so the roster keeps working even
+        # after the player signs out of every account in this browser.
+        browser_id = _browser_marker(request)
+        if not browser_id:
+            browser_id = secrets.token_urlsafe(24)
+            response.set_cookie("echo_browser", browser_id, max_age=400 * 86400,
+                                secure=request.url.scheme == "https", samesite="lax", path="/")
         connection.execute(
             "DELETE FROM browser_sessions WHERE last_seen<?", (int(time.time()) - SESSION_SECONDS,)
         )
-        if connection.execute("SELECT COUNT(*) FROM browser_sessions WHERE browser_id=?",
-                              (browser_id,)).fetchone()[0] >= 6:
+        if not connection.execute(
+            "SELECT 1 FROM browser_sessions WHERE browser_id=? AND username_key=?",
+            (browser_id, username_key)
+        ).fetchone() and connection.execute(
+            "SELECT COUNT(*) FROM browser_sessions WHERE browser_id=?", (browser_id,)
+        ).fetchone()[0] >= 6:
             raise HTTPException(status_code=400, detail="Слишком много аккаунтов в этом браузере.")
         connection.execute(
             "INSERT OR REPLACE INTO browser_sessions(browser_id, username_key, last_seen) VALUES (?, ?, ?)",
@@ -2259,15 +2280,14 @@ def load_character(name: str) -> dict[str, Any]:
     return {}
 
 
-def browser_account_roster(token: str | None) -> list[dict[str, Any]]:
+def browser_account_roster(browser_id: str | None) -> list[dict[str, Any]]:
     """Accounts this browser signed into, with level/class from their saves.
 
     Reads only the browser_sessions rows keyed by this browser's marker, so
     accounts belonging to other players are never listed here.
     """
-    if not token or len(token) > 200:
+    if not browser_id:
         return []
-    browser_id = hashlib.sha256(("echo-browser|" + token).encode("utf-8")).hexdigest()[:16]
     roster: list[dict[str, Any]] = []
     try:
         with sqlite3.connect(DB_PATH) as connection:
