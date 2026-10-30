@@ -2153,6 +2153,21 @@ async def handle_message(pid: str, p: dict[str, Any], msg: dict[str, Any], now: 
             await tell(pid, "Настойка восстановила здоровье.")
     elif kind == "upgrade":
         stat = str(msg.get("stat", ""))
+        # The client is authoritative only about WHICH stat; caps are enforced here.
+        stat_caps = {"might": 50, "vitality": 50, "agility": 50,
+                     "precision": 13, "fortune": 9,
+                     "mana_regen": 20, "magic_damage": 20}
+        if stat not in stat_caps:
+            await tell(pid, "Неизвестная характеристика для улучшения.")
+            return
+        if stat in {"mana_regen", "magic_damage"}:
+            current_level = int(p.get("mana_regen_level" if stat == "mana_regen"
+                                      else "magic_damage_level", 0))
+        else:
+            current_level = int(p["stats"].get(stat, 1))
+        if current_level >= stat_caps[stat]:
+            await tell(pid, "Эта характеристика уже достигла предела.")
+            return
         upgraded = False
         if stat in p["stats"] and p["skill_points"] > 0:
             p["stats"][stat] = int(p["stats"].get(stat, 1)) + 1; p["skill_points"] -= 1
@@ -2174,6 +2189,10 @@ async def handle_message(pid: str, p: dict[str, Any], msg: dict[str, Any], now: 
             try: save_character(p)
             except sqlite3.Error: pass
             await send_event(stats_updated_event(pid, p))
+    elif kind == "upgrade_http":
+        # Резервный путь применения очков развития (если WebSocket-событие потерялось).
+        stat = str(msg.get("stat", ""))
+        await handle_message(pid, p, {"type": "upgrade", "stat": stat}, now)
     elif kind == "dodge":
         if now >= p["dodge_at"] and p["stamina"] >= 24 and p["respawn_at"] <= now:
             dx, dy = p["mx"], p["my"]
