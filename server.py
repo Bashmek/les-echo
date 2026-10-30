@@ -648,7 +648,8 @@ def player_row(pid: str, p: dict[str, Any], now: float) -> dict[str, Any]:
             "class_offer": p["level"] >= CLASS_MIN_LEVEL and not chosen_class,
             "class_compatible": class_compatible(p, tree), "action_tree": tree,
             "weapon_kind": weapon_kind(p), "mastery": mastery_view(p),
-            "abilities": abilities_view(p, now), "effects": player_effects(p, now),
+            "abilities": abilities_view(p, now), "spells": spells_view(p, now),
+            "effects": player_effects(p, now),
             "face_x": p["face_x"], "face_y": p["face_y"], "hp": p["hp"], "max_hp": p["max_hp"],
             "stamina": round(p["stamina"], 1), "max_stamina": p["max_stamina"],
             "mana": round(p.get("mana", 0), 1), "max_mana": p.get("max_mana", 0), "xp": p["xp"],
@@ -866,9 +867,18 @@ def class_compatible(p: dict[str, Any], tree: str | None = None) -> bool:
     tree = tree or action_tree(p)
     chosen = p.get("class")
     if not chosen:
-        # Before the class choice the old spell system stays available with any weapon.
-        return tree == "mage"
+        # No qualification yet: nothing is available — neither abilities nor magic.
+        return False
     return chosen == tree
+
+
+def spells_allowed(p: dict[str, Any]) -> tuple[bool, str]:
+    """Magic is reserved for the Mage qualification (server side gate)."""
+    if p.get("class") != "mage":
+        return False, "Сначала выбери квалификацию «Маг» — заклинания доступны только магам."
+    if weapon_kind(p) != "staff":
+        return False, "Для заклинаний нужен посох. Сейчас в руках другое оружие."
+    return True, ""
 
 
 def player_effects(p: dict[str, Any], now: float) -> list[dict[str, Any]]:
@@ -1368,6 +1378,43 @@ def spell_cooldown_seconds(p: dict[str, Any], spell_id: str) -> float:
     return round(float(spec.get("cooldown", 0)) * (1 - .04 * (mastery - 1)), 2)
 
 
+SPELL_ICONS = {"fireball": "✦", "lightning": "ϟ", "heal": "✚", "thorns": "❖", "ice_lance": "❄",
+               "arcane_burst": "◉", "meteor": "☄", "frost_nova": "✧", "shadow_bolt": "◈"}
+
+
+def spells_view(p: dict[str, Any], now: float) -> dict[str, dict[str, Any]]:
+    """Spell deck for the Mage, shaped like abilities_view() so the client can render
+    every spell as a card with name, icon, key, cost, cooldown and unlock conditions."""
+    allowed, reason = spells_allowed(p)
+    catalog = all_spells(p)
+    cooldowns = p.get("spell_cooldowns", {}) if isinstance(p.get("spell_cooldowns"), dict) else {}
+    order = list(SPELLS) + [sid for sid in catalog if sid not in SPELLS]
+    result: dict[str, dict[str, Any]] = {}
+    for spell_id in order:
+        spec = catalog.get(spell_id)
+        if not isinstance(spec, dict):
+            continue
+        until = float(cooldowns.get(spell_id, 0) or 0)
+        is_custom = str(spell_id).startswith("custom_")
+        result[spell_id] = {
+            "id": spell_id, "tree": "mage", "name": spec.get("name", spell_id),
+            "icon": spec.get("icon") or SPELL_ICONS.get(spell_id, "✧" if is_custom else "✦"),
+            "kind": spec.get("kind", "Аркана"), "rarity": int(spec.get("rarity", 1) or 1),
+            "desc": f"{spec.get('kind', 'Аркана')} · {'лечение' if spec.get('heal') else 'урон'} "
+                    f"{int(spec.get('heal') or spec.get('damage') or 0)} · область {int(spec.get('radius', 0) or 0)}",
+            "cost": int(spec.get("mana", 0)), "key": spec.get("key", "") if is_custom else "",
+            "unlocked": spell_unlocked(p, spell_id), "allowed": allowed, "reason": reason,
+            "unlock_level": int(spec.get("unlock_level", 1) or 1),
+            "unlock_spent": int(spec.get("unlock_spent", 0) or 0),
+            "level": spell_mastery_level(p, spell_id),
+            "uses": int(p.get("spell_uses", {}).get(spell_id, 0) or 0),
+            "cooldown": spell_cooldown_seconds(p, spell_id),
+            "remaining": max(0.0, round(until - now, 2)),
+            "crafted": bool(is_custom or spec.get("crafted")),
+        }
+    return result
+
+
 def item_upgrade_level(p: dict[str, Any], target: str, item_id: str) -> int:
     return max(0, min(MAX_ITEM_UPGRADE,
                       int(p.get("upgrades", {}).get(target, {}).get(item_id, 0))))
@@ -1641,6 +1688,12 @@ async def choose_class(p: dict[str, Any], msg: dict[str, Any]) -> None:
         await tell(p["id"], "Неизвестный класс. Выбери Воина, Следопыта или Мага.")
         return
     p["class"] = chosen
+    if chosen == "mage":
+        # A Mage is nothing without a staff: grant and equip one so the spell deck
+        # becomes usable right after the qualification is picked.
+        if "apprentice_staff" not in p["weapons"]:
+            p["weapons"].append("apprentice_staff")
+        p["weapon"] = "apprentice_staff"
     bonus = CLASSES[chosen].get("stat_bonus", {})
     bonus_total = sum(max(0, min(20, int(value))) for value in bonus.values())
     # The class grants a one-time bundle of development points; the signature
@@ -1926,14 +1979,12 @@ async def use_ability(p: dict[str, Any], now: float, ability_id: str, aim_x: flo
 
 async def cast_spell(p: dict[str, Any], now: float, spell_id: str, aim_x: float, aim_y: float,
                      target_x: float | None = None, target_y: float | None = None) -> None:
+    allowed, reason = spells_allowed(p)
     catalog = all_spells(p)
     spec = catalog.get(spell_id)
     if not spec: await tell(p["id"], "Неизвестное заклинание."); return
-    if p.get("class") and p.get("class") != "mage":
-        await tell(p["id"], "Заклинания доступны классу «Маг». Воин и Следопыт используют свои боевые способности.")
-        return
-    if p.get("class") == "mage" and weapon_kind(p) != "staff":
-        await tell(p["id"], "Для заклинаний нужен посох. Сейчас в руках другое оружие.")
+    if not allowed:
+        await tell(p["id"], reason)
         return
     if not spell_unlocked(p, spell_id):
         await tell(p["id"], f"Заклинание откроется на уровне {spec['unlock_level']} после расхода {spec['unlock_spent']} маны. Потрачено: {int(p.get('magic_mana_spent', 0))}."); return
@@ -2045,6 +2096,9 @@ def name_spell_profile(name: str) -> dict[str, Any]:
 
 
 async def create_custom_spell(p: dict[str, Any], msg: dict[str, Any]) -> None:
+    allowed, reason = spells_allowed(p)
+    if not allowed:
+        await tell(p["id"], reason + " Сотворение чар доступно только Магу."); return
     learned = all_spells(p)
     a, b = str(msg.get("a", "")), str(msg.get("b", ""))
     name = " ".join(str(msg.get("name", "")).strip().split())[:28]
