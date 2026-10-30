@@ -24,6 +24,12 @@ DB_PATH = BASE_DIR / "echo_saves.sqlite3"
 WORLD_W, WORLD_H = 12600, 7200
 TICK = 0.025
 MAX_PLAYERS = 8
+# Молчание клиента дольше этого времени означает, что вкладка закрыта/уснула,
+# но TCP-соединение осталось «висеть» на сервере. Такой слот принудительно
+# освобождается (с сохранением персонажа), чтобы не забирать место у живых игроков.
+IDLE_TIMEOUT = 45.0
+CLEANUP_INTERVAL = 5.0
+HEARTBEAT_INTERVAL = 10.0
 
 ZONES = [
     {"id": "camp", "name": "Лагерь Следопытов", "x0": 0, "x1": 1400, "level": "Безопасная зона", "danger": 0},
@@ -256,6 +262,9 @@ app = FastAPI(title="Лес Эхо: Пробуждение")
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 players: dict[str, dict[str, Any]] = {}
 clients: dict[str, WebSocket] = {}
+# Heartbeat bookkeeping for the idle watchdog (see close_stale_clients).
+last_seen_at: dict[str, float] = {}
+last_ping_at: dict[str, float] = {}
 mobs: list[dict[str, Any]] = []
 nodes: list[dict[str, Any]] = []
 arrows: list[dict[str, Any]] = []
@@ -718,14 +727,96 @@ def snapshot(for_id: str) -> dict[str, Any]:
                                 for field in ground_effects]}
 
 
+def drop_client(pid: str, *, save: bool = True) -> dict[str, Any] | None:
+    """Remove a player from the live world and persist their progress.
+
+    Called both by the WebSocket handler (clean disconnect) and by the idle
+    watchdog (a tab was closed but the TCP connection stayed half-open).
+    Returns the removed player so the caller can announce the departure, or
+    ``None`` when the slot was already freed by someone else.
+    """
+    player = players.pop(pid, None)
+    clients.pop(pid, None)
+    last_seen_at.pop(pid, None)
+    last_ping_at.pop(pid, None)
+    if player is not None and save:
+        try:
+            save_character(player)
+        except sqlite3.Error:
+            pass
+    return player
+
+
+async def sweep_stale_clients() -> None:
+    """One watchdog pass: ping live sockets and evict silent ones."""
+    now = time.monotonic()
+    for pid, socket in list(clients.items()):
+        last_seen = float(last_seen_at.get(pid, now))
+        if now - last_seen > IDLE_TIMEOUT:
+            player = drop_client(pid)
+            if player is not None:
+                await send_event({"type": "notice",
+                                  "text": f"{player['name']} потерял(а) связь и был(а) "
+                                          f"выгружен(а) из мира."})
+            try:
+                await socket.send_json({"type": "kick",
+                                        "message": "Связь с миром потеряна — войди снова, чтобы продолжить."})
+            except Exception:
+                pass
+            try:
+                await socket.close(code=1000, reason="IDLE_TIMEOUT")
+            except Exception:
+                pass
+            continue
+        if now - float(last_ping_at.get(pid, 0)) >= HEARTBEAT_INTERVAL:
+            last_ping_at[pid] = now
+            try:
+                await socket.send_json({"type": "ping", "t": round(now, 2)})
+            except Exception:
+                # The transport is already broken: free the slot right away.
+                player = drop_client(pid)
+                if player is not None:
+                    await send_event({"type": "notice", "text": f"{player['name']} покинул(а) мир."})
+
+
+async def close_stale_clients_once() -> None:
+    """Immediate sweep used when the world looks full but someone wants in.
+
+    Ghost connections of closed tabs are usually older than the heartbeat
+    interval, so a quick double ping flushes their buffers and reveals the dead
+    transports; anything still silent afterwards gets evicted.
+    """
+    await sweep_stale_clients()
+    await asyncio.sleep(0.35)
+    await sweep_stale_clients()
+
+
+async def close_stale_clients() -> None:
+    """Periodically kick connections that stopped answering the heartbeat.
+
+    A browser tab that is closed (or a device that loses network) does not
+    always send a TCP FIN/RST, so the endpoint stays blocked in
+    ``receive_text()`` forever and keeps occupying one of the MAX_PLAYERS slots.
+    Every CLEANUP_INTERVAL we ping such sockets; when a client stays silent
+    longer than IDLE_TIMEOUT we force-close it and free its slot.
+    """
+    while True:
+        await asyncio.sleep(CLEANUP_INTERVAL)
+        await sweep_stale_clients()
+
+
 async def send_event(event: dict[str, Any]) -> None:
     payload = json.dumps(event, ensure_ascii=False)
     for pid, socket in list(clients.items()):
         try:
             await socket.send_text(payload)
         except Exception:
-            clients.pop(pid, None)
-            players.pop(pid, None)
+            # Broken transport: free the world slot instead of leaving a ghost.
+            drop_client(pid)
+
+
+async def announce_departure(name: str) -> None:
+    await send_event({"type": "notice", "text": f"{name} покинул(а) мир."})
 
 
 async def tell(pid: str, text: str) -> None:
@@ -2850,7 +2941,9 @@ async def world_tick() -> None:
         if clients:
             for pid, ws in list(clients.items()):
                 try: await ws.send_text(json.dumps(snapshot(pid), ensure_ascii=False))
-                except Exception: pass
+                except Exception:
+                    # Соединение сломано — освобождаем слот сразу, не дожидаясь watchdog'а.
+                    drop_client(pid)
         await asyncio.sleep(TICK)
 
 
@@ -2858,12 +2951,16 @@ async def world_tick() -> None:
 async def startup() -> None:
     init_database()
     app.state.tick_task = asyncio.create_task(world_tick())
+    # Watchdog: закрывает «висячие» соединения закрытых вкладок, чтобы они
+    # не удерживали персонажей в мире и не занимали слоты MAX_PLAYERS.
+    app.state.cleanup_task = asyncio.create_task(close_stale_clients())
 
 
 @app.on_event("shutdown")
 async def shutdown() -> None:
-    task = getattr(app.state, "tick_task", None)
-    if task: task.cancel()
+    for attribute in ("tick_task", "cleanup_task"):
+        task = getattr(app.state, attribute, None)
+        if task: task.cancel()
 
 
 @app.post("/api/stats/upgrade")
@@ -2907,6 +3004,10 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
         await websocket.close(code=1008, reason="AUTH_REQUIRED")
         return
     await websocket.accept()
+    if len(players) >= MAX_PLAYERS:
+        # Мир «полон» из-за призраков — закрытые вкладки, чьи TCP-соединения
+        # остались висеть. Освобождаем протухшие слоты и пробуем пустить игрока.
+        await close_stale_clients_once()
     if len(players) >= MAX_PLAYERS:
         await websocket.send_text(json.dumps({"type": "error", "message": "Мир полон. Максимум 8 следопытов."}, ensure_ascii=False))
         await websocket.close(code=1008); return
@@ -2985,6 +3086,7 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     p["quest_stage"] = max(0, min(len(QUESTS), int(p["quest_stage"])))
     update_derived(p)
     players[pid] = p; clients[pid] = websocket
+    last_seen_at[pid] = time.monotonic(); last_ping_at[pid] = 0.0
     await websocket.send_text(json.dumps(snapshot(pid), ensure_ascii=False))
     if p["level"] >= CLASS_MIN_LEVEL and not p["class"]:
         await send_event({"type": "class_offer", "target": pid, "level": p["level"],
@@ -2993,20 +3095,23 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     try:
         while True:
             raw = await websocket.receive_text()
+            # Любая активность клиента (включая автоматический 'pong' на heartbeat)
+            # подтверждает, что вкладка жива — обновляем отметку для watchdog'а.
+            last_seen_at[pid] = time.monotonic()
             if len(raw) > 2048: continue
             try: message = json.loads(raw)
             except json.JSONDecodeError: continue
-            if isinstance(message, dict): await handle_message(pid, p, message, time.monotonic())
+            if isinstance(message, dict):
+                kind = message.get("type")
+                if kind == "pong":
+                    continue  # heartbeat answer — only refreshes last_seen_at
+                await handle_message(pid, p, message, time.monotonic())
     except WebSocketDisconnect:
         pass
     finally:
-        if pid in players:
-            try:
-                save_character(players[pid])
-            except sqlite3.Error:
-                pass
-        clients.pop(pid, None); players.pop(pid, None)
-        await send_event({"type": "notice", "text": f"{name} покинул(а) мир."})
+        departed = drop_client(pid)
+        if departed is not None:
+            await send_event({"type": "notice", "text": f"{name} покинул(а) мир."})
 
 
 if __name__ == "__main__":
