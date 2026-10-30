@@ -280,6 +280,10 @@ SPELLS = {
     "meteor": {"name": "Метеоритный дождь", "kind": "Звёзды", "rarity": 4, "mana": 58, "cooldown": 12.0, "damage": 132, "radius": 172, "unlock_spent": 500, "unlock_level": 8},
     "frost_nova": {"name": "Кольцо инея", "kind": "Лёд", "rarity": 2, "mana": 32, "cooldown": 8.0, "damage": 65, "radius": 142, "unlock_spent": 320, "unlock_level": 6},
     "shadow_bolt": {"name": "Сумрачный снаряд", "kind": "Тень", "rarity": 2, "mana": 28, "cooldown": 3.2, "damage": 64, "radius": 62, "unlock_spent": 160, "unlock_level": 4},
+    # Станящие заклинания: урон меньше, зато обездвиживают и монстров, и других игроков.
+    "frost_ring": {"name": "Кольцо стужи", "kind": "Лёд", "rarity": 3, "mana": 34, "cooldown": 9.5, "damage": 34, "radius": 150, "stun_duration": 2.0, "pvp_stun_duration": 1.2, "unlock_spent": 420, "unlock_level": 7},
+    "root_bind": {"name": "Оковы корней", "kind": "Терни", "rarity": 3, "mana": 30, "cooldown": 10.0, "damage": 26, "radius": 138, "stun_duration": 2.6, "pvp_stun_duration": 1.5, "unlock_spent": 300, "unlock_level": 6},
+    "mind_chill": {"name": "Леденящий разум", "kind": "Тень", "rarity": 4, "mana": 42, "cooldown": 11.0, "damage": 58, "radius": 78, "stun_duration": 2.2, "pvp_stun_duration": 1.4, "unlock_spent": 620, "unlock_level": 9},
 }
 
 CLASS_MIN_LEVEL = 5
@@ -415,6 +419,82 @@ def zone_for_x(x: float) -> dict[str, Any]:
         if zone["x0"] <= x < zone["x1"]:
             return zone
     return ZONES[-1]
+
+
+# --- Combat status effects -------------------------------------------------
+# The very same slow/stun/poison/burn fields are kept on monsters and on
+# players, so any ability or spell that hinders a monster can hinder a player.
+PLAYER_STATUS_FIELDS = ("slow_until", "stun_until", "poison_until", "burn_until")
+PVP_DAMAGE_FACTOR = .72          # duel damage is softened compared to PvE
+PVP_EFFECT_FACTOR = .6           # control effects on players are shorter
+MAX_PVP_STUN = 3.0               # never let a chain-lock last longer than this
+MAX_PVP_SLOW = 8.0
+STUN_MIN_INTERVAL = .5           # how often a stunned target may be refreshed
+
+
+def ensure_status(p: dict[str, Any]) -> None:
+    """Guarantee every status field exists (older saves lack them)."""
+    for field in PLAYER_STATUS_FIELDS:
+        p.setdefault(field, 0.0)
+    p.setdefault("slow_factor", .45)
+
+
+def apply_player_control(target: dict[str, Any], now: float, *, slow_duration: float = 0.0,
+                         slow_factor: float = .45, stun_duration: float = 0.0, source: str = "") -> None:
+    """Slow or stun another player using the same fields the mobs use."""
+    ensure_status(target)
+    if target.get("respawn_at", 0) > now:
+        return
+    if slow_duration > 0:
+        until = now + min(MAX_PVP_SLOW, max(0.0, float(slow_duration)))
+        if until > float(target.get("slow_until", 0) or 0):
+            target["slow_until"] = until
+            target["slow_factor"] = max(.15, min(.95, float(slow_factor)))
+    if stun_duration > 0:
+        duration = min(MAX_PVP_STUN, max(0.0, float(stun_duration)))
+        current = float(target.get("stun_until", 0) or 0)
+        # A fresh hit only refreshes a stun that is about to wear off, so
+        # repeated stuns cannot produce an endless lock of the same victim.
+        if current <= now + STUN_MIN_INTERVAL:
+            target["stun_until"] = now + duration
+            target["attack"] = None
+            target["gathering"] = None
+            broadcast({"type": "notice", "target": target["id"],
+                       "text": f"Ты оглушён{' ' + source if source else ''}: {duration:.1f} с."})
+
+
+def clear_expired_status(p: dict[str, Any], now: float) -> None:
+    marks = p.get("eagle_marks")
+    if isinstance(marks, dict):
+        for mob_id, until in list(marks.items()):
+            try:
+                value = float(until or 0)
+            except (TypeError, ValueError):
+                marks.pop(mob_id, None); continue
+            if value <= now:
+                marks.pop(mob_id, None)
+
+
+def add_damage_score(p: dict[str, Any], amount: float, kind: str, now: float) -> None:
+    """Damage points: credited to the attacker, tracked per source and session."""
+    amount = max(0, round(float(amount)))
+    if amount <= 0:
+        return
+    stats = p.setdefault("damage_stats", {})
+    stats["total"] = int(stats.get("total", 0)) + amount
+    stats[kind] = int(stats.get(kind, 0)) + amount
+    stats["last_hit"] = amount
+    stats["last_kind"] = kind
+    stats["last_at"] = now
+    window = stats.setdefault("window", [])
+    window.append([now, amount])
+    while window and (now - float(window[0][0]) > 30.0 or len(window) > 400):
+        window.pop(0)
+    stats["recent"] = sum(int(row[1]) for row in window)
+    stats["dps"] = round(stats["recent"] / 30.0, 1)
+    stats["peak_dps"] = max(float(stats.get("peak_dps", 0) or 0), stats["dps"])
+    stats["max_hit"] = max(int(stats.get("max_hit", 0) or 0), amount)
+    stats["hits"] = int(stats.get("hits", 0)) + 1
 
 
 def scaled_mob(kind: str, level: int, index: int, x: float, y: float) -> dict[str, Any]:
@@ -698,7 +778,8 @@ def player_row(pid: str, p: dict[str, Any], now: float) -> dict[str, Any]:
                                for key, value in WEAPONS.items()},
             "inventory": dict(p["inventory"]), "attack": action,
             "gathering": p["gathering"] is not None, "gather_progress": (p["gathering"]["progress"] / 1.15 if p["gathering"] else 0), "zone": zone["id"],
-            "dodge_ready": now >= p["dodge_at"]}
+            "dodge_ready": now >= p["dodge_at"],
+            "status": player_status_view(p, now), "damage_points": damage_points_view(p)}
 
 
 def snapshot(for_id: str) -> dict[str, Any]:
