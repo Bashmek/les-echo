@@ -1118,6 +1118,7 @@ function renderCharOverlay(p){const el=$('charOverlay');if(!el||getComputedStyle
    row.className='statRow';row.title=effect;
    row.innerHTML=`<span class="sIcon">${icon}</span><span class="sName"><b>${name}</b><small>${safeText(effect)}</small></span><b class="sVal">${lvl}${['mana_regen','magic_damage'].includes(key)?' ур.':''}</b>`;
    const btn=document.createElement('button');btn.type='button';btn.className='upgrade';btn.dataset.stat=key;btn.textContent='+';btn.disabled=pts<=0||atCap;btn.title=atCap?'Достигнут предел этой характеристики':pts>0?`Потратить 1 очко развития · осталось ${pts}`:'Нет свободных очков развития';
+   btn.addEventListener('click',ev=>{ev.preventDefault();ev.stopPropagation();if(btn.disabled)return;const cur=me(),curPts=Math.max(0,Number(cur?.skill_points)||0);if(curPts<=0){toast('Нет свободных очков развития. Получай уровни за бой и сбор.');return}btn.disabled=true;send({type:'upgrade',stat:key})});
    row.appendChild(btn);return row}))}
  const sw=$('slotWeapon'),sa=$('slotArmor');
  if(sw){const w=p.weapon_catalog?.[p.weapon]||{};sw.className=`gearSlot rarity-${w.rarity||'common'}`;sw.tabIndex=0;
@@ -1136,7 +1137,7 @@ window.updateCharacterPanel=updateCharacterPanel;
 if($('characterButton'))$('characterButton').onclick=()=>toggleCharacter();
 if($('closeCharacter'))$('closeCharacter').onclick=()=>{lastCharToggle=0;toggleCharacter(false,true)};
 for(const miniId of ['miniWeaponBtn','miniGearBtn']){const b=$(miniId);if(b)b.onclick=()=>toggleCharacter()}
-document.addEventListener('click',e=>{const b=e.target.closest('#charStatsList .upgrade');if(b&&!b.disabled)send({type:'upgrade',stat:b.dataset.stat})});
+document.addEventListener('click',e=>{const b=e.target.closest('.upgrade');if(!b||b.disabled)return;const stat=b.dataset.stat;if(!stat)return;e.preventDefault();const own=me(),pts=Math.max(0,Number(own?.skill_points)||0);if(pts<=0){toast('Нет свободных очков развития. Получай уровни за бой и сбор.');return}b.disabled=true;send({type:'upgrade',stat})},true);
 let miniTipEl=null;
 function hideMiniTip(){if(miniTipEl){miniTipEl.remove();miniTipEl=null}}
 function showMiniTip(btn,html){hideMiniTip();const tip=document.createElement('span');tip.className='gearTip is-floating';tip.innerHTML=html;document.body.appendChild(tip);miniTipEl=tip;
