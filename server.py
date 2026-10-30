@@ -1645,10 +1645,13 @@ async def choose_class(p: dict[str, Any], msg: dict[str, Any]) -> None:
     bonus_total = sum(max(0, min(20, int(value))) for value in bonus.values())
     # The class grants a one-time bundle of development points; the signature
     # characteristics are invested automatically so the fantasy stays intact.
-    # Because every raised statistic spends exactly one point from this ledger,
-    # the pool can never self-replenish when the "+" buttons are clicked.
+    # Because those automatic investments never cost the player anything, they
+    # are recorded in a dedicated ledger ("class_bonus_spent") that
+    # count_spent_points subtracts — otherwise every "+" click would silently
+    # mint the pool back out of the class bonus and nothing would be spent.
     p["class_bonus_points"] = int(p.get("class_bonus_points", 0) or 0) + bonus_total
     p["skill_points"] = int(p.get("skill_points", 0) or 0) + bonus_total
+    ledger = p.get("class_bonus_spent") if isinstance(p.get("class_bonus_spent"), dict) else {}
     applied: list[str] = []
     spent_on_bonus = 0
     for key, value in bonus.items():
@@ -1663,6 +1666,7 @@ async def choose_class(p: dict[str, Any], msg: dict[str, Any]) -> None:
                 p["stats"][key] = int(p["stats"].get(key, 1)) + take
                 applied.append(f"{stat_names.get(key, key)} +{take}")
                 spent_on_bonus += take
+                ledger[key] = int(ledger.get(key, 0) or 0) + take
         elif key == "mana_regen":
             current = max(0, int(p.get("mana_regen_level", 0) or 0))
             take = min(amount, max(0, cap - current))
@@ -1670,6 +1674,7 @@ async def choose_class(p: dict[str, Any], msg: dict[str, Any]) -> None:
                 p["mana_regen_level"] = current + take
                 applied.append(f"восстановление маны +{take}")
                 spent_on_bonus += take
+                ledger[key] = int(ledger.get(key, 0) or 0) + take
         elif key == "magic_damage":
             current = max(0, int(p.get("magic_damage_level", 0) or 0))
             take = min(amount, max(0, cap - current))
@@ -1677,6 +1682,8 @@ async def choose_class(p: dict[str, Any], msg: dict[str, Any]) -> None:
                 p["magic_damage_level"] = current + take
                 applied.append(f"сила магии +{take * 8}%")
                 spent_on_bonus += take
+                ledger[key] = int(ledger.get(key, 0) or 0) + take
+    p["class_bonus_spent"] = ledger
     spare = max(0, bonus_total - spent_on_bonus)
     if spare:
         applied.append(f"+{spare} свободных очков развития")
@@ -2116,20 +2123,37 @@ def stat_current_level(p: dict[str, Any], stat: str) -> int:
 
 
 def count_spent_points(p: dict[str, Any]) -> int:
-    """Every point above a stat's starting value was paid for with a development point."""
+    """Every point above a stat's starting value was paid for with a development point.
+
+    Class signature bonuses (``class_bonus_spent``) are granted automatically by
+    ``choose_class`` and never cost the player anything, so they are subtracted
+    here; otherwise the pool would silently refill itself after every click.
+    """
     spent = sum(max(0, int(value or 1) - 1) for value in p.get("stats", {}).values())
     spent += max(0, int(p.get("mana_regen_level", 0) or 0))
     spent += max(0, int(p.get("magic_damage_level", 0) or 0))
     spent += max(0, int(p.get("insight_level", 0) or 0))
-    return spent
+    ledger = p.get("class_bonus_spent")
+    if isinstance(ledger, dict):
+        for key, value in ledger.items():
+            if key in LEVEL_BASED_STATS:
+                current = max(0, int(p.get(LEVEL_BASED_STATS[key], 0) or 0))
+            else:
+                current = max(1, int(p.get("stats", {}).get(key, 1) or 1)) - 1
+            spent -= min(max(0, int(value or 0)), max(0, current))
+    elif isinstance(ledger, (int, float)):
+        # Old single-number ledgers were recorded before any cap clamp.
+        spent -= max(0, int(ledger or 0))
+    return max(0, spent)
 
 
 def reconcile_skill_points(p: dict[str, Any]) -> None:
     """Never lose earned points: recompute what remains after all purchases.
 
-    Level-ups grant one point per level, the class choice grants its own bonus
-    points, and every raised statistic spends exactly one point. Reconciling on
-    login and after each change keeps the pool truthful even for older saves.
+    Level-ups grant one point per level, quests and the class choice grant their
+    own bonus points, and every raised statistic spends exactly one point. The
+    pool is recomputed from this ledger (never just raised to a floor), so a
+    spent point can never be minted back out of nothing on the next click.
     """
     earned = max(0, int(p.get("level", 1)) - 1)
     earned += max(0, int(p.get("quest_points", 0) or 0))
@@ -2141,8 +2165,7 @@ def reconcile_skill_points(p: dict[str, Any]) -> None:
         if chosen in CLASSES:
             earned += sum(max(0, int(value or 0))
                           for value in CLASSES[chosen].get("stat_bonus", {}).values())
-    p["skill_points"] = max(int(p.get("skill_points", 0) or 0),
-                            earned - count_spent_points(p))
+    p["skill_points"] = max(0, earned - count_spent_points(p))
 
 
 async def apply_stat_upgrade(pid: str, p: dict[str, Any], stat: str) -> None:
@@ -2329,7 +2352,7 @@ PERSIST_FIELDS = (
     "x", "y", "hp", "stamina", "xp", "level", "skill_points", "stats",
     "gold", "kills", "weapon", "weapons", "gear", "gear_inventory",
     "inventory", "quest_stage", "quest_active", "quest_kills", "quest_gather", "quest_points",
-    "class_bonus_points",
+    "class_bonus_points", "class_bonus_spent",
     "enchantments", "market_starter_grant", "magic_mana_spent", "upgrades", "mana_regen_level", "magic_damage_level", "insight_level", "spell_uses", "custom_spells",
     "class", "mastery", "ability_cooldowns",
 )
