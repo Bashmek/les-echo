@@ -1125,13 +1125,25 @@ function renderCharOverlay(p){const el=$('charOverlay');if(!el||getComputedStyle
  const pts=Math.max(0,Number(p.skill_points)||0),cp=$('charPoints');
  if(cp){cp.textContent=`Очки развития: ${pts}`;cp.classList.toggle('hasPoints',pts>0)}
  const host=$('charStatsList');
- if(host){const view=p.upgrades_view||{},stats=p.stat_values||p.stats||{};
-  const fallback={might:stats.might,vitality:stats.vitality,agility:stats.agility,mana_regen:p.mana_regen_level,magic_damage:p.magic_damage_level,insight:p.insight_level,precision:stats.precision,fortune:stats.fortune};
-  host.replaceChildren(...Object.keys(CHAR_STAT_META).map(key=>{const [icon,name,desc]=CHAR_STAT_META[key],effect=view[key]?.effect||desc,lvl=upgradeLevel(p,key),row=document.createElement('div');
-   row.className='statRow';row.title=effect;
-   row.innerHTML=`<span class="sIcon">${icon}</span><span class="sName"><b>${name}</b><small>${safeText(effect)}</small></span><b class="sVal">${lvl}${LEVEL_STATS.includes(key)?' ур.':''}</b>`;
-   const btn=document.createElement('button');btn.type='button';btn.className='upgrade';btn.dataset.stat=key;btn.textContent='+';
-   row.appendChild(btn);refreshUpgradeButton(btn,p);return row}))}
+ if(host){const view=p.upgrades_view||{};
+  // Rows and their "+" buttons are built once and only patched in place when
+  // the server keeps refreshing the snapshot. Rebuilding the DOM on every tick
+  // destroyed the button mid-click, so upgrading a skill required hitting the
+  // narrow gap between two state updates.
+  if(!host.dataset.built){
+   host.replaceChildren(...Object.keys(CHAR_STAT_META).map(key=>{const [icon,name]=CHAR_STAT_META[key],row=document.createElement('div');
+    row.className='statRow';row.dataset.statRow=key;
+    row.innerHTML=`<span class="sIcon">${icon}</span><span class="sName"><b>${name}</b><small></small></span><b class="sVal"></b>`;
+    const btn=document.createElement('button');btn.type='button';btn.className='upgrade';btn.dataset.stat=key;btn.textContent='+';
+    row.appendChild(btn);return row}));
+   host.dataset.built='1'}
+  for(const key of Object.keys(CHAR_STAT_META)){const row=host.querySelector(`[data-stat-row="${key}"]`);if(!row)continue;
+   const effect=view[key]?.effect||CHAR_STAT_META[key][2];
+   row.title=effect;
+   row.querySelector('.sName small').textContent=effect;
+   const lvl=upgradeLevel(p,key);
+   row.querySelector('.sVal').textContent=`${lvl}${LEVEL_STATS.includes(key)?' ур.':''}`;
+   refreshUpgradeButton(row.querySelector('.upgrade'),p)}}
  const sw=$('slotWeapon'),sa=$('slotArmor');
  if(sw){const w=p.weapon_catalog?.[p.weapon]||{};sw.className=`gearSlot rarity-${w.rarity||'common'}`;sw.tabIndex=0;
   $('slotWeaponIcon').textContent=weaponIconGlyph(w.kind||'melee');$('slotWeaponName').textContent=w.name||weaponNames[p.weapon]||p.weapon;$('slotWeaponTip').innerHTML=buildWeaponTip(p)}
