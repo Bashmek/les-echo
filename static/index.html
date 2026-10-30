@@ -212,7 +212,7 @@
 <button class="spellBtn advancedSpell" data-spell="frost_nova" data-icon="✧" data-label="ИНЕЙ" title="Кольцо инея">ИНЕЙ</button>
 <button class="spellBtn advancedSpell" data-spell="shadow_bolt" data-icon="◈" data-label="ТЕНЬ" title="Сумрачный снаряд">ТЕНЬ</button>
 </div><div class="controlLegend"><span><kbd>W A S D</kbd> движение</span><span><kbd>ЛКМ / Пробел</kbd> атака</span><span><kbd>Shift</kbd> рывок</span><span><kbd>E</kbd> сбор</span><span><kbd>Q</kbd> настойка</span></div></section></div><div class="guideOverlay" id="guideOverlay" role="dialog" aria-modal="true" aria-labelledby="guideTitle"><section class="guideCard panel"><header><div><span class="guideEyebrow">СПРАВКА ПУТНИКА</span><h2 id="guideTitle">Управление и магия</h2></div><button class="close" id="closeGuide">Закрыть</button></header><div class="guideGrid"><article><h3>Движение и бой</h3><p><kbd>W A S D</kbd> или стрелки — движение. <kbd>ЛКМ</kbd> / <kbd>Пробел</kbd> — замах и удар. Наведи курсор, чтобы выбрать направление.</p><p><kbd>Shift</kbd> — рывок · <kbd>E</kbd> — собирать ресурс · <kbd>F</kbd> — говорить со станцией или Хранителем.</p></article><article><h3>Мир и предметы</h3><p><kbd>I</kbd> — рюкзак · <kbd>M</kbd> — карта · <kbd>B</kbd> — лавка · <kbd>G</kbd> — волшебник · <kbd>H</kbd> — кузница · <kbd>Q</kbd> — настойка · <kbd>Enter</kbd> — чат.</p><p>Кнопки станций доступны и на экране. Смена оружия и брони — через рюкзак.</p></article><article class="guideWide questGuide"><h3>Квесты и способности</h3><p>Прогресс текущего поручения всегда виден на панели в правом верхнем углу экрана: цели по убийствам и сбору с полосами выполнения. Цели достигнуты — вернись к Хранителю в лагерь и нажми <kbd>F</kbd>.</p><p>Способности выбранного класса применяются клавишами из карточек набора (клавиши можно переназначить в меню «Управление и заклинания»). Воин: <kbd>R</kbd> рёв, <kbd>T</kbd> выпад, <kbd>C</kbd> вихрь, <kbd>V</kbd> стойка, <kbd>B</kbd> оглушающий удар, <kbd>N</kbd> жажда крови, <kbd>M</kbd> сейсмический толчок. Следопыт: <kbd>R</kbd> дождь стрел, <kbd>T</kbd> пробивающий выстрел, <kbd>C</kbd> огненная, <kbd>V</kbd> ледяная стрела, <kbd>X</kbd> двойной, <kbd>B</kbd> ядовитая, <kbd>N</kbd> слепящий болт, <kbd>M</kbd> метка орла.</p></article><article class="guideWide"><h3>Заклинания и развитие</h3><p>Клавиши на карточках выбирают заклинания. Каждые 5 применений повышают личный уровень заклинания: до 6-го уровня, с уменьшением перезарядки на 4% за уровень. Текущий уровень, остаток перезарядки и нехватка маны видны прямо на карточке.</p><p>Новые заклинания открываются по уровню персонажа и общему расходу маны. Подробные требования показывает волшебник в лагере.</p></article><article><h3>Шкалы</h3><p>Круги показывают здоровье, ману и выносливость. Полоса внизу блока — опыт до следующего уровня.</p></article></div></section></div><div class="mapOverlay" id="mapOverlay"><section class="mapCard panel"><header><strong>Карта мира · 9 регионов</strong><button class="close" id="closeMap">Закрыть · M</button></header><canvas id="fullmap" class="fullmap"></canvas><div class="mapLegend"><span><i class="swatch"></i> Лагерь · безопасно</span><span><i class="swatch" style="background:#6a8350"></i> Шепчущий лес · ур. 1–3</span><span><i class="swatch" style="background:#547469"></i> Затонувшие топи · ур. 4–6</span><span><i class="swatch" style="background:#77614b"></i> Пепельные руины · ур. 7–10</span><span><i class="swatch" style="background:#73949c"></i> Синий хребет · ур. 11–14</span><span><i class="swatch" style="background:#584e76"></i> Разлом · ур. 15–19</span><span><i class="swatch" style="background:#352d51"></i> Бездна · ур. 20–25</span><span><i class="swatch" style="background:#54435f"></i> Обсидиановый край · ур. 26–30</span><span><i class="swatch" style="background:#557a4a"></i> Первозданный сад · ур. 31–35</span><span>Красная метка · противник</span><span>Золотая метка · Хранитель</span></div></section></div>
-<div class="gameMenuOverlay" id="gameMenuOverlay" role="dialog" aria-modal="true" aria-labelledby="gameMenuTitle"><section class="gameMenuCard panel"><header><div><span class="guideEyebrow">ПАУЗА · ИГРОВОЕ МЕНЮ</span><h2 id="gameMenuTitle">Меню игры</h2></div><button class="close" id="closeGameMenu" type="button">Закрыть · Esc</button></header><div class="gameMenuList" id="gameMenuList"><button data-menu-action="continue">Продолжить игру<kbd>Esc</kbd></button><button data-menu-action="keybinds">Назначение клавиш</button><button data-menu-action="classes">Смена класса</button><button data-menu-action="help">Помощь и справка</button><button data-menu-action="map">Карта мира<kbd>M</kbd></button><button data-menu-action="logout">Выйти из игры</button></div></section></div>
+<div class="gameMenuOverlay" id="gameMenuOverlay" role="dialog" aria-modal="true" aria-labelledby="gameMenuTitle"><section class="gameMenuCard panel"><header><div><span class="guideEyebrow">ПАУЗА · ИГРОВОЕ МЕНЮ</span><h2 id="gameMenuTitle">Меню игры</h2></div><button class="close" id="closeGameMenu" type="button">Закрыть · Esc</button></header><div class="gameMenuList" id="gameMenuList"><button data-menu-action="continue">Продолжить игру<kbd>Esc</kbd></button><button data-menu-action="keybinds">Назначение клавиш</button><button data-menu-action="accounts">Смена аккаунта</button><button data-menu-action="classes">Смена класса</button><button data-menu-action="help">Помощь и справка</button><button data-menu-action="map">Карта мира<kbd>M</kbd></button><button data-menu-action="logout">Выйти из игры</button></div></section></div>
 <div class="gameMenuOverlay" id="keybindOverlay" role="dialog" aria-modal="true" aria-labelledby="keybindTitle"><section class="gameMenuCard panel"><header><div><span class="guideEyebrow">НАЗНАЧЕНИЕ КЛАВИШ</span><h2 id="keybindTitle">Клавиши управления</h2></div><button class="close" id="closeKeybinds" type="button">Закрыть</button></header><p class="keybindHint">Выбери действие кнопкой «Изменить», затем нажми новую клавишу. Escape отменяет выбор. Буквенные клавиши сохраняются в этом браузере; для заклинаний доступны цифры 0–9, для созданных чар — F1–F12 и 0.</p><div id="keybindSections"></div></section></div>
 <div class="gameMenuOverlay" id="accountOverlay" role="dialog" aria-modal="true" aria-labelledby="accountTitle"><section class="gameMenuCard panel"><header><div><span class="guideEyebrow">СМЕНА АККАУНТА</span><h2 id="accountTitle">Аккаунты этого браузера</h2></div><button class="close" id="closeAccounts" type="button">Закрыть</button></header><p class="keybindHint">Здесь только те аккаунты, в которые вы входили из этого браузера. Для перехода введите пароль — чужие аккаунты не отображаются и переключаются только по паролю.</p><div id="accountList" class="gameMenuList"></div><form id="switchForm" style="display:none"><label for="switchPassword" style="font-size:12px;color:#cfd4c2;margin-bottom:5px;display:block">Пароль аккаунта <b id="switchTargetName"></b></label><input id="switchPassword" type="password" autocomplete="current-password" maxlength="128" placeholder="Пароль · не менее 8 символов" required><p id="switchError" class="authError" role="status" aria-live="polite"></p><button class="primary" id="switchConfirm" type="submit">Войти в аккаунт</button></form></section></div>
 <div class="classOverlay" id="classOverlay" role="dialog" aria-modal="true" aria-labelledby="classTitle"><section class="classCard panel"><header><div><span class="guideEyebrow">ПУТЬ ГЕРОЯ · УРОВЕНЬ 5</span><h2 id="classTitle">Выбери класс</h2></div><button class="close" id="classLater" type="button">Позже</button></header><p>Класс выбирается один раз и сохраняется навсегда. До выбора доступны прежние заклинания с любым оружием; после выбора боевой набор зависит от экипированного оружия. Смена класса сервером запрещена.</p><div class="classGrid" id="classGrid"></div><p class="classHint">Воин — ближний бой, Следопыт — лук, Маг — посох и прежняя система заклинаний. Мастерство каждого направления растёт отдельно и открывает способности.</p></section></div><div id="login" class="overlay"><form id="loginForm" class="dialog" autocomplete="on"><div class="eyebrow">КООПЕРАТИВНАЯ ПИКСЕЛЬНАЯ RPG</div><h1>Лес Эхо</h1><p>Создай аккаунт или войди, чтобы продолжить приключение. Сохранение персонажа привязано к имени пользователя.</p><div class="authModes"><button type="button" id="registerMode" class="active">Регистрация</button><button type="button" id="loginMode">Вход</button></div><label for="nameInput">Имя пользователя</label><input id="nameInput" name="username" maxlength="18" minlength="3" autocomplete="username" placeholder="3–18 символов" required><label for="passwordInput">Пароль</label><input id="passwordInput" name="password" type="password" minlength="8" maxlength="128" autocomplete="new-password" placeholder="Не менее 8 символов" required><div id="confirmWrap"><label for="confirmInput">Повторите пароль</label><input id="confirmInput" type="password" minlength="8" maxlength="128" autocomplete="new-password" placeholder="Повтор пароля"></div><p class="authHelp">Используйте буквы, цифры, дефис или подчёркивание в имени.</p><div id="authError" class="authError" role="status" aria-live="polite"></div><button class="primary" id="authSubmit">Создать аккаунт</button></form></div>
@@ -501,6 +501,129 @@ $('loginForm').addEventListener('submit',async e=>{e.preventDefault();const user
 async function restoreSession(){try{const response=await fetch('/api/auth/me',{credentials:'same-origin'}),data=await response.json();if(data.authenticated){$('login').style.display='none';connect(data.username)}else{$('login').style.display='flex';$('nameInput').focus()}}catch{$('login').style.display='flex';$('authError').textContent='Не удалось связаться с сервером. Обновите страницу.'}}
 $('logoutButton').addEventListener('click',async()=>{try{await fetch('/api/auth/logout',{method:'POST',credentials:'same-origin'})}finally{if(ws)ws.close(1000,'logout');snap=null;myId=null;$('controlsOverlay').style.display='none';$('login').style.display='flex';$('passwordInput').value='';$('confirmInput').value='';setAuthMode('login')}});
 restoreSession();
+
+/* ===== ИГРОВОЕ МЕНЮ (Esc) · НАЗНАЧЕНИЕ КЛАВИШ · СМЕНА АККАУНТА ===== */
+const GAME_MENU_IDS=['gameMenuOverlay','keybindOverlay','accountOverlay'];
+function toggleGameMenu(open){const el=$('gameMenuOverlay');if(!el)return;const next=open??(getComputedStyle(el).display==='none');if(next){closeTopGameMenu();toggleKeybinds(false);toggleAccounts(false);el.style.display='flex';$('closeGameMenu').focus()}else{el.style.display='none';toggleKeybinds(false);toggleAccounts(false)}}
+function toggleKeybinds(open){const el=$('keybindOverlay');if(!el)return;const next=open??(getComputedStyle(el).display==='none');el.style.display=next?'flex':'none';if(next){renderKeybindSections();$('closeKeybinds').focus()}}
+function toggleAccounts(open){const el=$('accountOverlay');if(!el)return;const next=open??(getComputedStyle(el).display==='none');el.style.display=next?'flex':'none';if(next){loadAccountRoster();hideSwitchForm()}else hideSwitchForm()}
+$('gameMenuButton').onclick=()=>toggleGameMenu();
+$('closeGameMenu').onclick=()=>toggleGameMenu(false);
+$('closeKeybinds').onclick=()=>toggleKeybinds(false);
+$('closeAccounts').onclick=()=>toggleAccounts(false);
+GAME_MENU_IDS.forEach(id=>{const el=$(id);el.addEventListener('click',e=>{if(e.target===el){if(id==='gameMenuOverlay')toggleGameMenu(false);else if(id==='keybindOverlay')toggleKeybinds(false);else toggleAccounts(false)}})});
+document.querySelectorAll('#gameMenuList [data-menu-action]').forEach(b=>b.addEventListener('click',async()=>{
+ const action=b.dataset.menuAction;
+ if(action==='continue'){toggleGameMenu(false);return}
+ if(action==='keybinds'){toggleKeybinds(true);return}
+ if(action==='accounts'){toggleAccounts(true);return}
+ if(action==='classes'){toggleGameMenu(false);showClassOffer(true);return}
+ if(action==='help'){toggleGameMenu(false);toggleGuide(true);return}
+ if(action==='map'){toggleGameMenu(false);toggleMap();return}
+ if(action==='logout'){toggleGameMenu(false);$('logoutButton').click()}
+}));
+
+/* ---- Назначение клавиш: способности, заклинания, созданные чары ---- */
+let keybindListening=null,keybindSig='';
+function finishKeybindCapture(kind,id,code,label){
+ if(kind==='ability'){
+  if(!validAbilityBinding(code)){toast('Эта клавиша недоступна для способности. Выбери букву A–Z.');renderKeybindSections();return}
+  Object.keys(abilityKeys).forEach(k=>{if(k!==id&&abilityKeys[k]===code)delete abilityKeys[k]});
+  abilityKeys[id]=code;saveAbilityKeys();updateActionPanels(me());toast(`Способность назначена на ${label}`);
+ }else if(kind==='spell'){
+  const i=spellIds.indexOf(id);if(i<0)return renderKeybindSections();
+  const j=spellKeyCodes.indexOf(code);if(j>=0&&j!==i)[spellKeyCodes[i],spellKeyCodes[j]]=[spellKeyCodes[j],spellKeyCodes[i]];else spellKeyCodes[i]=code;
+  try{localStorage.setItem(spellKeyStore,JSON.stringify(spellKeyCodes))}catch{}
+  syncSpellKeys();toast(`Заклинание назначено на ${label}`);
+ }else if(kind==='custom'){
+  send({type:'bind_custom_spell',spell:id,key:code});toast(`Сохраняю назначение на ${label}…`);
+ }
+ keybindListening=null;renderKeybindSections();
+}
+function validSpellBindCode(code){return /^Digit[0-9]$/.test(code)||/^Numpad[0-9]$/.test(code)}
+document.addEventListener('keydown',e=>{
+ if(!keybindListening)return;
+ e.preventDefault();e.stopPropagation();
+ if(e.key==='Escape'){keybindListening=null;renderKeybindSections();return}
+ const{kind,id}=keybindListening,code=e.code,label=keyLabel(code)||code;
+ if(kind==='ability'&&/^Key[A-Z]$/.test(code)){finishKeybindCapture(kind,id,code,label);return}
+ if(kind==='spell'&&validSpellBindCode(code)){finishKeybindCapture(kind,id,code,label);return}
+ if(kind==='custom'&&(normalizeCustomKey(code)||code==='Digit0')){finishKeybindCapture(kind,id,normalizeCustomKey(code)||code,label);return}
+ toast('Клавиша не подходит для этого действия. Esc — отмена.');
+},true);
+function keybindRow(name,current,listening,onedit){const row=document.createElement('div');row.className='keybindRow'+(listening?' is-listening':'');const label=document.createElement('span');label.className='keybindName';label.textContent=name;const key=document.createElement('span');key.className='keybindKey';key.textContent=current;const btn=document.createElement('button');btn.type='button';btn.textContent=listening?'Жду клавишу…':'Изменить';btn.disabled=!onedit;if(onedit)btn.onclick=onedit;btn.setAttribute('aria-label',`Изменить клавишу: ${name}`);row.append(label,key,btn);return row}
+function keybindSection(title,note,rows,extra){const sec=document.createElement('section');sec.className='keybindSection';const h=document.createElement('h3');h.textContent=title;sec.appendChild(h);if(note){const p=document.createElement('p');p.className='bindingHint';p.textContent=note;sec.appendChild(p)}const grid=document.createElement('div');grid.className='customSpellKeyList';rows.forEach(r=>grid.appendChild(r));sec.appendChild(grid);if(extra)sec.appendChild(extra);return sec}
+function renderKeybindSections(){
+ const host=$('keybindSections'),p=me();if(!host)return;
+ if(getComputedStyle($('keybindOverlay')).display==='none')return;
+ const tree=p?.action_tree||'warrior';
+ const sig=[tree,p?.class,Object.keys(p?.abilities||{}).join(','),JSON.stringify(spellKeyCodes),JSON.stringify((p?.custom_spells||[]).map(x=>[x.id||x.spell_id,x.name,x.key])),JSON.stringify(abilityKeys),keybindListening?keybindListening.kind+':'+keybindListening.id:''].join('|');
+ if(sig===keybindSig)return;keybindSig=sig;host.replaceChildren();
+ if(!p){const sec=keybindSection('Клавиши','Игровые данные ещё не загружены.',[]);const empty=document.createElement('span');empty.className='bindingEmpty';empty.textContent='Подожди подключения к миру.';sec.querySelector('.customSpellKeyList').appendChild(empty);host.appendChild(sec);return}
+ const fixed=[['Движение','W A S D / стрелки'],['Атака (удерживай)'],['Рывок','Shift'],['Сбор ресурса','E'],['Взаимодействие','F'],['Настойка','Q'],['Чат','Enter']];
+ const fixedRows=fixed.map(f=>keybindRow(f[0],f[1]||'Пробел / ЛКМ',false,null));
+ fixedRows.forEach(r=>{const b=r.querySelector('button');b.disabled=true;b.title='Базовые клавиши закреплены сервером и не переназначаются'});
+ host.appendChild(keybindSection('Базовое управление','Движение, атака, рывок и сбор закреплены, чтобы меню всегда можно было открыть.',fixedRows));
+ if(p.class&&tree!=='mage'){
+  const list=classAbilityList(p,tree);
+  const rows=list.map(a=>keybindRow(`${a.name} · ${ABILITY_TREE_NAMES[tree]||''}`,keyLabel(abilityBindingCode(a)),keybindListening?.kind==='ability'&&keybindListening.id===a.id,()=>{keybindListening={kind:'ability',id:a.id};renderKeybindSections()}));
+  const reset=document.createElement('button');reset.type='button';reset.className='close';reset.style.marginTop='8px';reset.textContent='Сбросить клавиши способностей';
+  reset.onclick=()=>{abilityKeys={};saveAbilityKeys();keybindListening=null;updateActionPanels(me());renderKeybindSections();toast('Клавиши способностей сброшены к стандартным')};
+  host.appendChild(keybindSection(`Способности · ${ABILITY_TREE_NAMES[tree]||tree}`,'Буквенные клавиши A–Z, кроме служебных (WASD, E, F, I, M, B, G, H, Q).',rows,reset));
+ }
+ if(!p.class||tree==='mage'){
+  const catalog=p.spell_catalog||{};
+  const rows=spellIds.map((id,i)=>keybindRow(spellNames[id]||id,keyLabel(spellKeyCodes[i]),keybindListening?.kind==='spell'&&keybindListening.id===id,()=>{keybindListening={kind:'spell',id};renderKeybindSections()}));
+  host.appendChild(keybindSection('Классовые заклинания','Для этих клавиш доступны цифры 0–9.',rows));
+  const customs=p.custom_spells||[];
+  if(customs.length){
+   const crows=customs.map(sp=>{const id=sp.id||sp.spell_id||sp.custom_id;if(!id)return null;return keybindRow(sp.name||'Заклинание',displaySpellKey(sp.key),keybindListening?.kind==='custom'&&keybindListening.id===id,()=>{keybindListening={kind:'custom',id};renderKeybindSections()})}).filter(Boolean);
+   host.appendChild(keybindSection('Созданные заклинания','Доступны F1–F12 и 0. Назначение сохраняется на аккаунте.',crows));
+  }
+ }
+}
+$('closeControls').addEventListener('click',()=>{keybindSig=''});
+
+/* ---- Смена аккаунта (только аккаунты этого браузера) ---- */
+let accountRoster=[],switchTarget='';
+function hideSwitchForm(){const f=$('switchForm');if(f)f.style.display='none';$('switchPassword').value='';$('switchError').textContent='';switchTarget=''}
+function renderAccountList(){
+ const host=$('accountList');if(!host)return;host.replaceChildren();
+ const current=(snap?.players.find(q=>q.id===myId)?.name)||'';
+ if(!accountRoster.length){const empty=document.createElement('span');empty.className='bindingEmpty';empty.textContent='Из этого браузера больше ни в один аккаунт не выполнялся вход.';host.appendChild(empty);return}
+ for(const acc of accountRoster){
+  const row=document.createElement('button');row.type='button';
+  const name=document.createElement('strong');name.textContent=acc.username;
+  const kbd=document.createElement('kbd');kbd.textContent=`ур. ${acc.level} · ${acc.class||'Путник'}`;
+  row.append(name,kbd);
+  if(acc.username===current){row.disabled=true;kbd.textContent+=' · текущий';row.style.opacity='.65'}
+  else row.onclick=()=>{switchTarget=acc.username;$('switchTargetName').textContent=acc.username;$('switchError').textContent='';$('switchForm').style.display='block';$('switchPassword').value='';$('switchPassword').focus()};
+  host.appendChild(row);
+ }
+}
+async function loadAccountRoster(){
+ try{const response=await fetch('/api/auth/me',{credentials:'same-origin'}),data=await response.json();accountRoster=Array.isArray(data.accounts)?data.accounts:[]}
+ catch{accountRoster=[]}
+ renderAccountList();
+}
+$('switchForm').addEventListener('submit',async e=>{
+ e.preventDefault();
+ if(!switchTarget)return;
+ const password=$('switchPassword').value,button=$('switchConfirm');
+ button.disabled=true;$('switchError').textContent='';
+ try{
+  const response=await fetch('/api/auth/switch',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({username:switchTarget,password})});
+  const data=await response.json().catch(()=>({}));
+  if(!response.ok)throw new Error(data.detail||'Не удалось переключить аккаунт.');
+  hideSwitchForm();toggleAccounts(false);toggleKeybinds(false);toggleGameMenu(false);
+  snap=null;myId=null;inventorySignature='';marketSignature='';wizardRenderSignature='';forgeRenderSignature='';customSpellLibrarySignature='';customSpellBindingSignature='';customSpellSignature='';keybindSig='';
+  if(ws){try{ws.onclose=null;ws.close(1000,'switch')}catch{}}
+  $('connection').style.display='none';
+  connect(data.username||switchTarget);
+  toast(`Аккаунт переключён: ${data.username||switchTarget}`);
+ }catch(err){$('switchError').textContent=err.message||'Сервер недоступен.'}
+ finally{button.disabled=false}
+});
 function safeText(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function itemCard(name,detail,rarity='common',button='',count=''){return `<article class="itemCard"><div class="itemMain"><div class="itemName rarity-${rarity}">${safeText(name)}</div><div class="itemDetail">${safeText(detail)}</div></div>${count?`<span class="itemCount">× ${safeText(count)}</span>`:''}${button}</article>`}
 let inventorySignature="";function renderInventory(p){let signature=JSON.stringify([p.gear,p.gear_inventory,p.weapons,p.weapon,p.inventory,p.gear_catalog,p.weapon_catalog,p.enchantments,p.upgrades]);if(signature===inventorySignature)return;inventorySignature=signature;let gearList=$('gearInventoryList'),resList=$('resourceInventoryList');if(!gearList||!resList)return;let wc=p.weapon_catalog||{},gc=p.gear_catalog||{};let weapons=(p.weapons||[]).map(id=>{let w=wc[id]||{},kind=w.kind==='bow'?'Дальний бой':w.kind==='staff'?'Магия':'Ближний бой',up=Number(p.upgrades?.weapon?.[id]||0),dmg=Number(w.damage||0)+Number(w.bonus||0)+((w.kind==='staff')?0:up*6),detail=w.kind==='staff'?`${kind} · урон заклинаний +${up*6} за уровень улучшения · сила чар +${Math.round(Number(w.spell_power||0)*100)}%`:`${kind} · урон ${dmg}${w.kind==='bow'?' · усиление стрел':''}`;return {id,name:w.name||weaponNames[id]||id,rarity:w.rarity||'common',equipped:p.weapon===id,detail}});let armor=[p.gear,...(p.gear_inventory||[])].filter((id,i,a)=>id&&a.indexOf(id)===i).map(id=>({id,name:gc[id]?.name||gearNames[id]||id,rarity:gc[id]?.rarity||'common',equipped:p.gear===id,detail:`Защита ${gc[id]?.defense??gearDefense[id]??0} · ${gc[id]?.lore||'Броня следопыта'}`}));let rows=[...weapons.map(it=>{let action=it.equipped?'Надето':`Надеть`;return itemCard(it.name,it.detail,it.rarity,`<button data-inv-equip-weapon="${safeText(it.id)}" ${it.equipped?'disabled':''}>${action}</button>`,it.equipped?'Экипировано':'') }),...armor.map(it=>itemCard(it.name,it.detail,it.rarity,`<button data-inv-equip-gear="${safeText(it.id)}" ${it.equipped?'disabled':''}>${it.equipped?'Надето':'Надеть'}</button>`,it.equipped?'Экипировано':''))];gearList.innerHTML=rows.length?rows.join(''):'<div class="emptyInventory">Пока нет снаряжения. Ищи трофеи в лесу.</div>';let inv=p.inventory||{},res=Object.keys(resourceNames).filter(k=>Number(inv[k]||0)>0);resList.innerHTML=res.length?res.map(k=>itemCard(resourceNames[k],k==='potion'?'Восстанавливает здоровье':k==='arrows'?'Боеприпас для лука':'Материал для ремесла',k==='crystal'||k==='shard'?'rare':'common','',inv[k])).join(''):'<div class="emptyInventory">Рюкзак пуст. Собирай ресурсы клавишей E.</div>';let used=(p.weapons||[]).length+armor.length+res.reduce((n,k)=>n+(inv[k]>0?1:0),0);$('inventoryMeta').textContent=`${used} типов предметов · ${p.gold||0} монет · предметы сохраняются за персонажем`;}
@@ -596,8 +719,8 @@ $('attackButton').addEventListener('pointerdown',beginAttack);$('attackButton').
 canvas.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse'&&e.button===0&&!e.target.closest('button')){e.preventDefault();setAimFromPointer();beginAttack(e);try{canvas.setPointerCapture(e.pointerId)}catch{}}});
 addEventListener('pointerup',e=>{if(chargeLocal)releaseAttack(e)});
 canvas.addEventListener('contextmenu',e=>e.preventDefault());
-function dodge(){send({type:'dodge'})}$('inventoryButton').onclick=openInventory;$('openInventory').onclick=openInventory;$('closeInventory').onclick=closeInventory;$('invOverlay').addEventListener('click',e=>{if(e.target===$('invOverlay'))closeInventory()});$('invOverlay').addEventListener('click',e=>{let g=e.target.closest('button[data-inv-equip-gear]'),w=e.target.closest('button[data-inv-equip-weapon]');if(g&&!g.disabled){send({type:'equip_gear',id:g.dataset.invEquipGear});toast('Надеваю броню…')}if(w&&!w.disabled){send({type:'weapon',id:w.dataset.invEquipWeapon});toast('Оружие экипировано')}});document.querySelectorAll('[data-inv-tab]').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('[data-inv-tab]').forEach(x=>x.classList.toggle('active',x===b));document.querySelectorAll('[data-inv-section]').forEach(x=>x.style.display=b.dataset.invTab==='all'||x.dataset.invSection===b.dataset.invTab?'block':'none')}));$('dodgeButton').onclick=dodge;const movementCodes={KeyW:'w',ArrowUp:'arrowup',KeyS:'s',ArrowDown:'arrowdown',KeyA:'a',ArrowLeft:'arrowleft',KeyD:'d',ArrowRight:'arrowright'};function activeGameMenu(){const ids=['classOverlay','invOverlay','marketOverlay','wizardOverlay','forgeOverlay','customSpellOverlay','controlsOverlay','guideOverlay','mapOverlay','login'];return ids.some(id=>{const el=$(id);return !!(el&&el.getClientRects().length&&getComputedStyle(el).visibility!=='hidden')})||[...document.querySelectorAll('[role=dialog]')].some(el=>el.getClientRects().length>0&&getComputedStyle(el).visibility!=='hidden')}
-function closeTopGameMenu(){const order=['classOverlay','customSpellOverlay','guideOverlay','wizardOverlay','forgeOverlay','marketOverlay','invOverlay','mapOverlay','controlsOverlay'];for(const id of order){const el=$(id);if(!el||getComputedStyle(el).display==='none')continue;if(id==='classOverlay')hideClassOffer();else if(id==='guideOverlay')toggleGuide(false);else if(id==='wizardOverlay'||id==='forgeOverlay')closeStation(id);else if(id==='invOverlay')closeInventory();else if(id==='marketOverlay')closeMarket();else if(id==='controlsOverlay')toggleControls(false);else el.style.display='none';return true}return false}
+function dodge(){send({type:'dodge'})}$('inventoryButton').onclick=openInventory;$('openInventory').onclick=openInventory;$('closeInventory').onclick=closeInventory;$('invOverlay').addEventListener('click',e=>{if(e.target===$('invOverlay'))closeInventory()});$('invOverlay').addEventListener('click',e=>{let g=e.target.closest('button[data-inv-equip-gear]'),w=e.target.closest('button[data-inv-equip-weapon]');if(g&&!g.disabled){send({type:'equip_gear',id:g.dataset.invEquipGear});toast('Надеваю броню…')}if(w&&!w.disabled){send({type:'weapon',id:w.dataset.invEquipWeapon});toast('Оружие экипировано')}});document.querySelectorAll('[data-inv-tab]').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('[data-inv-tab]').forEach(x=>x.classList.toggle('active',x===b));document.querySelectorAll('[data-inv-section]').forEach(x=>x.style.display=b.dataset.invTab==='all'||x.dataset.invSection===b.dataset.invTab?'block':'none')}));$('dodgeButton').onclick=dodge;const movementCodes={KeyW:'w',ArrowUp:'arrowup',KeyS:'s',ArrowDown:'arrowdown',KeyA:'a',ArrowLeft:'arrowleft',KeyD:'d',ArrowRight:'arrowright'};function activeGameMenu(){const ids=['classOverlay','invOverlay','marketOverlay','wizardOverlay','forgeOverlay','customSpellOverlay','controlsOverlay','guideOverlay','mapOverlay','gameMenuOverlay','keybindOverlay','accountOverlay','login'];return ids.some(id=>{const el=$(id);return !!(el&&el.getClientRects().length&&getComputedStyle(el).visibility!=='hidden')})||[...document.querySelectorAll('[role=dialog]')].some(el=>el.getClientRects().length>0&&getComputedStyle(el).visibility!=='hidden')}
+function closeTopGameMenu(){const order=['classOverlay','customSpellOverlay','keybindOverlay','accountOverlay','guideOverlay','wizardOverlay','forgeOverlay','marketOverlay','invOverlay','mapOverlay','controlsOverlay','gameMenuOverlay'];for(const id of order){const el=$(id);if(!el||getComputedStyle(el).display==='none')continue;if(id==='classOverlay')hideClassOffer();else if(id==='guideOverlay')toggleGuide(false);else if(id==='wizardOverlay'||id==='forgeOverlay')closeStation(id);else if(id==='invOverlay')closeInventory();else if(id==='marketOverlay')closeMarket();else if(id==='controlsOverlay')toggleControls(false);else if(id==='keybindOverlay')closeKeybinds();else if(id==='accountOverlay')closeAccounts();else if(id==='gameMenuOverlay')toggleGameMenu(false);else el.style.display='none';return true}return false}
 // Capture keyboard events before global gameplay bindings: visible menus never leak hotkeys.
 document.addEventListener('keydown',e=>{if(!activeGameMenu())return;if(e.key==='Escape'){closeTopGameMenu();e.preventDefault()}e.stopPropagation()},true);
 document.addEventListener('keyup',e=>{if(activeGameMenu()){keys.clear();touchDirs.clear();e.stopPropagation()}},true);
