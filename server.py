@@ -472,8 +472,53 @@ async def index() -> FileResponse:
 
 @app.get("/api/auth/me")
 async def auth_me(request: Request) -> dict[str, Any]:
-    account = _account_for_token(request.cookies.get("echo_session"))
-    return {"authenticated": bool(account), "username": account["username"] if account else None}
+    token = request.cookies.get("echo_session")
+    account = _account_for_token(token)
+    return {"authenticated": bool(account), "username": account["username"] if account else None,
+            "accounts": browser_account_roster(token)}
+
+
+@app.post("/api/auth/switch")
+async def auth_switch(request: Request, response: Response) -> dict[str, Any]:
+    """Switch between accounts that signed in from this browser.
+
+    Only the roster stored under *this* browser's marker is accepted — other
+    players' accounts are never visible here. A password is required for every
+    switch so a shared or unattended browser cannot be used to jump into
+    someone else's character.
+    """
+    token = request.cookies.get("echo_session")
+    if not token or len(token) > 200:
+        raise HTTPException(status_code=401, detail="Требуется вход в аккаунт.")
+    browser_id = hashlib.sha256(("echo-browser|" + token).encode("utf-8")).hexdigest()[:16]
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Не удалось прочитать форму.")
+    username = str((payload or {}).get("username", "")).strip() if isinstance(payload, dict) else ""
+    password = (payload or {}).get("password", "") if isinstance(payload, dict) else ""
+    if not isinstance(password, str) or len(password) > 128:
+        raise HTTPException(status_code=400, detail="Некорректные данные формы.")
+    with sqlite3.connect(DB_PATH) as connection:
+        wanted = connection.execute(
+            "SELECT b.username_key, a.username FROM browser_sessions b "
+            "JOIN user_accounts a ON a.username_key=b.username_key "
+            "WHERE b.browser_id=? AND b.username_key=? AND b.last_seen>?",
+            (browser_id, username.casefold(), int(time.time()) - SESSION_SECONDS)
+        ).fetchone()
+        if not wanted:
+            raise HTTPException(status_code=403, detail="Этот аккаунт не выполнял вход из данного браузера.")
+        account_row = connection.execute(
+            "SELECT salt, password_hash FROM user_accounts WHERE username_key=?", (wanted[0],)
+        ).fetchone()
+    if not account_row:
+        raise HTTPException(status_code=404, detail="Аккаунт не найден.")
+    salt = bytes.fromhex(account_row[0])
+    if not hmac.compare_digest(_password_hash(password, salt).hex(), account_row[1]):
+        raise HTTPException(status_code=401, detail="Неверный пароль для этого аккаунта.")
+    # Keep the old session alive so switching back stays possible; issue a new cookie.
+    _issue_session(wanted[0], request, response)
+    return {"ok": True, "username": wanted[1]}
 
 
 @app.post("/api/auth/register")
@@ -2155,6 +2200,31 @@ def _issue_session(username_key: str, request: Request, response: Response) -> N
     token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
     expires = int(time.time()) + SESSION_SECONDS
     with sqlite3.connect(DB_PATH) as connection:
+        # Remember every session this browser has signed into (max 6), so the
+        # account-switch menu can list them later. Sessions for other players'
+        # browsers live under different cookie values and stay invisible here.
+        connection.execute(
+            "CREATE TABLE IF NOT EXISTS browser_sessions ("
+            "browser_id TEXT NOT NULL, username_key TEXT NOT NULL, last_seen INTEGER NOT NULL, "
+            "PRIMARY KEY(browser_id, username_key))"
+        )
+        # Stable per-browser marker: derived from the previous session cookie,
+        # so re-logins and switches from the same browser share one roster.
+        previous_token = request.cookies.get("echo_session")
+        if previous_token and len(previous_token) <= 200:
+            browser_id = hashlib.sha256(("echo-browser|" + previous_token).encode("utf-8")).hexdigest()[:16]
+        else:
+            browser_id = secrets.token_hex(8)
+        connection.execute(
+            "DELETE FROM browser_sessions WHERE last_seen<?", (int(time.time()) - SESSION_SECONDS,)
+        )
+        if connection.execute("SELECT COUNT(*) FROM browser_sessions WHERE browser_id=?",
+                              (browser_id,)).fetchone()[0] >= 6:
+            raise HTTPException(status_code=400, detail="Слишком много аккаунтов в этом браузере.")
+        connection.execute(
+            "INSERT OR REPLACE INTO browser_sessions(browser_id, username_key, last_seen) VALUES (?, ?, ?)",
+            (browser_id, username_key, int(time.time()))
+        )
         connection.execute("INSERT INTO auth_sessions(token_hash, username_key, expires_at) VALUES (?, ?, ?)",
                            (token_hash, username_key, expires))
     response.set_cookie("echo_session", token, max_age=SESSION_SECONDS, httponly=True,
@@ -2187,6 +2257,44 @@ def load_character(name: str) -> dict[str, Any]:
     except (sqlite3.Error, json.JSONDecodeError, TypeError):
         pass
     return {}
+
+
+def browser_account_roster(token: str | None) -> list[dict[str, Any]]:
+    """Accounts this browser signed into, with level/class from their saves.
+
+    Reads only the browser_sessions rows keyed by this browser's marker, so
+    accounts belonging to other players are never listed here.
+    """
+    if not token or len(token) > 200:
+        return []
+    browser_id = hashlib.sha256(("echo-browser|" + token).encode("utf-8")).hexdigest()[:16]
+    roster: list[dict[str, Any]] = []
+    try:
+        with sqlite3.connect(DB_PATH) as connection:
+            rows = connection.execute(
+                "SELECT b.username_key, a.username FROM browser_sessions b "
+                "JOIN user_accounts a ON a.username_key=b.username_key "
+                "WHERE b.browser_id=? AND b.last_seen>? ORDER BY b.last_seen DESC",
+                (browser_id, int(time.time()) - SESSION_SECONDS)
+            ).fetchall()
+            for username_key, username in rows:
+                level, class_name = 1, "Путник"
+                save_row = connection.execute(
+                    "SELECT data FROM character_saves WHERE name=?", (username_key,)
+                ).fetchone()
+                if save_row:
+                    try:
+                        data = json.loads(save_row[0])
+                        level = int(data.get("level") or 1)
+                        chosen = data.get("class")
+                        if isinstance(chosen, str) and chosen in CLASSES:
+                            class_name = CLASSES[chosen]["name"]
+                    except (ValueError, TypeError, json.JSONDecodeError):
+                        pass
+                roster.append({"username": username, "level": level, "class": class_name})
+    except sqlite3.Error:
+        return []
+    return roster
 
 
 def save_character(p: dict[str, Any]) -> None:
