@@ -60,6 +60,19 @@ WEAPONS = {
     "obsidian_axe": {"name": "Топор Чёрного стекла", "kind": "melee", "damage": 52, "bonus": 65, "charge": .82, "stamina": 24, "range": 54, "arc": .18, "cooldown": .43, "color": "#d19aff", "rarity": "legendary"},
     "sunfall_bow": {"name": "Лук Солнцепада", "kind": "bow", "damage": 34, "bonus": 60, "charge": .78, "stamina": 13, "cooldown": .14, "color": "#ffd274", "rarity": "legendary"},
     "elder_staff": {"name": "Посох Первозданного корня", "kind": "staff", "damage": 42, "bonus": 50, "charge": .68, "stamina": 15, "range": 48, "arc": .22, "cooldown": .32, "color": "#8de29c", "rarity": "legendary", "spell_power": .42},
+    # Расширенный арсенал: новые модели оружия с собственным поведением.
+    "warhammer": {"name": "Молот сокрушитель", "kind": "melee", "damage": 38, "bonus": 44, "charge": .92, "stamina": 24, "range": 46, "arc": .10, "cooldown": .55, "color": "#c9b28a", "rarity": "rare"},
+    "mace": {"name": "Булава болотного света", "kind": "melee", "damage": 26, "bonus": 30, "charge": .70, "stamina": 16, "range": 42, "arc": .16, "cooldown": .40, "color": "#b7d18f", "rarity": "uncommon"},
+    "glaive": {"name": "Глефа жатвы", "kind": "melee", "damage": 33, "bonus": 40, "charge": .74, "stamina": 19, "range": 66, "arc": .14, "cooldown": .40, "color": "#d8b56f", "rarity": "epic"},
+    "halberd": {"name": "Альбарда стражи врат", "kind": "melee", "damage": 44, "bonus": 52, "charge": .80, "stamina": 23, "range": 72, "arc": .12, "cooldown": .46, "color": "#9fb6c9", "rarity": "legendary"},
+    "rapier": {"name": "Рапира танцующей тени", "kind": "melee", "damage": 28, "bonus": 34, "charge": .48, "stamina": 12, "range": 58, "arc": .30, "cooldown": .22, "color": "#e3d7ff", "rarity": "rare"},
+    "claws": {"name": "Когти туманной рыси", "kind": "melee", "damage": 20, "bonus": 24, "charge": .36, "stamina": 9, "range": 34, "arc": .46, "cooldown": .17, "color": "#9fd8c8", "rarity": "uncommon"},
+    "flamberge": {"name": "Пламенный клык-клинок", "kind": "melee", "damage": 36, "bonus": 43, "charge": .66, "stamina": 18, "range": 50, "arc": .26, "cooldown": .34, "color": "#ff8f5e", "rarity": "epic"},
+    "war_maul": {"name": "Осадная боевая коса-молот", "kind": "melee", "damage": 56, "bonus": 66, "charge": .98, "stamina": 27, "range": 56, "arc": .08, "cooldown": .60, "color": "#bfa0d8", "rarity": "legendary"},
+    "longbow": {"name": "Длинный лук Эха", "kind": "bow", "damage": 22, "bonus": 38, "charge": .96, "stamina": 12, "cooldown": .20, "color": "#c8e6a2", "rarity": "rare"},
+    "crystal_bow": {"name": "Кристальный лук инея", "kind": "bow", "damage": 28, "bonus": 44, "charge": .84, "stamina": 12, "cooldown": .16, "color": "#a9f0ff", "rarity": "epic"},
+    "ember_staff": {"name": "Посох тлеющего угля", "kind": "staff", "damage": 24, "bonus": 28, "charge": .70, "stamina": 12, "range": 46, "arc": .24, "cooldown": .36, "color": "#ff9d6b", "rarity": "rare", "spell_power": .18},
+    "moon_staff": {"name": "Посох лунного прилива", "kind": "staff", "damage": 30, "bonus": 34, "charge": .66, "stamina": 13, "range": 47, "arc": .24, "cooldown": .33, "color": "#bcd0ff", "rarity": "epic", "spell_power": .28},
 }
 GEAR = {
     "traveler": {"name": "Куртка путника", "defense": 2, "color": "#547c50", "rarity": "common", "lore": "Простая одежда для долгой дороги."},
@@ -74,25 +87,47 @@ GEAR = {
     "obsidian_shell": {"name": "Панцирь чёрного стекла", "defense": 30, "color": "#887090", "rarity": "legendary", "lore": "Осколки обсидиана глушат удары и мерцают в сумраке."},
     "starseer_robe": {"name": "Мантия звёздочёта", "defense": 32, "color": "#d2a4d7", "rarity": "legendary", "lore": "Ткань хранит холодный свет далёких созвездий."},
     "elder_mantle": {"name": "Плащ Первозданного сада", "defense": 36, "color": "#8ec884", "rarity": "legendary", "lore": "Живые корни вплетают в ткань силу древнего леса."},
+    # Новые сеты брони
+    "leather_vest": {"name": "Кожаный жилет охотника", "defense": 4, "color": "#a5825f", "rarity": "common", "lore": "Прочная кожа, выдубленная корой дуба."},
+    "chain_shirt": {"name": "Кольчуга лесной стражи", "defense": 7, "color": "#9aa7ad", "rarity": "uncommon", "lore": "Мелкие кольца сплетены руками болотного кузнеца."},
+    "bark_plate": {"name": "Кора-панцирь друида", "defense": 10, "color": "#7c8f56", "rarity": "rare", "lore": "Живая кора нарастает поверх старых ран."},
+    "ember_mail": {"name": "Доспех тлеющих углей", "defense": 14, "color": "#c96f4a", "rarity": "epic", "lore": "Пластины греются, будто память о пожаре руин."},
+    "frostguard_plate": {"name": "Панцирь морозной стражи", "defense": 16, "color": "#a8dced", "rarity": "epic", "lore": "Иней на заклёпках не тает даже у костра."},
+    "void_cloak": {"name": "Плащ из ткани разлома", "defense": 24, "color": "#8f6fd1", "rarity": "legendary", "lore": "Край плаща исчезает в щели между мирами."},
 }
 MONSTERS = {
-    "slime": {"name": "Моховой слизень", "hp": 48, "speed": 42, "damage": 7, "range": 36, "cooldown": 1.35, "xp": 20, "color": "#8fce73", "zone": 1},
-    "wolf": {"name": "Туманный волк", "hp": 70, "speed": 72, "damage": 12, "range": 40, "cooldown": 1.15, "xp": 34, "color": "#b7c7b5", "zone": 1},
-    "boar": {"name": "Топкий вепрь", "hp": 125, "speed": 48, "damage": 18, "range": 48, "cooldown": 1.65, "xp": 56, "color": "#a7805b", "zone": 2},
-    "wisp": {"name": "Болотный огонёк", "hp": 88, "speed": 58, "damage": 15, "range": 52, "cooldown": 1.45, "xp": 62, "color": "#7bd8cf", "zone": 2},
-    "stone": {"name": "Каменный дозорный", "hp": 215, "speed": 29, "damage": 25, "range": 58, "cooldown": 2.0, "xp": 105, "color": "#b39c7b", "zone": 2},
-    "ashling": {"name": "Пепельный искатель", "hp": 165, "speed": 55, "damage": 23, "range": 46, "cooldown": 1.3, "xp": 110, "color": "#d38e67", "zone": 3},
-    "ashguard": {"name": "Страж руин", "hp": 330, "speed": 34, "damage": 34, "range": 66, "cooldown": 2.15, "xp": 190, "color": "#c6ad86", "zone": 3},
-    "colossus": {"name": "Пепельный колосс", "hp": 920, "speed": 22, "damage": 48, "range": 94, "cooldown": 2.6, "xp": 700, "color": "#e2a26c", "zone": 3},
-    "frost_wyrm": {"name": "Ледяной змей", "hp": 560, "speed": 59, "damage": 38, "range": 76, "cooldown": 1.65, "xp": 410, "color": "#8ee8f2", "zone": 4},
-    "rift_knight": {"name": "Рыцарь разлома", "hp": 760, "speed": 45, "damage": 52, "range": 82, "cooldown": 1.9, "xp": 580, "color": "#bd85ed", "zone": 5},
-    "echo_dragon": {"name": "Дракон Пустого Эха", "hp": 2600, "speed": 31, "damage": 74, "range": 126, "cooldown": 2.45, "xp": 2400, "color": "#ff637e", "zone": 5},
-    "void_wraith": {"name": "Призрак Бездны", "hp": 1400, "speed": 48, "damage": 55, "range": 85, "cooldown": 1.4, "xp": 1100, "color": "#7b2cbf", "zone": 6},
-    "astral_titan": {"name": "Титан Астральной Бездны", "hp": 4800, "speed": 36, "damage": 95, "range": 140, "cooldown": 2.2, "xp": 4500, "color": "#00f0ff", "zone": 6, "boss": True},
-    "obsidian_sentinel": {"name": "Страж чёрного стекла", "hp": 2100, "speed": 38, "damage": 70, "range": 94, "cooldown": 1.8, "xp": 1850, "color": "#86718f", "zone": 7},
-    "starseer": {"name": "Звёздочёт Пустоты", "hp": 2650, "speed": 49, "damage": 82, "range": 76, "cooldown": 1.55, "xp": 3100, "color": "#d9a6ef", "zone": 8},
-    "ancient_warden": {"name": "Хранитель Первозданного сада", "hp": 7200, "speed": 29, "damage": 108, "range": 148, "cooldown": 2.05, "xp": 7200, "color": "#91cb79", "zone": 8, "boss": True},
+    # "size" is the visual sprite radius; every combat hitbox is derived from it
+    # so a monster's collision box matches exactly what the player sees on screen.
+    "slime": {"name": "Моховой слизень", "hp": 48, "speed": 42, "damage": 7, "range": 36, "cooldown": 1.35, "xp": 20, "color": "#8fce73", "zone": 1, "size": 20, "anim": "bounce"},
+    "wolf": {"name": "Туманный волк", "hp": 70, "speed": 72, "damage": 12, "range": 40, "cooldown": 1.15, "xp": 34, "color": "#b7c7b5", "zone": 1, "size": 22, "anim": "dash"},
+    "boar": {"name": "Топкий вепрь", "hp": 125, "speed": 48, "damage": 18, "range": 48, "cooldown": 1.65, "xp": 56, "color": "#a7805b", "zone": 2, "size": 26, "anim": "charge"},
+    "wisp": {"name": "Болотный огонёк", "hp": 88, "speed": 58, "damage": 15, "range": 52, "cooldown": 1.45, "xp": 62, "color": "#7bd8cf", "zone": 2, "size": 20, "anim": "float"},
+    "stone": {"name": "Каменный дозорный", "hp": 215, "speed": 29, "damage": 25, "range": 58, "cooldown": 2.0, "xp": 105, "color": "#b39c7b", "zone": 2, "size": 28, "anim": "stomp"},
+    "ashling": {"name": "Пепельный искатель", "hp": 165, "speed": 55, "damage": 23, "range": 46, "cooldown": 1.3, "xp": 110, "color": "#d38e67", "zone": 3, "size": 23, "anim": "flit"},
+    "ashguard": {"name": "Страж руин", "hp": 330, "speed": 34, "damage": 34, "range": 66, "cooldown": 2.15, "xp": 190, "color": "#c6ad86", "zone": 3, "size": 34, "anim": "guard"},
+    "colossus": {"name": "Пепельный колосс", "hp": 920, "speed": 22, "damage": 48, "range": 94, "cooldown": 2.6, "xp": 700, "color": "#e2a26c", "zone": 3, "size": 55, "anim": "quake"},
+    "frost_wyrm": {"name": "Ледяной змей", "hp": 560, "speed": 59, "damage": 38, "range": 76, "cooldown": 1.65, "xp": 410, "color": "#8ee8f2", "zone": 4, "size": 30, "anim": "serpent"},
+    "rift_knight": {"name": "Рыцарь разлома", "hp": 760, "speed": 45, "damage": 52, "range": 82, "cooldown": 1.9, "xp": 580, "color": "#bd85ed", "zone": 5, "size": 32, "anim": "lunge"},
+    "echo_dragon": {"name": "Дракон Пустого Эха", "hp": 2600, "speed": 31, "damage": 74, "range": 126, "cooldown": 2.45, "xp": 2400, "color": "#ff637e", "zone": 5, "size": 50, "anim": "fly", "boss": True},
+    "void_wraith": {"name": "Призрак Бездны", "hp": 1400, "speed": 48, "damage": 55, "range": 85, "cooldown": 1.4, "xp": 1100, "color": "#7b2cbf", "zone": 6, "size": 28, "anim": "phase"},
+    "astral_titan": {"name": "Титан Астральной Бездны", "hp": 4800, "speed": 36, "damage": 95, "range": 140, "cooldown": 2.2, "xp": 4500, "color": "#00f0ff", "zone": 6, "size": 58, "anim": "quake", "boss": True},
+    "obsidian_sentinel": {"name": "Страж чёрного стекла", "hp": 2100, "speed": 38, "damage": 70, "range": 94, "cooldown": 1.8, "xp": 1850, "color": "#86718f", "zone": 7, "size": 36, "anim": "guard"},
+    "starseer": {"name": "Звёздочёт Пустоты", "hp": 2650, "speed": 49, "damage": 82, "range": 76, "cooldown": 1.55, "xp": 3100, "color": "#d9a6ef", "zone": 8, "size": 30, "anim": "cast"},
+    "ancient_warden": {"name": "Хранитель Первозданного сада", "hp": 7200, "speed": 29, "damage": 108, "range": 148, "cooldown": 2.05, "xp": 7200, "color": "#91cb79", "zone": 8, "size": 56, "anim": "quake", "boss": True},
 }
+
+
+def mob_hit_radius(mob: dict[str, Any]) -> float:
+    """Hitbox that mirrors the drawn model: sprite size scaled with level."""
+    spec = MONSTERS.get(mob.get("kind"), {})
+    base = float(spec.get("size", 24))
+    growth = 1.0 + min(0.35, max(0, int(mob.get("level", spec.get("zone", 1) or 1)) - int(spec.get("zone", 1) or 1)) * 0.02)
+    return round(base * growth, 1)
+
+
+def mob_touch_distance(a: dict[str, Any], b: dict[str, Any]) -> float:
+    """Surface-to-surface contact distance between two entities (circle hitboxes)."""
+    return mob_hit_radius(a) + mob_hit_radius(b)
 
 
 SHOP_CATALOG = {
@@ -110,10 +145,59 @@ SHOP_CATALOG = {
     "sunfall_bow": {"name": "Лук Солнцепада", "description": "Легендарный лук дальней стражи", "price": 1750, "kind": "weapon"},
     "obsidian_axe": {"name": "Топор Чёрного стекла", "description": "Тяжёлое оружие окраины мира", "price": 2100, "kind": "weapon"},
     "elder_staff": {"name": "Посох Первозданного корня", "description": "Сильная магия и тяжёлый удар", "price": 2300, "kind": "weapon"},
+    "warhammer": {"name": "Молот сокрушитель", "description": "Тяжёлый дробящий удар", "price": 480, "kind": "weapon"},
+    "mace": {"name": "Булава болотного света", "description": "Недорогая дробина для топей", "price": 190, "kind": "weapon"},
+    "glaive": {"name": "Глефа жатвы", "description": "Дальний размах по нескольким врагам", "price": 560, "kind": "weapon"},
+    "halberd": {"name": "Альбарда стражи врат", "description": "Максимальная дистанция ближнего боя", "price": 1450, "kind": "weapon"},
+    "rapier": {"name": "Рапира танцующей тени", "description": "Молниеносные колющие выпады", "price": 430, "kind": "weapon"},
+    "claws": {"name": "Когти туманной рыси", "description": "Самая быстрая атака в лесу", "price": 240, "kind": "weapon"},
+    "flamberge": {"name": "Пламенный клык-клинок", "description": "Клинок, паленый в угольной яме", "price": 690, "kind": "weapon"},
+    "war_maul": {"name": "Осадная коса-молот", "description": "Разит целые стаи одним замахом", "price": 1650, "kind": "weapon"},
+    "longbow": {"name": "Длинный лук Эха", "description": "Дальнобойный лук следопыта", "price": 380, "kind": "weapon"},
+    "crystal_bow": {"name": "Кристальный лук инея", "description": "Стрелы оставляют ледяной след", "price": 860, "kind": "weapon"},
+    "ember_staff": {"name": "Посох тлеющего угля", "description": "Усиливает огненные чары", "price": 410, "kind": "weapon"},
+    "moon_staff": {"name": "Посох лунного прилива", "description": "Плавный приток маны и силы чар", "price": 720, "kind": "weapon"},
     "wolf_cloak": {"name": "Плащ туманного волка", "description": "Броня · защита 5", "price": 145, "kind": "gear"},
     "marsh_armor": {"name": "Болотная броня", "description": "Броня · защита 8", "price": 270, "kind": "gear"},
+    "leather_vest": {"name": "Кожаный жилет охотника", "description": "Броня · защита 4", "price": 90, "kind": "gear"},
+    "chain_shirt": {"name": "Кольчуга лесной стражи", "description": "Броня · защита 7", "price": 240, "kind": "gear"},
+    "bark_plate": {"name": "Кора-панцирь друида", "description": "Броня · защита 10", "price": 360, "kind": "gear"},
+    "ember_mail": {"name": "Доспех тлеющих углей", "description": "Броня · защита 14", "price": 620, "kind": "gear"},
+    "frostguard_plate": {"name": "Панцирь морозной стражи", "description": "Броня · защита 16", "price": 780, "kind": "gear"},
+    "void_cloak": {"name": "Плащ из ткани разлома", "description": "Броня · защита 24", "price": 1350, "kind": "gear"},
+    "mana_potion": {"name": "Эссенция синего пламени", "description": "+60 маны", "price": 45, "kind": "mana_potion"},
+    "stamina_potion": {"name": "Отвар живучести", "description": "+55 выносливости", "price": 38, "kind": "stamina_potion"},
+    "elixir": {"name": "Эликсир первозданной росы", "description": "Полное восстановление ресурсов", "price": 120, "kind": "elixir"},
+    "bandage": {"name": "Лубяная повязка", "description": "+24 здоровья", "price": 14, "kind": "bandage"},
+    "throwing_knife": {"name": "Связка метательных ножей ×5", "description": "Метательный боеприпас", "price": 60, "kind": "throwing_knife"},
 }
-SELL_PRICES = {"wood": 3, "herb": 4, "ore": 6, "hide": 8, "slime": 5, "crystal": 10, "shard": 14, "potion": 12, "arrows": 1}
+SELL_PRICES = {"wood": 3, "herb": 4, "ore": 6, "hide": 8, "slime": 5, "crystal": 10, "shard": 14, "potion": 12, "arrows": 1,
+               "mana_potion": 16, "stamina_potion": 14, "elixir": 45, "throwing_knife": 4, "bandage": 5}
+CONSUMABLES = {
+    "mana_potion": {"name": "Эссенция синего пламени", "description": "+60 маны", "price": 45, "restore_mana": 60},
+    "stamina_potion": {"name": "Отвар живучести", "description": "+55 выносливости", "price": 38, "restore_stamina": 55},
+    "elixir": {"name": "Эликсир первозданной росы", "description": "+90 здоровья, +60 маны, +40 выносливости", "price": 120,
+                "restore_hp": 90, "restore_mana": 60, "restore_stamina": 40},
+    "bandage": {"name": "Лубяная повязка", "description": "+24 здоровья мгновенно", "price": 14, "restore_hp": 24},
+}
+CRAFT_RECIPES = {
+    "arrows": {"name": "Колчан стрел ×8", "cost": {"wood": 2, "ore": 1}},
+    "potion": {"name": "Настойка следопыта", "cost": {"herb": 3, "slime": 1}},
+    "mana_potion": {"name": "Эссенция синего пламени", "cost": {"crystal": 2, "herb": 2}},
+    "stamina_potion": {"name": "Отвар живучести", "cost": {"hide": 2, "ore": 1}},
+    "elixir": {"name": "Эликсир первозданной росы", "cost": {"crystal": 4, "shard": 2, "herb": 4}},
+    "bandage": {"name": "Стопка повязок ×3", "cost": {"herb": 2}},
+    "throwing_knife": {"name": "Метательные ножи ×5", "cost": {"ore": 2, "wood": 1}},
+    "iron_sword": {"name": "Клинок из болотной стали", "cost": {"ore": 6, "wood": 4}},
+    "mace": {"name": "Булава болотного света", "cost": {"ore": 4, "wood": 3, "hide": 1}},
+    "warhammer": {"name": "Молот сокрушитель", "cost": {"ore": 9, "wood": 4, "hide": 2}},
+    "longbow": {"name": "Длинный лук Эха", "cost": {"wood": 8, "hide": 3, "crystal": 1}},
+    "ember_staff": {"name": "Посох тлеющего угля", "cost": {"wood": 6, "crystal": 3, "shard": 1}},
+    "leather_vest": {"name": "Кожаный жилет охотника", "cost": {"hide": 5, "wood": 1}},
+    "chain_shirt": {"name": "Кольчуга лесной стражи", "cost": {"ore": 7, "hide": 2}},
+    "armor": {"name": "Болотная броня", "cost": {"hide": 4, "ore": 3}},
+    "bark_plate": {"name": "Кора-панцирь друида", "cost": {"wood": 8, "herb": 4, "ore": 3}},
+}
 ENCHANT_CATALOG = {
     "sharpness": {"name": "Острота", "target": "weapon", "description": "+8 урона за уровень"},
     "vampirism": {"name": "Похищение жизни", "target": "weapon", "description": "Лечит на 6% урона за уровень"},
@@ -1102,19 +1186,35 @@ def start_gather(p: dict[str, Any], now: float) -> None:
 
 def do_craft(p: dict[str, Any], recipe: str) -> str:
     inv = p["inventory"]
-    if recipe == "arrows" and inv["wood"] >= 2 and inv["ore"] >= 1:
-        inv["wood"] -= 2; inv["ore"] -= 1; inv["arrows"] += 8
-        return "Изготовлено 8 стрел."
-    if recipe == "potion" and inv["herb"] >= 3 and inv["slime"] >= 1:
-        inv["herb"] -= 3; inv["slime"] -= 1; inv["potion"] += 1
-        return "Сварена настойка восстановления."
-    if recipe == "iron_sword" and inv["ore"] >= 6 and inv["wood"] >= 4 and "iron_sword" not in p["weapons"]:
-        inv["ore"] -= 6; inv["wood"] -= 4; p["weapons"].append("iron_sword")
-        return "Скован болотностальной клинок."
-    if recipe == "armor" and inv["hide"] >= 4 and inv["ore"] >= 3 and "marsh_armor" not in p["gear_inventory"] and p["gear"] != "marsh_armor":
-        inv["hide"] -= 4; inv["ore"] -= 3; grant_gear(p, "marsh_armor")
-        return "Собрана болотная броня. Открой инвентарь, чтобы надеть её."
-    return "Не хватает материалов или предмет уже изготовлен."
+    spec = CRAFT_RECIPES.get(recipe)
+    if not spec:
+        return "Такого рецепта нет в самоучителе ремёсел."
+    for resource, need in spec["cost"].items():
+        if int(inv.get(resource, 0)) < need:
+            return f"Не хватает материалов для «{spec['name']}»: нужно {need} × {resource}."
+    for resource, need in spec["cost"].items():
+        inv[resource] = int(inv.get(resource, 0)) - need
+    # Consumables and ammunition simply fill the backpack.
+    if recipe in {"arrows", "potion"} or recipe in CONSUMABLES or recipe in {"bandage", "throwing_knife"}:
+        amount = {"arrows": 8, "bandage": 3, "throwing_knife": 5}.get(recipe, 1)
+        inv[recipe] = int(inv.get(recipe, 0)) + amount
+        return f"Изготовлено: {spec['name']}" + (f" ×{amount}." if amount > 1 else ".")
+    # Equipment recipes must avoid duplicates.
+    if recipe in WEAPONS:
+        if recipe in p["weapons"]:
+            for resource, need in spec["cost"].items():
+                inv[resource] = int(inv.get(resource, 0)) + need
+            return "Такое оружие уже выковано — материалы возвращены."
+        p["weapons"].append(recipe)
+        return f"Сковано: {WEAPONS[recipe]['name']}. Открой инвентарь, чтобы экипировать."
+    if recipe in GEAR:
+        if recipe == p["gear"] or recipe in p["gear_inventory"]:
+            for resource, need in spec["cost"].items():
+                inv[resource] = int(inv.get(resource, 0)) + need
+            return "Такая броня уже есть в сумке — материалы возвращены."
+        grant_gear(p, recipe)
+        return f"Собрано: {GEAR[recipe]['name']}. Открой инвентарь, чтобы надеть её."
+    return "Рецепт не найден."
 
 
 def enchant_level(p: dict[str, Any], target: str, item_id: str, enchant_id: str) -> int:
@@ -1193,6 +1293,8 @@ async def market_action(p: dict[str, Any], msg: dict[str, Any]) -> None:
         elif kind == "arrows": inv["arrows"] += 8
         elif kind == "crystal": inv["crystal"] += 3
         elif kind == "shard": inv["shard"] += 1
+        elif kind in CONSUMABLES: inv[kind] = inv.get(kind, 0) + 1
+        elif kind == "throwing_knife": inv["throwing_knife"] = inv.get("throwing_knife", 0) + 5
         elif kind == "weapon": p["weapons"].append(item_id)
         elif kind == "gear": p["gear_inventory"].append(item_id)
         await sync_station_state(p)
