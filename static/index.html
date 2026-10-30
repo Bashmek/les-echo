@@ -287,7 +287,6 @@
 <div class="classOverlay" id="classOverlay" role="dialog" aria-modal="true" aria-labelledby="classTitle"><section class="classCard panel"><header><div><span class="guideEyebrow">ПУТЬ ГЕРОЯ · УРОВЕНЬ 5</span><h2 id="classTitle">Выбери класс</h2></div><button class="close" id="classLater" type="button">Позже</button></header><p>Класс выбирается один раз и сохраняется навсегда. До выбора доступны прежние заклинания с любым оружием; после выбора боевой набор зависит от экипированного оружия. Смена класса сервером запрещена.</p><div class="classGrid" id="classGrid"></div><p class="classHint">Воин — ближний бой, Следопыт — лук, Маг — посох и прежняя система заклинаний. Мастерство каждого направления растёт отдельно и открывает способности.</p></section></div><div id="login" class="overlay"><form id="loginForm" class="dialog" autocomplete="on"><div class="eyebrow">КООПЕРАТИВНАЯ ПИКСЕЛЬНАЯ RPG</div><h1>Лес Эхо</h1><p>Создай аккаунт или войди, чтобы продолжить приключение. Сохранение персонажа привязано к имени пользователя.</p><div class="authModes"><button type="button" id="registerMode" class="active">Регистрация</button><button type="button" id="loginMode">Вход</button></div><label for="nameInput">Имя пользователя</label><input id="nameInput" name="username" maxlength="18" minlength="3" autocomplete="username" placeholder="3–18 символов" required><label for="passwordInput">Пароль</label><input id="passwordInput" name="password" type="password" minlength="8" maxlength="128" autocomplete="new-password" placeholder="Не менее 8 символов" required><div id="confirmWrap"><label for="confirmInput">Повторите пароль</label><input id="confirmInput" type="password" minlength="8" maxlength="128" autocomplete="new-password" placeholder="Повтор пароля"></div><p class="authHelp">Используйте буквы, цифры, дефис или подчёркивание в имени.</p><div id="authError" class="authError" role="status" aria-live="polite"></div><button class="primary" id="authSubmit">Создать аккаунт</button></form></div>
 </main>
 <script>
-(()=>{
 const $=id=>document.getElementById(id), canvas=$('world'),ctx=canvas.getContext('2d'),mini=$('mini'),mctx=mini.getContext('2d'),full=$('fullmap'),fctx=full.getContext('2d');
 const zoneInfo={camp:{name:'Лагерь Следопытов',level:'Безопасная зона',color:'#799457'},forest:{name:'Шепчущий лес',level:'Уровень 1–3',color:'#63834e'},marsh:{name:'Затонувшие топи',level:'Уровень 4–6',color:'#4d766c'},ruins:{name:'Пепельные руины',level:'Уровень 7–10',color:'#77614e'},glacier:{name:'Хребет Синего Пламени',level:'Уровень 11–14',color:'#73949c'},rift:{name:'Разлом Эха',level:'Уровень 15–19',color:'#584e76'},abyss:{name:'Астральная Бездна',level:'Уровень 20–25',color:'#352d51'},obsidian:{name:'Обсидиановый край',level:'Уровень 26–30',color:'#54435f'},garden:{name:'Первозданный сад',level:'Уровень 31–35',color:'#557a4a'}};
 const weaponNames={sword:'Меч дозорного',axe:'Лесной колун',bow:'Тисовый лук',iron_sword:'Клинок из болотной стали',moonblade:'Лунный резец',ember_greatsword:'Клинок последнего зарева',starfall_bow:'Лук звёздного падения',forest_bow:'Лук следопыта',apprentice_staff:'Посох ученика',thorn_staff:'Посох живых терний',stormbrand:'Клинок Грозового кедра',obsidian_axe:'Топор Чёрного стекла',sunfall_bow:'Лук Солнцепада',elder_staff:'Посох Первозданного корня'},gearNames={traveler:'Куртка путника',wolf_cloak:'Плащ туманного волка',moss_guard:'Живой моховой панцирь',marsh_armor:'Болотная броня',moonweave:'Мантия лунного ткача',ash_plate:'Пепельный панцирь',colossus_core:'Сердце Колосса',glacier_mantle:'Мантия Синего Пламени',rift_plate:'Доспех Пустого Эха',obsidian_shell:'Панцирь чёрного стекла',starseer_robe:'Мантия звёздочёта',elder_mantle:'Плащ Первозданного сада'},gearDefense={traveler:2,wolf_cloak:5,moss_guard:6,marsh_armor:8,moonweave:9,ash_plate:12,colossus_core:18,glacier_mantle:21,rift_plate:27,obsidian_shell:30,starseer_robe:32,elder_mantle:36},rarityNames={common:'Обычный',uncommon:'Необычный',rare:'Редкий',epic:'Эпический',legendary:'Легендарный'},resourceNames={wood:'Древесина',herb:'Лунная трава',ore:'Болотная руда',crystal:'Эхо-кристалл',shard:'Осколок разлома',hide:'Шкура',slime:'Слизь',arrows:'Стрелы',potion:'Настойка'};
@@ -575,6 +574,18 @@ restoreSession();
 
 /* ===== ИГРОВОЕ МЕНЮ (Esc) · НАЗНАЧЕНИЕ КЛАВИШ · СМЕНА АККАУНТА ===== */
 const GAME_MENU_IDS=['gameMenuOverlay','keybindOverlay','accountOverlay','charOverlay'];
+// --- общие объявления, доступные и внутри основного IIFE, и после него ---
+let actionKeys={};
+const ACTION_KEY_DEFAULTS={character:'KeyC',inventory:'KeyI',market:'KeyB',wizard:'KeyG',forge:'KeyH',map:'KeyM',dodge:'ShiftLeft',gather:'KeyE',interact:'KeyF',potion:'KeyQ',attack:'Space',chat:'Enter'};
+const ACTION_KEY_NAMES={character:'Меню персонажа',inventory:'Рюкзак и крафт',market:'Лавка',wizard:'Маг',forge:'Кузница',map:'Карта мира',dodge:'Рывок',gather:'Сбор ресурса',interact:'Взаимодействие (Хранитель)',potion:'Настойка',attack:'Атака (удерживай)',chat:'Чат'};
+let listeningActionKey=null;
+let toggleCharacter=()=>{};
+let setListeningAction=()=>{};
+let renderKeybindSections=()=>{};
+let syncActionKeyLabels=()=>{};
+let applyActionToGame=()=>false;
+let movementCodeSet=()=>new Set();
+let RESERVED_ACTION_CODES=new Set(['Escape','Tab']);
 let lastGameMenuToggle=0,lastSubmenuToggle=0;
 function toggleGameMenu(open,force){const el=$('gameMenuOverlay');if(!el)return;if(!force&&performance.now()-lastGameMenuToggle<260)return;lastGameMenuToggle=performance.now();const next=open??(getComputedStyle(el).display==='none');const prev=performance.now();if(next){lastGameMenuToggle=0;lastSubmenuToggle=0;closeTopGameMenu();toggleKeybinds(false,true);toggleAccounts(false,true);lastGameMenuToggle=prev;lastSubmenuToggle=prev;el.style.display='flex';$('closeGameMenu').focus()}else{lastSubmenuToggle=0;el.style.display='none';toggleKeybinds(false,true);toggleAccounts(false,true);toggleCharacter(false,true);lastSubmenuToggle=prev}}
 function toggleKeybinds(open,force){const el=$('keybindOverlay');if(!el)return;if(!force&&performance.now()-lastSubmenuToggle<260)return;lastSubmenuToggle=performance.now();const next=open??(getComputedStyle(el).display==='none');el.style.display=next?'flex':'none';if(next){renderKeybindSections();$('closeKeybinds').focus()}}
@@ -635,7 +646,7 @@ document.addEventListener('keydown',e=>{
 },true);
 function keybindRow(name,current,listening,onedit){const row=document.createElement('div');row.className='keybindRow'+(listening?' is-listening':'');const label=document.createElement('span');label.className='keybindName';label.textContent=name;const key=document.createElement('span');key.className='keybindKey';key.textContent=current;const btn=document.createElement('button');btn.type='button';btn.textContent=listening?'Жду клавишу…':'Изменить';btn.disabled=!onedit;if(onedit)btn.onclick=onedit;btn.setAttribute('aria-label',`Изменить клавишу: ${name}`);row.append(label,key,btn);return row}
 function keybindSection(title,note,rows,extra){const sec=document.createElement('section');sec.className='keybindSection';const h=document.createElement('h3');h.textContent=title;sec.appendChild(h);if(note){const p=document.createElement('p');p.className='bindingHint';p.textContent=note;sec.appendChild(p)}const grid=document.createElement('div');grid.className='customSpellKeyList';rows.forEach(r=>grid.appendChild(r));sec.appendChild(grid);if(extra)sec.appendChild(extra);return sec}
-function renderKeybindSections(){
+renderKeybindSections=()=>{
  const host=$('keybindSections'),p=me();if(!host)return;
  if(getComputedStyle($('keybindOverlay')).display==='none')return;
  const tree=p?.action_tree||'warrior';
@@ -794,7 +805,8 @@ updateQuestTracker(p,q,questLine,resLine);
 const inv=p.inventory;for(let k of ['wood','herb','ore','crystal','hide','slime','shard','arrows','potion']){let e=$(k);if(e)e.textContent=inv[k]||0;}$('weaponName').textContent=weaponNames[p.weapon]||p.weapon;$('gearName').textContent=gearNames[p.gear]||'Нет';$('defenseLabel').textContent=`· броня ${gearDefense[p.gear]||0}`;
 
 try{renderInventory(p)}catch(err){console.warn('renderInventory',err)}if($('wizardOverlay').style.display==='flex')renderWizard(p);if($('forgeOverlay').style.display==='flex')renderForge(p);const kind=p.weapon_catalog?.[p.weapon]?.kind||'melee';try{updateCharacterPanel(p)}catch(err){console.warn('updateCharacterPanel',err)}if($('manaBadge'))$('manaBadge').textContent=`${Math.floor(p.mana||0)} / ${p.max_mana||0} маны`;$('marketBalance').textContent=`${p.gold||0} монет`;renderMarket(p);document.querySelectorAll('[data-spell]').forEach(b=>{let costs={fireball:18,lightning:26,heal:24,thorns:23,ice_lance:30,arcane_burst:38,meteor:58},unlocked=new Set(p.spells_unlocked||[]);b.disabled=!unlocked.has(b.dataset.spell)||(p.mana||0)<(costs[b.dataset.spell]||999)});
-renderStatsPanel(p);document.querySelectorAll('[data-craft]').forEach(b=>{let r=b.dataset.craft;b.disabled=r==='arrows'?inv.wood<2||inv.ore<1:r==='potion'?inv.herb<3||inv.slime<1:r==='iron_sword'?inv.ore<6||inv.wood<4||p.weapons.includes('iron_sword'):inv.hide<4||inv.ore<3||(p.gear==='marsh_armor'||p.gear_inventory.includes('marsh_armor'))});
+renderStatsPanel(p);if(window.renderCharOverlay)try{window.renderCharOverlay(me())}catch(err){}
+document.querySelectorAll('[data-craft]').forEach(b=>{let r=b.dataset.craft;b.disabled=r==='arrows'?inv.wood<2||inv.ore<1:r==='potion'?inv.herb<3||inv.slime<1:r==='iron_sword'?inv.ore<6||inv.wood<4||p.weapons.includes('iron_sword'):inv.hide<4||inv.ore<3||(p.gear==='marsh_armor'||p.gear_inventory.includes('marsh_armor'))});
 let keeper=Math.hypot(p.x-330,p.y-1100)<110,node=snap.nodes.some(n=>n.active&&Math.hypot(n.x-p.x,n.y-p.y)<68);$('interactButton').textContent=keeper?`${actionKeyLabel('interact')} · ХРАНИТЕЛЬ`:node?`${actionKeyLabel('gather')} · СБОР`:`${actionKeyLabel('gather')} · РЕСУРС`;$('progress').style.display=p.gathering?'block':'none';if(p.gathering){let g=snap.nodes.find(n=>n.active&&Math.hypot(n.x-p.x,n.y-p.y)<75);$('progressText').textContent=`Сбор: ${nodeNames[g?.kind]||'ресурс'}`;$('progressFill').style.width=`${Math.min(100,(p.gather_progress||0)*100)}%`}$('dodgeButton').disabled=!p.dodge_ready||p.stamina<24;
 }
 const questStages=[['slime',4,'herb',3,'Очистить опушку'],['wolf',3,'ore',4,'Следы в топи'],['boar',3,'crystal',3,'Свет под водой'],['colossus',1,'',0,'Пепельный колосс'],['frost_wyrm',4,'crystal',6,'Синий хребет'],['echo_dragon',1,'shard',8,'Разлом Эха'],['rift_knight',4,'shard',6,'Стражи разлома'],['echo_dragon',2,'crystal',12,'Сердце пустоты'],['void_wraith',5,'shard',12,'Угольный след'],['obsidian_sentinel',5,'ore',18,'Ключ из чёрного стекла'],['starseer',4,'crystal',20,'Охота на звёздочёта'],['starseer',5,'herb',22,'Корни под звёздами'],['ancient_warden',1,'shard',30,'Страж Первозданного сада']];function questDone(q){let t=questStages[Math.min(q.stage,questStages.length-1)];return(q.kills[t[0]]||0)>=t[1]&&(!t[2]||(q.gather[t[2]]||0)>=t[3])}
@@ -1057,7 +1069,6 @@ function drawMap(c,context,large=false){
  if(!large&&me()){context.strokeStyle='#fff6d099';context.lineWidth=1;context.strokeRect(Math.max(0,sx(cam.x-350)),Math.max(0,sy(cam.y-250)),700/W.w*w,500/W.h*h)}
 }
 function frame(now){inputFrame();if(chargeLocal){let p=me(),pct=p?Math.min(1,(now-chargeStart)/(attackChargeDuration(p)*1000)):0;$('chargeFill').style.width=`${pct*100}%`;$('chargePercent').textContent=`${Math.round(pct*100)}%`;$('chargeTier').textContent=pct<.35?'НАБОР':pct<.8?'СИЛЬНЕЕ':'ПОЛНЫЙ УДАР';$('attackButton').style.setProperty('--charge',pct)}else{$('attackButton').style.setProperty('--charge',0)}drawWorld(now);drawMap(mini,mctx,false);requestAnimationFrame(frame)}requestAnimationFrame(frame);
-})();
 /* ==== МЕНЮ ПЕРСОНАЖА: характеристики + экипировка с всплывающими подсказками ==== */
 const CHAR_STAT_META={might:['⚔','Сила','Урон ближнего боя и выстрелов'],vitality:['♥','Живучесть','Запас здоровья'],agility:['➶','Ловкость','Скорость бега и рывка'],mana_regen:['✧','Восстановление маны','Регенерация маны и её запас'],magic_damage:['☄','Урон магии','Сила всех заклинаний'],precision:['◎','Точность','Шанс критического удара'],fortune:['♣','Удача','Шанс редкой добычи']};
 function weaponKindLabel(kind){return kind==='bow'?'Дальний бой':kind==='staff'?'Магический посох':'Ближний бой'}
@@ -1114,12 +1125,14 @@ function renderCharOverlay(p){const el=$('charOverlay');if(!el||getComputedStyle
  if(sa){const g=p.gear_catalog?.[p.gear]||{};sa.className=`gearSlot rarity-${g.rarity||'common'}`;sa.tabIndex=0;
   $('slotArmorName').textContent=g.name||gearNames[p.gear]||'Нет';$('slotArmorTip').innerHTML=buildGearTip(p)}}
 let lastCharToggle=0;
-function toggleCharacter(open,force){const el=$('charOverlay');if(!el)return;if(!force&&performance.now()-lastCharToggle<260)return;lastCharToggle=performance.now();
+const toggleCharacterReal=(open,force)=>{const el=$('charOverlay');if(!el)return;if(!force&&performance.now()-lastCharToggle<260)return;lastCharToggle=performance.now();
  const next=open??(getComputedStyle(el).display==='none');
  if(next){
   for(const other of ['gameMenuOverlay','keybindOverlay','accountOverlay']){const o=$(other);if(o)o.style.display='none'}
   el.style.display='flex';renderCharOverlay(me());$('closeCharacter').focus()}
  else el.style.display='none'}
+toggleCharacter=toggleCharacterReal;
+window.updateCharacterPanel=updateCharacterPanel;
 if($('characterButton'))$('characterButton').onclick=()=>toggleCharacter();
 if($('closeCharacter'))$('closeCharacter').onclick=()=>{lastCharToggle=0;toggleCharacter(false,true)};
 for(const miniId of ['miniWeaponBtn','miniGearBtn']){const b=$(miniId);if(b)b.onclick=()=>toggleCharacter()}
@@ -1139,19 +1152,17 @@ for(const [id,kind] of [['miniWeaponBtn','weapon'],['miniGearBtn','gear']]){cons
 addEventListener('resize',hideMiniTip);addEventListener('scroll',hideMiniTip,true);
 
 /* ==== ПЕРЕНАЗНАЧАЕМЫЕ КЛАВИШИ ИГРОВЫХ ДЕЙСТВИЙ (инвентарь, рывок, сбор и т.д.) ==== */
-const ACTION_KEY_STORE='echoActionKeysV2',ACTION_KEY_DEFAULTS={character:'KeyC',inventory:'KeyI',market:'KeyB',wizard:'KeyG',forge:'KeyH',map:'KeyM',dodge:'ShiftLeft',gather:'KeyE',interact:'KeyF',potion:'KeyQ',attack:'Space',chat:'Enter'};
-const RESERVED_ACTION_CODES=new Set(['Escape','Tab','Backspace','Delete','ControlLeft','ControlRight','AltLeft','AltRight','MetaLeft','MetaRight','CapsLock','NumLock','ScrollLock','PrintScreen','Home','End','PageUp','PageDown','Insert']);
-let actionKeys={...ACTION_KEY_DEFAULTS};
-try{const raw=localStorage.getItem(ACTION_KEY_STORE);if(raw){const saved=JSON.parse(raw);Object.keys(ACTION_KEY_DEFAULTS).forEach(k=>{if(typeof saved[k]==='string')actionKeys[k]=saved[k]})}}catch{}
-function saveActionKeys(){try{localStorage.setItem(ACTION_KEY_STORE,JSON.stringify(actionKeys))}catch{}}
+// Все объявления — в общей области видимости скрипта (см. начало файла), здесь только инициализация и логика.
+RESERVED_ACTION_CODES=new Set(['Escape','Tab','Backspace','Delete','ControlLeft','ControlRight','AltLeft','AltRight','MetaLeft','MetaRight','CapsLock','NumLock','ScrollLock','PrintScreen','Home','End','PageUp','PageDown','Insert']);
+actionKeys={...ACTION_KEY_DEFAULTS};
+try{const raw=localStorage.getItem('echoActionKeysV2');if(raw){const saved=JSON.parse(raw);Object.keys(ACTION_KEY_DEFAULTS).forEach(k=>{if(typeof saved[k]==='string')actionKeys[k]=saved[k]})}}catch{}
+function saveActionKeys(){try{localStorage.setItem('echoActionKeysV2',JSON.stringify(actionKeys))}catch{}}
 function actionByCode(code){for(const k of Object.keys(ACTION_KEY_DEFAULTS)){if(actionKeys[k]===code)return k}return ''}
 function isReservedCode(code){return RESERVED_ACTION_CODES.has(code)||/^(?:Control|Alt|Meta)/.test(code)}
 function actionKeyLabel(act){const code=actionKeys[act];if(act==='dodge'&&/^Shift/.test(code))return code==='ShiftRight'?'ПК Shift':'ЛК Shift';if(act==='attack')return code==='Space'?'Пробел':keyLabel(code)||code;return keyLabel(code)||code||'—'}
-function movementCodeSet(){return new Set(Object.values(movementCodes))}
-function actionCodeConflict(code,exceptAct){for(const k of Object.keys(ACTION_KEY_DEFAULTS)){if(k!==exceptAct&&actionKeys[k]===code)return k}return ''}
-function applyActionToGame(act,e){switch(act){case 'character':toggleCharacter();return true;case 'inventory':if($('invOverlay').style.display==='flex')closeInventory();else openInventory();return true;case 'market':if($('marketOverlay').style.display==='flex')closeMarket();else openMarket();return true;case 'wizard':if($('wizardOverlay').style.display==='flex')closeStation('wizardOverlay');else openWizard();return true;case 'forge':if($('forgeOverlay').style.display==='flex')closeStation('forgeOverlay');else openForge();return true;case 'map':toggleMap();return true;case 'dodge':dodge();return true;case 'gather':send({type:'gather_start'});return true;case 'interact':send({type:'interact'});return true;case 'potion':send({type:'use_potion'});return true;case 'attack':beginAttack(e);return true;case 'chat':if(document.activeElement===$('chatInput'))return false;if(document.activeElement&&document.activeElement.blur)document.activeElement.blur();$('chatInput').focus();return true}}
-function setListeningAction(act){listeningActionKey=act;renderKeybindSections()}
-let listeningActionKey=null;
+movementCodeSet=()=>new Set(Object.values(movementCodes));
+function actionCodeConflict(code,exceptAct){for(const k of Object.keys(ACTION_KEY_DEFAULTS)){if(k!==exceptAct&&actionKeys[k]===code)return k}return ''}applyActionToGame=(act,e)=>{switch(act){case 'character':toggleCharacter();return true;case 'inventory':if($('invOverlay').style.display==='flex')closeInventory();else openInventory();return true;case 'market':if($('marketOverlay').style.display==='flex')closeMarket();else openMarket();return true;case 'wizard':if($('wizardOverlay').style.display==='flex')closeStation('wizardOverlay');else openWizard();return true;case 'forge':if($('forgeOverlay').style.display==='flex')closeStation('forgeOverlay');else openForge();return true;case 'map':toggleMap();return true;case 'dodge':dodge();return true;case 'gather':send({type:'gather_start'});return true;case 'interact':send({type:'interact'});return true;case 'potion':send({type:'use_potion'});return true;case 'attack':beginAttack(e);return true;case 'chat':if(document.activeElement===$('chatInput'))return false;if(document.activeElement&&document.activeElement.blur)document.activeElement.blur();$('chatInput').focus();return true}};
+setListeningAction=(act)=>{listeningActionKey=act;renderKeybindSections()};
 function finishActionCapture(code){const act=listeningActionKey;listeningActionKey=null;if(!act){renderKeybindSections();return}
  const label=keyLabel(code)||code;
  if(isReservedCode(code)){toast('Эта клавиша зарезервирована системой. Esc — отмена.');renderKeybindSections();return}
@@ -1161,9 +1172,9 @@ function finishActionCapture(code){const act=listeningActionKey;listeningActionK
  if(abilityKeyCodeToId[code]){toast('Клавиша занята способностью — измените её в этом же меню.');renderKeybindSections();return}
  if(spellKeyCodeToId[code]){toast('Клавиша занята заклинанием — измените её в этом же меню.');renderKeybindSections();return}
  actionKeys[act]=code;saveActionKeys();syncActionKeyLabels();updateActionPanels(me());toast(`Действие «${ACTION_KEY_NAMES[act]}» → ${label}`);renderKeybindSections()}
-const ACTION_KEY_NAMES={character:'Меню персонажа',inventory:'Рюкзак и крафт',market:'Лавка',wizard:'Маг',forge:'Кузница',map:'Карта мира',dodge:'Рывок',gather:'Сбор ресурса',interact:'Взаимодействие (Хранитель)',potion:'Настойка',attack:'Атака (удерживай)',chat:'Чат'};
+// ACTION_KEY_NAMES объявлен в общей области видимости (см. начало скрипта)
 const ACTION_BUTTON_BASE={inventoryButton:'СУМКА',marketButton:'ЛАВКА',wizardButton:'МАГ',forgeButton:'КУЗНЯ',mapButton:'КАРТА',potionButton:'НАСТОЙКА',dodgeButton:'РЫВОК'};
-function syncActionKeyLabels(){for(const[id,act]of Object.entries([['inventoryButton','inventory'],['marketButton','market'],['wizardButton','wizard'],['forgeButton','forge'],['mapButton','map'],['potionButton','potion'],['dodgeButton','dodge']].reduce((o,[k,v])=>(o[k]=v,o),{}))){const b=$(id);if(!b)continue;const base=ACTION_BUTTON_BASE[id]||b.textContent.trim();b.innerHTML=`${base}<br><small class="btnKeyHint">${actionKeyLabel(act)}</small>`}}
+syncActionKeyLabels=()=>{for(const[id,act]of Object.entries([['inventoryButton','inventory'],['marketButton','market'],['wizardButton','wizard'],['forgeButton','forge'],['mapButton','map'],['potionButton','potion'],['dodgeButton','dodge']].reduce((o,[k,v])=>(o[k]=v,o),{}))){const b=$(id);if(!b)continue;const base=ACTION_BUTTON_BASE[id]||b.textContent.trim();b.innerHTML=`${base}<br><small class="btnKeyHint">${actionKeyLabel(act)}</small>`}}
 document.addEventListener('keydown',e=>{if(!listeningActionKey||getComputedStyle($('keybindOverlay')).display==='none'||e.target.matches('input,textarea,select'))return;e.preventDefault();e.stopPropagation();if(e.key==='Escape'){listeningActionKey=null;renderKeybindSections();return}finishActionCapture(e.code)},true);
 
 syncActionKeyLabels();
