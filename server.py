@@ -281,9 +281,9 @@ SPELLS = {
     "frost_nova": {"name": "Кольцо инея", "kind": "Лёд", "rarity": 2, "mana": 32, "cooldown": 8.0, "damage": 65, "radius": 142, "unlock_spent": 320, "unlock_level": 6},
     "shadow_bolt": {"name": "Сумрачный снаряд", "kind": "Тень", "rarity": 2, "mana": 28, "cooldown": 3.2, "damage": 64, "radius": 62, "unlock_spent": 160, "unlock_level": 4},
     # Станящие заклинания: урон меньше, зато обездвиживают и монстров, и других игроков.
-    "frost_ring": {"name": "Кольцо стужи", "kind": "Лёд", "rarity": 3, "mana": 34, "cooldown": 9.5, "damage": 34, "radius": 150, "stun_duration": 2.0, "pvp_stun_duration": 1.2, "unlock_spent": 420, "unlock_level": 7},
-    "root_bind": {"name": "Оковы корней", "kind": "Терни", "rarity": 3, "mana": 30, "cooldown": 10.0, "damage": 26, "radius": 138, "stun_duration": 2.6, "pvp_stun_duration": 1.5, "unlock_spent": 300, "unlock_level": 6},
-    "mind_chill": {"name": "Леденящий разум", "kind": "Тень", "rarity": 4, "mana": 42, "cooldown": 11.0, "damage": 58, "radius": 78, "stun_duration": 2.2, "pvp_stun_duration": 1.4, "unlock_spent": 620, "unlock_level": 9},
+    "frost_ring": {"name": "Кольцо стужи", "kind": "Лёд", "rarity": 3, "mana": 34, "cooldown": 9.5, "damage": 34, "radius": 150, "stun_duration": 2.0, "slow_duration": 3.0, "slow_factor": .45, "unlock_spent": 420, "unlock_level": 7},
+    "root_bind": {"name": "Оковы корней", "kind": "Терни", "rarity": 3, "mana": 30, "cooldown": 10.0, "damage": 26, "radius": 138, "stun_duration": 2.6, "slow_duration": 3.5, "slow_factor": .35, "unlock_spent": 300, "unlock_level": 6},
+    "mind_chill": {"name": "Леденящий разум", "kind": "Тень", "rarity": 4, "mana": 42, "cooldown": 11.0, "damage": 58, "radius": 78, "stun_duration": 2.2, "slow_duration": 2.5, "slow_factor": .5, "unlock_spent": 620, "unlock_level": 9},
 }
 
 CLASS_MIN_LEVEL = 5
@@ -447,9 +447,15 @@ def apply_player_control(target: dict[str, Any], now: float, *, slow_duration: f
         return
     if slow_duration > 0:
         until = now + min(MAX_PVP_SLOW, max(0.0, float(slow_duration)))
-        if until > float(target.get("slow_until", 0) or 0):
+        factor = max(.15, min(.95, float(slow_factor)))
+        current = float(target.get("slow_until", 0) or 0)
+        # A longer slow always wins; a shorter but stronger one replaces the
+        # movement penalty while keeping whatever time is already running.
+        if until >= current:
             target["slow_until"] = until
-            target["slow_factor"] = max(.15, min(.95, float(slow_factor)))
+            target["slow_factor"] = factor
+        elif factor < float(target.get("slow_factor", 1) or 1):
+            target["slow_factor"] = factor
     if stun_duration > 0:
         duration = min(MAX_PVP_STUN, max(0.0, float(stun_duration)))
         current = float(target.get("stun_until", 0) or 0)
@@ -461,6 +467,32 @@ def apply_player_control(target: dict[str, Any], now: float, *, slow_duration: f
             target["gathering"] = None
             broadcast({"type": "notice", "target": target["id"],
                        "text": f"Ты оглушён{' ' + source if source else ''}: {duration:.1f} с."})
+
+
+def spell_control(spec: dict[str, Any], target: dict[str, Any], now: float, source: str) -> None:
+    """Apply a spell's stun/slow fields to a mob or another player.
+
+    Players receive the same fields the monsters use, but every duration is
+    shortened by ``PVP_EFFECT_FACTOR`` so duels stay playable.
+    """
+    stun = float(spec.get("stun_duration", 0) or 0)
+    slow = float(spec.get("slow_duration", 0) or 0)
+    factor = float(spec.get("slow_factor", .45) or .45)
+    if target.get("boss"):
+        stun *= .35
+        slow *= .6
+    if "mx" in target:  # players carry movement input, mobs do not
+        apply_player_control(target, now,
+                             stun_duration=pvp_effect_duration(stun),
+                             slow_duration=min(MAX_PVP_SLOW, slow),
+                             slow_factor=factor, source=source)
+    else:
+        if stun > 0:
+            target["stun_until"] = max(float(target.get("stun_until", 0) or 0), now + stun)
+            target["telegraph_until"] = 0.0
+        if slow > 0:
+            target["slow_until"] = max(float(target.get("slow_until", 0) or 0), now + slow)
+            target["slow_factor"] = factor
 
 
 def clear_expired_status(p: dict[str, Any], now: float) -> None:
@@ -495,6 +527,87 @@ def add_damage_score(p: dict[str, Any], amount: float, kind: str, now: float) ->
     stats["peak_dps"] = max(float(stats.get("peak_dps", 0) or 0), stats["dps"])
     stats["max_hit"] = max(int(stats.get("max_hit", 0) or 0), amount)
     stats["hits"] = int(stats.get("hits", 0)) + 1
+
+
+STATUS_INFO = {
+    "stun": {"name": "Оглушение", "icon": "✦"},
+    "slow": {"name": "Замедление", "icon": "❄"},
+    "poison": {"name": "Яд", "icon": "☠"},
+    "burn": {"name": "Горение", "icon": "🔥"},
+}
+
+
+def player_status_view(p: dict[str, Any], now: float) -> list[dict[str, Any]]:
+    """Live control effects on this player, in the shape the client HUD expects."""
+    ensure_status(p)
+    out: list[dict[str, Any]] = []
+    for key, field in (("burn", "burn_until"), ("poison", "poison_until"),
+                       ("slow", "slow_until"), ("stun", "stun_until")):
+        try:
+            until = float(p.get(field, 0) or 0)
+        except (TypeError, ValueError):
+            continue
+        if until <= now:
+            continue
+        info = STATUS_INFO[key]
+        remaining = round(until - now, 2)
+        row: dict[str, Any] = {"kind": key, "name": info["name"], "icon": info["icon"],
+                               "remaining": remaining}
+        if key == "slow":
+            row["factor"] = round(float(p.get("slow_factor", .45) or .45), 2)
+        out.append(row)
+    return out
+
+
+def damage_points_view(p: dict[str, Any]) -> dict[str, Any]:
+    """Damage points summary sent to the client (total, per source, DPS)."""
+    stats = p.get("damage_stats") if isinstance(p.get("damage_stats"), dict) else {}
+    total = int(stats.get("total", 0) or 0)
+    def bucket(*keys: str) -> int:
+        return sum(int(stats.get(key, 0) or 0) for key in keys)
+    return {
+        "total": total,
+        "pve": bucket("mob", "spell", "dot"),
+        "pvp": bucket("pvp", "pvp_spell"),
+        "dps": round(float(stats.get("dps", 0) or 0), 1),
+        "peak_dps": round(float(stats.get("peak_dps", 0) or 0), 1),
+        "recent": int(stats.get("recent", 0) or 0),
+        "max_hit": int(stats.get("max_hit", 0) or 0),
+        "hits": int(stats.get("hits", 0) or 0),
+        "last_hit": int(stats.get("last_hit", 0) or 0),
+        "last_kind": str(stats.get("last_kind", "") or ""),
+    }
+
+
+def pvp_effect_duration(duration: float) -> float:
+    """Control effects on players are shortened compared to monsters."""
+    return max(0.0, min(MAX_PVP_STUN, float(duration) * PVP_EFFECT_FACTOR))
+
+
+def spell_control(spec: dict[str, Any], target: dict[str, Any], now: float, source: str) -> None:
+    """Apply a spell's stun/slow fields to a mob or another player.
+
+    Players receive the same fields the monsters use, but every duration is
+    shortened by ``PVP_EFFECT_FACTOR`` so duels stay playable.
+    """
+    stun = float(spec.get("stun_duration", 0) or 0)
+    slow = float(spec.get("slow_duration", 0) or 0)
+    factor = float(spec.get("slow_factor", .45) or .45)
+    if target.get("boss"):
+        stun *= .35
+        slow *= .6
+    if "mx" in target:  # players carry movement input, mobs do not
+        apply_player_control(target, now,
+                             stun_duration=pvp_effect_duration(stun),
+                             slow_duration=min(MAX_PVP_SLOW, slow),
+                             slow_factor=factor, source=source)
+    else:
+        if stun > 0:
+            target["stun_until"] = max(float(target.get("stun_until", 0) or 0), now + stun)
+            target["telegraph_until"] = 0.0
+        if slow > 0:
+            target["slow_until"] = max(float(target.get("slow_until", 0) or 0), now + slow)
+            target["slow_factor"] = factor
 
 
 def scaled_mob(kind: str, level: int, index: int, x: float, y: float) -> dict[str, Any]:
@@ -1426,6 +1539,7 @@ def attack_release(p: dict[str, Any], now: float, ax: float, ay: float) -> None:
             p["hp"] = min(p["max_hp"], p["hp"] + heal)
             broadcast({"type": "hit_player_heal", "id": p["id"], "heal": heal})
         mob["alert_until"] = now + 4
+        add_damage_score(p, damage, "mob", now)
         if mob["hp"] <= 0:
             mob["hp"] = 0
             mob["respawn_at"] = now + random.uniform(24, 40)
@@ -1446,8 +1560,9 @@ def attack_release(p: dict[str, Any], now: float, ax: float, ay: float) -> None:
         candidates.sort(key=lambda row: row[0])
         for _, other in candidates[:max_hits]:
             defense = player_defense(other)
-            actual = max(1, round(damage * .72) - defense)
+            actual = max(1, round(damage * PVP_DAMAGE_FACTOR) - defense)
             other["hp"] = max(0, other["hp"] - actual)
+            add_damage_score(p, actual, "pvp", now)
             broadcast({"type": "pvp_hit", "attacker": p["id"], "id": other["id"],
                                             "damage": actual, "x": other["x"], "y": other["y"], "critical": critical})
             if other["hp"] <= 0:
