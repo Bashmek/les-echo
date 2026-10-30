@@ -433,7 +433,7 @@ def grant_gear(p: dict[str, Any], gear_id: str) -> bool:
         p["gold"] += 18
         p.setdefault("inventory", {})["crystal"] = p.get("inventory", {}).get("crystal", 0) + 1
         try:
-            asyncio.create_task(send_event({"type": "notice", "target": p["id"], "text": "Дубликат превращён в 18 монет и эхо-кристалл."}))
+            broadcast({"type": "notice", "target": p["id"], "text": "Дубликат превращён в 18 монет и эхо-кристалл."})
         except RuntimeError:
             pass
         return False
@@ -448,13 +448,13 @@ def grant_weapon(p: dict[str, Any], weapon_id: str) -> bool:
         p["gold"] += 24
         p.setdefault("inventory", {})["crystal"] = p.get("inventory", {}).get("crystal", 0) + 2
         try:
-            asyncio.create_task(send_event({"type": "notice", "target": p["id"], "text": "Дубликат оружия разобран: +24 монеты и 2 эхо-кристалла."}))
+            broadcast({"type": "notice", "target": p["id"], "text": "Дубликат оружия разобран: +24 монеты и 2 эхо-кристалла."})
         except RuntimeError:
             pass
         return False
     p.setdefault("weapons", []).append(weapon_id)
     try:
-        asyncio.create_task(send_event({"type": "notice", "target": p["id"], "text": f"Найдено оружие: {WEAPONS[weapon_id]['name']}!"}))
+        broadcast({"type": "notice", "target": p["id"], "text": f"Найдено оружие: {WEAPONS[weapon_id]['name']}!"})
     except RuntimeError:
         pass
     return True
@@ -731,6 +731,14 @@ async def tell(pid: str, text: str) -> None:
     await send_event({"type": "notice", "target": pid, "text": text})
 
 
+def broadcast(event: dict[str, Any]) -> None:
+    """Fire-and-forget an event without crashing outside the running loop."""
+    try:
+        broadcast(event)
+    except RuntimeError:
+        pass
+
+
 async def sync_station_state(p: dict[str, Any]) -> None:
     """Persist station transactions and immediately refresh the player's client."""
     save_character(p)
@@ -932,19 +940,16 @@ def award_mastery(p: dict[str, Any], tree: str, amount: int) -> bool:
     entry["unlocked"] = [aid for aid, spec in ABILITY_CATALOG.items()
                          if spec["tree"] == tree and spec["mastery"] <= entry["level"]]
     if leveled:
-        try:
-            asyncio.get_running_loop().create_task(send_event({
-                "type": "mastery_update", "target": p.get("id"), "tree": tree,
-                "mastery": mastery_view(p), "level": entry["level"],
-                "unlocked": entry["unlocked"],
-            }))
-            names = [ABILITY_CATALOG[aid]["name"] for aid in entry["unlocked"]
-                     if ABILITY_CATALOG[aid]["mastery"] == entry["level"]]
-            text = (f"Мастерство «{MASTERY_NAMES[tree]}» достигло {entry['level']} уровня."
-                    + (f" Открыто: {', '.join(names)}." if names else ""))
-            asyncio.get_running_loop().create_task(tell(str(p.get("id", "")), text))
-        except RuntimeError:
-            pass
+        broadcast({
+            "type": "mastery_update", "target": p.get("id"), "tree": tree,
+            "mastery": mastery_view(p), "level": entry["level"],
+            "unlocked": entry["unlocked"],
+        })
+        names = [ABILITY_CATALOG[aid]["name"] for aid in entry["unlocked"]
+                 if ABILITY_CATALOG[aid]["mastery"] == entry["level"]]
+        text = (f"Мастерство «{MASTERY_NAMES[tree]}» достигло {entry['level']} уровня."
+                + (f" Открыто: {', '.join(names)}." if names else ""))
+        broadcast({"type": "notice", "target": str(p.get("id", "")), "text": text})
     return leveled
 
 
@@ -1004,20 +1009,14 @@ def add_xp(p: dict[str, Any], amount: int) -> None:
         # Push the authoritative values immediately; snapshots remain the fallback.
         for pid, current in list(players.items()):
             if current is p:
-                try:
-                    asyncio.get_running_loop().create_task(send_event(stats_updated_event(pid, p)))
-                except RuntimeError:
-                    pass
+                broadcast(stats_updated_event(pid, p))
                 break
-        asyncio.create_task(send_event({"type": "notice", "text": f"{p['name']} достиг(ла) {p['level']} уровня — доступно очко развития"}))
+        broadcast({"type": "notice", "text": f"{p['name']} достиг(ла) {p['level']} уровня — доступно очко развития"})
         if p["level"] >= CLASS_MIN_LEVEL and not p.get("class"):
-            try:
-                asyncio.get_running_loop().create_task(send_event({
-                    "type": "class_offer", "target": p.get("id"), "level": p["level"],
-                    "classes": CLASSES,
-                }))
-            except RuntimeError:
-                pass
+            broadcast({
+                "type": "class_offer", "target": p.get("id"), "level": p["level"],
+                "classes": CLASSES,
+            })
 
 
 QUESTS = [
@@ -1164,7 +1163,7 @@ def award_drop(p: dict[str, Any], mob: dict[str, Any]) -> None:
     elif kind == "ancient_warden":
         inv["herb"] += 8; inv["crystal"] += 18; inv["shard"] += 20
         grant_gear(p, "elder_mantle"); grant_weapon(p, "elder_staff")
-    asyncio.create_task(send_event({"type": "notice", "target": p["id"], "text": f"Победа над {MONSTERS[kind]['name']}: добыча собрана."}))
+    broadcast({"type": "notice", "target": p["id"], "text": f"Победа над {MONSTERS[kind]['name']}: добыча собрана."})
 
 
 def attack_release(p: dict[str, Any], now: float, ax: float, ay: float) -> None:
@@ -1187,7 +1186,7 @@ def attack_release(p: dict[str, Any], now: float, ax: float, ay: float) -> None:
         return
     cost = spec["stamina"] * (.62 + .38 * charge)
     if p["stamina"] < cost:
-        asyncio.create_task(tell(p["id"], "Слишком мало выносливости — отступи на мгновение."))
+        broadcast({"type": "notice", "target": p["id"], "text": "Слишком мало выносливости — отступи на мгновение."})
         return
     p["stamina"] -= cost
     power_bonus = (p["stats"]["might"] - 1) * 2.2
@@ -1202,13 +1201,13 @@ def attack_release(p: dict[str, Any], now: float, ax: float, ay: float) -> None:
     damage = round(base_damage * (1.75 if critical else 1.0))
     if spec["kind"] == "bow":
         if p["inventory"]["arrows"] <= 0:
-            asyncio.create_task(tell(p["id"], "Колчан пуст. Стрелы можно изготовить из дерева и руды."))
+            broadcast({"type": "notice", "target": p["id"], "text": "Колчан пуст. Стрелы можно изготовить из дерева и руды."})
             return
         p["inventory"]["arrows"] -= 1
-        asyncio.create_task(send_event({"type": "weapon_action", "action": "attack", "id": p["id"],
+        broadcast({"type": "weapon_action", "action": "attack", "id": p["id"],
                                         "weapon": weapon_id, "weapon_kind": spec["kind"],
                                         "x": p["x"], "y": p["y"], "aim_x": ax, "aim_y": ay,
-                                        "charge": charge}))
+                                        "charge": charge})
         charge_factor = .22 + .78 * charge
         speed = 210 + 500 * charge + (p["stats"]["agility"] - 1) * 8
         arrow_range = 180 + 620 * charge
@@ -1220,10 +1219,10 @@ def attack_release(p: dict[str, Any], now: float, ax: float, ay: float) -> None:
                        "hit_ids": []})
         award_mastery(p, "ranger", 5 + int(charge * 3))
         return
-    asyncio.create_task(send_event({"type": "weapon_action", "action": "attack", "id": p["id"],
+    broadcast({"type": "weapon_action", "action": "attack", "id": p["id"],
                                     "weapon": weapon_id, "weapon_kind": spec["kind"],
                                     "x": p["x"], "y": p["y"], "aim_x": ax, "aim_y": ay,
-                                    "charge": charge}))
+                                    "charge": charge})
     reach = (float(spec.get("range", 44)) + 12 * charge) * melee_reach_factor(p)
     hits = []
     for mob in mobs:
@@ -1241,13 +1240,13 @@ def attack_release(p: dict[str, Any], now: float, ax: float, ay: float) -> None:
         if float(p.get("bloodhunt_until", 0) or 0) > now:
             heal = int(ABILITY_CATALOG["bloodhunt"].get("heal_per_hit", 12))
             p["hp"] = min(p["max_hp"], p["hp"] + heal)
-            asyncio.create_task(send_event({"type": "hit_player_heal", "id": p["id"], "heal": heal}))
+            broadcast({"type": "hit_player_heal", "id": p["id"], "heal": heal})
         mob["alert_until"] = now + 4
         if mob["hp"] <= 0:
             mob["hp"] = 0
             mob["respawn_at"] = now + random.uniform(24, 40)
             award_drop(p, mob)
-        asyncio.create_task(send_event({"type": "hit", "mob": mob["id"], "x": mob["x"], "y": mob["y"], "damage": round(damage), "critical": critical}))
+        broadcast({"type": "hit", "mob": mob["id"], "x": mob["x"], "y": mob["y"], "damage": round(damage), "critical": critical})
     # Player-versus-player combat is enabled outside the safe camp.
     if zone_for_x(p["x"])["danger"] > 0:
         candidates = []
@@ -1265,14 +1264,14 @@ def attack_release(p: dict[str, Any], now: float, ax: float, ay: float) -> None:
             defense = player_defense(other)
             actual = max(1, round(damage * .72) - defense)
             other["hp"] = max(0, other["hp"] - actual)
-            asyncio.create_task(send_event({"type": "pvp_hit", "attacker": p["id"], "id": other["id"],
-                                            "damage": actual, "x": other["x"], "y": other["y"], "critical": critical}))
+            broadcast({"type": "pvp_hit", "attacker": p["id"], "id": other["id"],
+                                            "damage": actual, "x": other["x"], "y": other["y"], "critical": critical})
             if other["hp"] <= 0:
                 other["respawn_at"] = now + 5
                 other["attack"] = None
                 other["gathering"] = None
-                asyncio.create_task(tell(other["id"], f"Ты пал в дуэли с {p['name']}. Через несколько секунд вернёшься в лагерь."))
-                asyncio.create_task(tell(p["id"], f"Победа в дуэли над {other['name']}!"))
+                broadcast({"type": "notice", "target": other["id"], "text": f"Ты пал в дуэли с {p['name']}. Через несколько секунд вернёшься в лагерь."})
+                broadcast({"type": "notice", "target": p["id"], "text": f"Победа в дуэли над {other['name']}!"})
     award_mastery(p, "warrior", 4 + min(6, len(hits)))
 
 
@@ -1568,8 +1567,7 @@ def spell_damage(p: dict[str, Any], mob: dict[str, Any], damage: float, now: flo
     dealt = max(1, round(damage)); mob["hp"] -= dealt; mob["alert_until"] = now + 4
     if mob["hp"] <= 0:
         mob["hp"] = 0; mob["respawn_at"] = now + random.uniform(24, 40); award_drop(p, mob)
-    try: asyncio.create_task(send_event({"type": "hit", "mob": mob["id"], "x": mob["x"], "y": mob["y"], "damage": dealt}))
-    except RuntimeError: pass
+    broadcast({"type": "hit", "mob": mob["id"], "x": mob["x"], "y": mob["y"], "damage": dealt})
 
 def spell_visual(p: dict[str, Any], spell_id: str, spec: dict[str, Any]) -> dict[str, Any]:
     mastery = spell_mastery_level(p, spell_id)
@@ -1612,14 +1610,21 @@ def _damage_players_around(p: dict[str, Any], now: float, x: float, y: float, ra
             continue
         actual = max(1, round(damage * .72) - player_defense(other))
         other["hp"] = max(0, other["hp"] - actual)
-        asyncio.create_task(send_event({"type": "pvp_hit", "attacker": p["id"], "id": other["id"],
-                                        "damage": actual, "x": other["x"], "y": other["y"], "source": source}))
+        broadcast({"type": "pvp_hit", "attacker": p["id"], "id": other["id"],
+                                        "damage": actual, "x": other["x"], "y": other["y"], "source": source})
         if other["hp"] <= 0:
             other["respawn_at"] = now + 5
             other["attack"] = None
             other["gathering"] = None
-            asyncio.create_task(tell(other["id"], f"Ты пал в бою с {p['name']}. Через несколько секунд вернёшься в лагерь."))
-            asyncio.create_task(tell(p["id"], f"Победа над {other['name']}!"))
+            broadcast({"type": "notice", "target": other["id"], "text": f"Ты пал в бою с {p['name']}. Через несколько секунд вернёшься в лагерь."})
+            broadcast({"type": "notice", "target": p["id"], "text": f"Победа над {other['name']}!"})
+
+
+STAT_CAPS = {"might": 50, "vitality": 50, "agility": 50,
+             "precision": 13, "fortune": 9,
+             "mana_regen": 20, "magic_damage": 20, "insight": 15}
+LEVEL_BASED_STATS = {"mana_regen": "mana_regen_level", "magic_damage": "magic_damage_level",
+                     "insight": "insight_level"}
 
 
 async def choose_class(p: dict[str, Any], msg: dict[str, Any]) -> None:
@@ -1636,30 +1641,58 @@ async def choose_class(p: dict[str, Any], msg: dict[str, Any]) -> None:
     p["class"] = chosen
     bonus = CLASSES[chosen].get("stat_bonus", {})
     bonus_total = sum(max(0, min(20, int(value))) for value in bonus.values())
-    # Class bonuses are bought with dedicated development points granted here,
-    # so the shared pool stays consistent with the level economy.
-    p["skill_points"] = int(p.get("skill_points", 0)) + bonus_total
+    # The class grants a one-time bundle of development points; the signature
+    # characteristics are invested automatically so the fantasy stays intact.
+    # Because every raised statistic spends exactly one point from this ledger,
+    # the pool can never self-replenish when the "+" buttons are clicked.
+    p["class_bonus_points"] = int(p.get("class_bonus_points", 0) or 0) + bonus_total
+    p["skill_points"] = int(p.get("skill_points", 0) or 0) + bonus_total
     applied: list[str] = []
+    spent_on_bonus = 0
     for key, value in bonus.items():
         amount = max(0, min(20, int(value)))
+        if not amount:
+            continue
+        cap = STAT_CAPS.get(key, 50)
         if key in p.get("stats", {}):
-            p["stats"][key] = int(p["stats"].get(key, 1)) + amount
-            applied.append(f"{stat_names.get(key, key)} +{amount}")
+            room = max(0, cap - int(p["stats"].get(key, 1)))
+            take = min(amount, room)
+            if take:
+                p["stats"][key] = int(p["stats"].get(key, 1)) + take
+                applied.append(f"{stat_names.get(key, key)} +{take}")
+                spent_on_bonus += take
         elif key == "mana_regen":
-            p["mana_regen_level"] = max(0, int(p.get("mana_regen_level", 0))) + amount
-            applied.append(f"восстановление маны +{amount}")
+            current = max(0, int(p.get("mana_regen_level", 0) or 0))
+            take = min(amount, max(0, cap - current))
+            if take:
+                p["mana_regen_level"] = current + take
+                applied.append(f"восстановление маны +{take}")
+                spent_on_bonus += take
         elif key == "magic_damage":
-            p["magic_damage_level"] = max(0, int(p.get("magic_damage_level", 0))) + amount
-            applied.append(f"сила магии +{amount * 8}%")
+            current = max(0, int(p.get("magic_damage_level", 0) or 0))
+            take = min(amount, max(0, cap - current))
+            if take:
+                p["magic_damage_level"] = current + take
+                applied.append(f"сила магии +{take * 8}%")
+                spent_on_bonus += take
+    spare = max(0, bonus_total - spent_on_bonus)
+    if spare:
+        applied.append(f"+{spare} свободных очков развития")
     p["stats_revision"] = int(p.get("stats_revision", 0)) + 1
     update_derived(p, heal=True)
     try:
         save_character(p)
     except sqlite3.Error:
         pass
+    row = None
+    if players.get(str(p["id"])) is p:
+        try:
+            row = player_row(p["id"], p, time.monotonic())
+        except Exception:
+            row = None
     await send_event({"type": "class_selected", "target": p["id"], "class": chosen,
                       "class_name": CLASSES[chosen]["name"], "bonus": applied,
-                      "player": player_row(p["id"], p, time.monotonic())})
+                      "player": row})
     await send_event(stats_updated_event(p["id"], p))
     await tell(p["id"], f"Класс выбран: {CLASSES[chosen]['name']}. Постоянные бонусы: {', '.join(applied) or 'нет'}.")
 
@@ -1931,7 +1964,7 @@ async def cast_spell(p: dict[str, Any], now: float, spell_id: str, aim_x: float,
     for unlocked_id, unlocked_spec in catalog.items():
         threshold = int(unlocked_spec.get("unlock_spent", 0))
         if threshold and old_spent < threshold <= p["magic_mana_spent"]:
-            asyncio.create_task(tell(p["id"], f"Открыто заклинание «{unlocked_spec['name']}»! Требуется также уровень {unlocked_spec['unlock_level']}."))
+            broadcast({"type": "notice", "target": p["id"], "text": f"Открыто заклинание «{unlocked_spec['name']}»! Требуется также уровень {unlocked_spec['unlock_level']}."})
     p["face_x"], p["face_y"] = aim_x, aim_y
     weapon_spec = WEAPONS.get(p.get("weapon", ""), {})
     await send_event({"type": "weapon_action", "action": "cast", "id": p["id"],
@@ -2074,13 +2107,6 @@ async def bind_custom_spell_key(p: dict[str, Any], msg: dict[str, Any]) -> None:
     await tell(p["id"], f"Клавиша для «{spec.get('name', 'заклинания')}» назначена: {'0' if key == 'Digit0' else key}.")
 
 
-STAT_CAPS = {"might": 50, "vitality": 50, "agility": 50,
-             "precision": 13, "fortune": 9,
-             "mana_regen": 20, "magic_damage": 20, "insight": 15}
-LEVEL_BASED_STATS = {"mana_regen": "mana_regen_level", "magic_damage": "magic_damage_level",
-                     "insight": "insight_level"}
-
-
 def stat_current_level(p: dict[str, Any], stat: str) -> int:
     if stat in LEVEL_BASED_STATS:
         return max(0, int(p.get(LEVEL_BASED_STATS[stat], 0) or 0))
@@ -2105,10 +2131,14 @@ def reconcile_skill_points(p: dict[str, Any]) -> None:
     """
     earned = max(0, int(p.get("level", 1)) - 1)
     earned += max(0, int(p.get("quest_points", 0) or 0))
-    chosen = p.get("class")
-    if chosen in CLASSES:
-        earned += sum(max(0, int(value or 0))
-                      for value in CLASSES[chosen].get("stat_bonus", {}).values())
+    earned += max(0, int(p.get("class_bonus_points", 0) or 0))
+    if not p.get("class_bonus_points"):
+        # Legacy saves from before the class-point ledger: their stat_bonus was
+        # already written into the statistics, so count it as earned only there.
+        chosen = p.get("class")
+        if chosen in CLASSES:
+            earned += sum(max(0, int(value or 0))
+                          for value in CLASSES[chosen].get("stat_bonus", {}).values())
     p["skill_points"] = max(int(p.get("skill_points", 0) or 0),
                             earned - count_spent_points(p))
 
@@ -2149,6 +2179,15 @@ async def apply_stat_upgrade(pid: str, p: dict[str, Any], stat: str) -> None:
     except sqlite3.Error:
         pass
     await send_event(stats_updated_event(pid, p))
+    # A second, complete row for the owner so every HUD/panel copy refreshes
+    # even if the lightweight stats event gets coalesced or lost on the wire.
+    # (Only possible while the character is actually online in the world.)
+    if players.get(pid) is p:
+        try:
+            await send_event({"type": "player_update", "target": pid,
+                              "player": player_row(pid, p, time.monotonic())})
+        except Exception:
+            pass
 
 
 async def handle_message(pid: str, p: dict[str, Any], msg: dict[str, Any], now: float) -> None:
@@ -2257,6 +2296,10 @@ async def handle_message(pid: str, p: dict[str, Any], msg: dict[str, Any], now: 
         if p["inventory"]["potion"] > 0 and p["hp"] < p["max_hp"]:
             p["inventory"]["potion"] -= 1; p["hp"] = min(p["max_hp"], p["hp"] + 48)
             await tell(pid, "Настойка восстановила здоровье.")
+    elif kind == "sync":
+        # The client asks for an authoritative copy of its own row.
+        await send_event({"type": "player_update", "target": pid,
+                          "player": player_row(pid, p, now)})
     elif kind == "upgrade":
         await apply_stat_upgrade(pid, p, str(msg.get("stat", "")))
     elif kind == "upgrade_http":
@@ -2284,6 +2327,7 @@ PERSIST_FIELDS = (
     "x", "y", "hp", "stamina", "xp", "level", "skill_points", "stats",
     "gold", "kills", "weapon", "weapons", "gear", "gear_inventory",
     "inventory", "quest_stage", "quest_active", "quest_kills", "quest_gather", "quest_points",
+    "class_bonus_points",
     "enchantments", "market_starter_grant", "magic_mana_spent", "upgrades", "mana_regen_level", "magic_damage_level", "insight_level", "spell_uses", "custom_spells",
     "class", "mastery", "ability_cooldowns",
 )
@@ -2713,7 +2757,7 @@ async def world_tick() -> None:
                     target["hp"] = 0; target["respawn_at"] = now + random.uniform(24, 40)
                     owner = players.get(arrow["owner"])
                     if owner: award_drop(owner, target)
-                asyncio.create_task(send_event({"type": "hit", "mob": target["id"], "x": target["x"], "y": target["y"], "damage": round(arrow["damage"])}))
+                broadcast({"type": "hit", "mob": target["id"], "x": target["x"], "y": target["y"], "damage": round(arrow["damage"])})
                 arrows.remove(arrow)
             elif expired:
                 arrows.remove(arrow)
@@ -2743,6 +2787,40 @@ async def shutdown() -> None:
     if task: task.cancel()
 
 
+@app.post("/api/stats/upgrade")
+async def stats_upgrade_endpoint(request: Request) -> dict[str, Any]:
+    """Spend one development point via HTTP — WebSocket-resilient fallback."""
+    account = _account_for_token(request.cookies.get("echo_session"))
+    if not account:
+        return {"ok": False, "error": "Требуется вход в аккаунт."}
+    name = safe_name(account["username"])
+    try:
+        body = await request.json()
+    except (ValueError, TypeError):
+        return {"ok": False, "error": "Некорректный запрос."}
+    stat = str(body.get("stat", ""))
+    p = players.get(name)  # players is keyed by pid; look up by name below
+    target = next((pl for pl in players.values() if pl.get("name") == name), None)
+    if target is None:
+        return {"ok": False, "error": "Персонаж сейчас не в мире. Зайдите и повторите."}
+    before_points = int(target.get("skill_points", 0) or 0)
+    before_stats = dict(target.get("stats", {}))
+    before_levels = (int(target.get("mana_regen_level", 0) or 0),
+                     int(target.get("magic_damage_level", 0) or 0),
+                     int(target.get("insight_level", 0) or 0))
+    await handle_message(str(target.get("id", "")), target,
+                         {"type": "upgrade", "stat": stat}, time.monotonic())
+    changed = (dict(target.get("stats", {})) != before_stats
+               or (int(target.get("mana_regen_level", 0) or 0),
+                   int(target.get("magic_damage_level", 0) or 0),
+                   int(target.get("insight_level", 0) or 0)) != before_levels)
+    return {"ok": changed,
+            "spent": changed and int(target.get("skill_points", 0)) < before_points,
+            "skill_points": int(target.get("skill_points", 0) or 0),
+            "upgrades_view": upgrades_view(target),
+            "stats": dict(target.get("stats", {}))}
+
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket) -> None:
     account = _account_for_token(websocket.cookies.get("echo_session"))
@@ -2757,7 +2835,7 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     name = safe_name(account["username"])
     p = {"id": pid, "name": name, "x": 330.0, "y": 1100.0, "mx": 0.0, "my": 0.0,
          "face_x": 1.0, "face_y": 0.0, "hp": 100, "max_hp": 100, "stamina": 100.0, "max_stamina": 100,
-         "xp": 0, "level": 1, "skill_points": 0, "quest_points": 0, "stats": {"might": 1, "vitality": 1, "agility": 1, "precision": 1, "fortune": 1},
+         "xp": 0, "level": 1, "skill_points": 0, "quest_points": 0, "class_bonus_points": 0, "stats": {"might": 1, "vitality": 1, "agility": 1, "precision": 1, "fortune": 1},
          "gold": 0, "kills": 0, "last_attack": 0.0, "attack": None, "respawn_at": 0.0,
          "mana": 60, "max_mana": 60, "spell_cooldowns": {}, "spell_uses": {}, "custom_spells": {},
          "enchantments": {"weapon": {}, "gear": {}}, "upgrades": {"weapon": {}, "gear": {}},
