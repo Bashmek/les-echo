@@ -664,6 +664,7 @@ def player_row(pid: str, p: dict[str, Any], now: float) -> dict[str, Any]:
             "mana": round(p.get("mana", 0), 1), "max_mana": p.get("max_mana", 0),
             "mana_regen_level": int(p.get("mana_regen_level", 0)),
             "magic_damage_level": int(p.get("magic_damage_level", 0)),
+            "insight_level": int(p.get("insight_level", 0) or 0),
             "magic_damage_bonus": int(p.get("magic_damage_level", 0)) * 8,
             "shop_catalog": SHOP_CATALOG, "sell_prices": SELL_PRICES, "enchant_catalog": ENCHANT_CATALOG,
             "spell_catalog": all_spells(p), "spells_unlocked": [sid for sid in all_spells(p) if spell_unlocked(p, sid)],
@@ -758,12 +759,24 @@ def mana_growth_next(p: dict[str, Any]) -> int:
 
 def upgrades_view(p: dict[str, Any]) -> dict[str, dict[str, Any]]:
     stats = p.get("stats", {})
+    insight = max(0, int(p.get("insight_level", 0) or 0))
+    enriched = {**stats, "insight": 1 + insight}
+    original = stats
+    p = {**p, "stats": enriched}
+    result = _upgrades_view_core(p)
+    del original
+    return result
+
+
+def _upgrades_view_core(p: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    stats = p.get("stats", {})
     return {
         "might": {"level": int(stats.get("might", 1)), "effect": f"+{(int(stats.get('might', 1))-1)*2.2:.1f} к урону оружия"},
         "vitality": {"level": int(stats.get("vitality", 1)), "effect": f"{int(p.get('max_hp', 100))} макс. здоровья"},
         "agility": {"level": int(stats.get("agility", 1)), "effect": f"{int(p.get('max_stamina', 100))} макс. выносливости"},
         "mana_regen": {"level": int(p.get("mana_regen_level", 0)), "effect": f"+{9 + 1.5*int(p.get('mana_regen_level', 0)):.1f} маны/с"},
         "magic_damage": {"level": int(p.get("magic_damage_level", 0)), "effect": f"+{int(p.get('magic_damage_level', 0))*8}% урона заклинаний"},
+        "insight": {"level": max(0, int(p.get("insight_level", 0) or 0)), "effect": f"опыт от побед ×{1 + 0.04*max(0, int(p.get('insight_level', 0) or 0)):.2f}, монеты из-за удачи +{min(60, max(0, int(p.get('insight_level', 0) or 0))*3)}%"},
         "precision": {"level": int(stats.get("precision", 1)), "effect": f"+{min(30, (int(stats.get('precision', 1))-1)*2.5):.1f}% шанс критического удара"},
         "fortune": {"level": int(stats.get("fortune", 1)), "effect": f"+{min(20, (int(stats.get('fortune', 1))-1)*2.5):.1f}% шанс редкой добычи"},
     }
@@ -946,6 +959,7 @@ def stats_updated_event(pid: str, p: dict[str, Any]) -> dict[str, Any]:
         "level": max(1, int(p.get("level", 1))),
         "mana_regen_level": max(0, int(p.get("mana_regen_level", 0))),
         "magic_damage_level": max(0, int(p.get("magic_damage_level", 0))),
+        "insight_level": max(0, int(p.get("insight_level", 0) or 0)),
         "upgrades_view": upgrades_view(p),
         "hp": p.get("hp", 0), "max_hp": p.get("max_hp", 0),
         "mana": p.get("mana", 0), "max_mana": p.get("max_mana", 0),
@@ -1051,6 +1065,9 @@ async def interact_keeper(p: dict[str, Any]) -> None:
         gold, xp, rewards = QUEST_REWARDS[stage]
         p["gold"] += gold
         add_xp(p, xp)
+        # Поручения Хранителя дают очко развития — ещё один путь прокачки вне боёв.
+        p["skill_points"] = int(p.get("skill_points", 0)) + 1
+        p["quest_points"] = int(p.get("quest_points", 0)) + 1
         for reward_type, item_id, amount in rewards:
             if reward_type == "potion": p["inventory"]["potion"] += amount
             elif reward_type == "gear":
@@ -1076,12 +1093,20 @@ def loot_chance(p: dict[str, Any], base_chance: float) -> bool:
     return random.random() < min(.95, base_chance + bonus)
 
 
+def insight_level(p: dict[str, Any]) -> int:
+    return max(0, int(p.get("insight_level", 0) or 0))
+
+
 def award_drop(p: dict[str, Any], mob: dict[str, Any]) -> None:
     kind = mob["kind"]
     inv = p["inventory"]
     p["kills"] += 1
-    add_xp(p, MONSTERS[kind]["xp"] + max(0, mob["level"] - MONSTERS[kind]["zone"]) * 7)
-    p["gold"] += random.randint(4, 11) + mob["level"]
+    insight = insight_level(p)
+    xp_gain = int(round((MONSTERS[kind]["xp"] + max(0, mob["level"] - MONSTERS[kind]["zone"]) * 7)
+                        * (1 + 0.04 * insight)))
+    add_xp(p, xp_gain)
+    gold_gain = int(round((random.randint(4, 11) + mob["level"]) * (1 + 0.03 * insight)))
+    p["gold"] += gold_gain
     if p["quest_active"]:
         p["quest_kills"][kind] = p["quest_kills"].get(kind, 0) + 1
     if kind == "slime":
@@ -1610,6 +1635,10 @@ async def choose_class(p: dict[str, Any], msg: dict[str, Any]) -> None:
         return
     p["class"] = chosen
     bonus = CLASSES[chosen].get("stat_bonus", {})
+    bonus_total = sum(max(0, min(20, int(value))) for value in bonus.values())
+    # Class bonuses are bought with dedicated development points granted here,
+    # so the shared pool stays consistent with the level economy.
+    p["skill_points"] = int(p.get("skill_points", 0)) + bonus_total
     applied: list[str] = []
     for key, value in bonus.items():
         amount = max(0, min(20, int(value)))
@@ -2045,6 +2074,83 @@ async def bind_custom_spell_key(p: dict[str, Any], msg: dict[str, Any]) -> None:
     await tell(p["id"], f"Клавиша для «{spec.get('name', 'заклинания')}» назначена: {'0' if key == 'Digit0' else key}.")
 
 
+STAT_CAPS = {"might": 50, "vitality": 50, "agility": 50,
+             "precision": 13, "fortune": 9,
+             "mana_regen": 20, "magic_damage": 20, "insight": 15}
+LEVEL_BASED_STATS = {"mana_regen": "mana_regen_level", "magic_damage": "magic_damage_level",
+                     "insight": "insight_level"}
+
+
+def stat_current_level(p: dict[str, Any], stat: str) -> int:
+    if stat in LEVEL_BASED_STATS:
+        return max(0, int(p.get(LEVEL_BASED_STATS[stat], 0) or 0))
+    return max(1, int(p.get("stats", {}).get(stat, 1) or 1))
+
+
+def count_spent_points(p: dict[str, Any]) -> int:
+    """Every point above a stat's starting value was paid for with a development point."""
+    spent = sum(max(0, int(value or 1) - 1) for value in p.get("stats", {}).values())
+    spent += max(0, int(p.get("mana_regen_level", 0) or 0))
+    spent += max(0, int(p.get("magic_damage_level", 0) or 0))
+    spent += max(0, int(p.get("insight_level", 0) or 0))
+    return spent
+
+
+def reconcile_skill_points(p: dict[str, Any]) -> None:
+    """Never lose earned points: recompute what remains after all purchases.
+
+    Level-ups grant one point per level, the class choice grants its own bonus
+    points, and every raised statistic spends exactly one point. Reconciling on
+    login and after each change keeps the pool truthful even for older saves.
+    """
+    earned = max(0, int(p.get("level", 1)) - 1)
+    earned += max(0, int(p.get("quest_points", 0) or 0))
+    chosen = p.get("class")
+    if chosen in CLASSES:
+        earned += sum(max(0, int(value or 0))
+                      for value in CLASSES[chosen].get("stat_bonus", {}).values())
+    p["skill_points"] = max(int(p.get("skill_points", 0) or 0),
+                            earned - count_spent_points(p))
+
+
+async def apply_stat_upgrade(pid: str, p: dict[str, Any], stat: str) -> None:
+    """Spend one development point on a characteristic — single source of truth."""
+    if stat not in STAT_CAPS:
+        await tell(pid, "Неизвестная характеристика для улучшения.")
+        return
+    # The server is authoritative about the pool; repair it before deciding.
+    reconcile_skill_points(p)
+    if int(p.get("skill_points", 0)) <= 0:
+        await tell(pid, "Нет свободных очков развития. Получай уровни за бой и поручения.")
+        return
+    current_level = stat_current_level(p, stat)
+    if current_level >= STAT_CAPS[stat]:
+        await tell(pid, "Эта характеристика уже достигла предела.")
+        return
+    level_based = {"mana_regen": "mana_regen_level", "magic_damage": "magic_damage_level",
+                   "insight": "insight_level"}
+    if stat in level_based:
+        p[level_based[stat]] = current_level + 1
+    else:
+        p["stats"][stat] = current_level + 1
+    p["skill_points"] = max(0, int(p.get("skill_points", 0)) - 1)
+    update_derived(p, heal=stat == "vitality")
+    if stat == "mana_regen":
+        await tell(pid, f"Восстановление маны улучшено до уровня {p['mana_regen_level']}.")
+    elif stat == "magic_damage":
+        await tell(pid, f"Сила магии улучшена: +{p['magic_damage_level'] * 8}% урона от заклинаний.")
+    elif stat == "insight":
+        await tell(pid, f"Прозорливость повышена: опыт от побед ×{1 + 0.04 * p['insight_level']:.2f}, добыча монет +{min(60, p['insight_level'] * 3)}%.")
+    else:
+        await tell(pid, f"Развитие улучшено: {stat_names[stat]} · теперь {p['stats'][stat]}.")
+    p["stats_revision"] = int(p.get("stats_revision", 0)) + 1
+    try:
+        save_character(p)
+    except sqlite3.Error:
+        pass
+    await send_event(stats_updated_event(pid, p))
+
+
 async def handle_message(pid: str, p: dict[str, Any], msg: dict[str, Any], now: float) -> None:
     kind = msg.get("type")
     if kind == "input":
@@ -2152,43 +2258,7 @@ async def handle_message(pid: str, p: dict[str, Any], msg: dict[str, Any], now: 
             p["inventory"]["potion"] -= 1; p["hp"] = min(p["max_hp"], p["hp"] + 48)
             await tell(pid, "Настойка восстановила здоровье.")
     elif kind == "upgrade":
-        stat = str(msg.get("stat", ""))
-        # The client is authoritative only about WHICH stat; caps are enforced here.
-        stat_caps = {"might": 50, "vitality": 50, "agility": 50,
-                     "precision": 13, "fortune": 9,
-                     "mana_regen": 20, "magic_damage": 20}
-        if stat not in stat_caps:
-            await tell(pid, "Неизвестная характеристика для улучшения.")
-            return
-        if stat in {"mana_regen", "magic_damage"}:
-            current_level = int(p.get("mana_regen_level" if stat == "mana_regen"
-                                      else "magic_damage_level", 0))
-        else:
-            current_level = int(p["stats"].get(stat, 1))
-        if current_level >= stat_caps[stat]:
-            await tell(pid, "Эта характеристика уже достигла предела.")
-            return
-        upgraded = False
-        if stat in p["stats"] and p["skill_points"] > 0:
-            p["stats"][stat] = int(p["stats"].get(stat, 1)) + 1; p["skill_points"] -= 1
-            update_derived(p, heal=stat == "vitality")
-            await tell(pid, f"Развитие улучшено: {stat_names[stat]} · теперь {p['stats'][stat]}.")
-            upgraded = True
-        elif stat in {"mana_regen", "magic_damage"} and p["skill_points"] > 0:
-            field = "mana_regen_level" if stat == "mana_regen" else "magic_damage_level"
-            p[field] = int(p.get(field, 0)) + 1
-            p["skill_points"] -= 1
-            if stat == "mana_regen":
-                update_derived(p)
-                await tell(pid, f"Восстановление маны улучшено до уровня {p[field]}.")
-            else:
-                await tell(pid, f"Сила магии улучшена: +{p[field] * 8}% урона от заклинаний.")
-            upgraded = True
-        if upgraded:
-            p["stats_revision"] = int(p.get("stats_revision", 0)) + 1
-            try: save_character(p)
-            except sqlite3.Error: pass
-            await send_event(stats_updated_event(pid, p))
+        await apply_stat_upgrade(pid, p, str(msg.get("stat", "")))
     elif kind == "upgrade_http":
         # Резервный путь применения очков развития (если WebSocket-событие потерялось).
         stat = str(msg.get("stat", ""))
@@ -2209,11 +2279,12 @@ async def handle_message(pid: str, p: dict[str, Any], msg: dict[str, Any], now: 
 
 
 stat_names = {"might": "Сила", "vitality": "Живучесть", "agility": "Ловкость", "precision": "Точность", "fortune": "Удача"}
+EXTRA_STAT_NAMES = {"insight": "Прозорливость"}
 PERSIST_FIELDS = (
     "x", "y", "hp", "stamina", "xp", "level", "skill_points", "stats",
     "gold", "kills", "weapon", "weapons", "gear", "gear_inventory",
-    "inventory", "quest_stage", "quest_active", "quest_kills", "quest_gather",
-    "enchantments", "market_starter_grant", "magic_mana_spent", "upgrades", "mana_regen_level", "magic_damage_level", "spell_uses", "custom_spells",
+    "inventory", "quest_stage", "quest_active", "quest_kills", "quest_gather", "quest_points",
+    "enchantments", "market_starter_grant", "magic_mana_spent", "upgrades", "mana_regen_level", "magic_damage_level", "insight_level", "spell_uses", "custom_spells",
     "class", "mastery", "ability_cooldowns",
 )
 
@@ -2686,12 +2757,12 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     name = safe_name(account["username"])
     p = {"id": pid, "name": name, "x": 330.0, "y": 1100.0, "mx": 0.0, "my": 0.0,
          "face_x": 1.0, "face_y": 0.0, "hp": 100, "max_hp": 100, "stamina": 100.0, "max_stamina": 100,
-         "xp": 0, "level": 1, "skill_points": 0, "stats": {"might": 1, "vitality": 1, "agility": 1, "precision": 1, "fortune": 1},
+         "xp": 0, "level": 1, "skill_points": 0, "quest_points": 0, "stats": {"might": 1, "vitality": 1, "agility": 1, "precision": 1, "fortune": 1},
          "gold": 0, "kills": 0, "last_attack": 0.0, "attack": None, "respawn_at": 0.0,
          "mana": 60, "max_mana": 60, "spell_cooldowns": {}, "spell_uses": {}, "custom_spells": {},
          "enchantments": {"weapon": {}, "gear": {}}, "upgrades": {"weapon": {}, "gear": {}},
          "magic_mana_spent": 0, "market_starter_grant": False,
-         "mana_regen_level": 0, "magic_damage_level": 0,
+         "mana_regen_level": 0, "magic_damage_level": 0, "insight_level": 0,
          "class": None, "mastery": default_mastery(), "ability_cooldowns": {},
          "roar_until": 0.0, "guard_until": 0.0, "bloodhunt_until": 0.0, "eagle_marks": {},
          "ability_lock_until": 0.0,
@@ -2725,11 +2796,7 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     p["stats"] = {key: max(1, int(p.get("stats", {}).get(key, 1)))
                   for key in stat_names}
     # Recover unspent level-up points in older saves where the UI/action path failed.
-    spent_points = sum(max(0, value - 1) for value in p["stats"].values())
-    spent_points += max(0, int(p.get("mana_regen_level", 0)))
-    spent_points += max(0, int(p.get("magic_damage_level", 0)))
-    earned_points = max(0, p["level"] - 1)
-    p["skill_points"] = max(0, int(p.get("skill_points", 0)), earned_points - spent_points)
+    reconcile_skill_points(p)
     p["weapons"] = list(dict.fromkeys(weapon for weapon in p.get("weapons", []) if weapon in WEAPONS))
     if not p["weapons"]:
         p["weapons"] = ["sword", "axe", "bow"]
@@ -2752,6 +2819,7 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     p["magic_mana_spent"] = max(0, min(1000000, int(p.get("magic_mana_spent", 0))))
     p["mana_regen_level"] = max(0, min(1000, int(p.get("mana_regen_level", 0))))
     p["magic_damage_level"] = max(0, min(1000, int(p.get("magic_damage_level", 0))))
+    p["insight_level"] = max(0, min(STAT_CAPS["insight"], int(p.get("insight_level", 0) or 0)))
     if not isinstance(p.get("upgrades"), dict): p["upgrades"] = {"weapon": {}, "gear": {}}
     p["upgrades"].setdefault("weapon", {}); p["upgrades"].setdefault("gear", {})
     if not p.get("market_starter_grant", False):
