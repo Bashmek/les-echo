@@ -886,6 +886,7 @@ def player_row(pid: str, p: dict[str, Any], now: float) -> dict[str, Any]:
             "consumable_catalog": {cid: {"name": c["name"], "description": c.get("description", "")}
                                    for cid, c in CONSUMABLE_ALIASES.items()},
             "gathering": p["gathering"] is not None, "gather_progress": (p["gathering"]["progress"] / 1.15 if p["gathering"] else 0), "zone": zone["id"],
+            "run": bool(p.get("running")), "sneak": bool(p.get("sneaking")),
             "dodge_ready": now >= p["dodge_at"],
             "status": player_status_view(p, now), "damage_points": damage_points_view(p)}
 
@@ -896,7 +897,8 @@ def snapshot(for_id: str) -> dict[str, Any]:
     rid = own.get("region", "camp")
     local_players = [(pid, p) for pid, p in players.items() if p.get("region", "camp") == rid]
     public_fields = ("id", "name", "x", "y", "region", "zone", "face_x", "face_y", "hp", "max_hp", "level",
-                     "class", "class_name", "weapon", "weapon_kind", "gear", "attack", "effects", "status", "respawning", "gathering")
+                     "class", "class_name", "weapon", "weapon_kind", "gear", "attack", "effects", "status", "respawning", "gathering",
+                     "run", "sneak")
     rows = []
     for pid, p in local_players:
         row = player_row(pid, p, now)
@@ -2709,6 +2711,9 @@ async def handle_message(pid: str, p: dict[str, Any], msg: dict[str, Any], now: 
         length = math.hypot(mx, my)
         if length > 1: mx, my = mx / length, my / length
         p["mx"], p["my"] = mx, my
+        # Movement modes: running drains stamina, sneaking is slow but quiet.
+        p["sneaking"] = bool(msg.get("sneak"))
+        p["running"] = bool(msg.get("run")) and length > .1 and not p["sneaking"]
         if math.hypot(ax, ay) > .01:
             length = math.hypot(ax, ay)
             p["face_x"], p["face_y"] = ax / length, ay / length
@@ -3029,6 +3034,28 @@ def save_character(p: dict[str, Any]) -> None:
         )
 
 
+RUN_SPEED_FACTOR = 1.55
+SNEAK_SPEED_FACTOR = .52
+WALK_SPEED_BASE = 178.0
+
+
+def player_move_profile(p: dict[str, Any]) -> tuple[float, bool, bool]:
+    """(speed, running, sneaking) for one player this tick.
+
+    Running is a stamina-gated sprint, sneaking a slow crouch; both only apply
+    while the player is actually holding a direction.
+    """
+    speed = WALK_SPEED_BASE + (p["stats"]["agility"] - 1) * 3.2
+    moving = math.hypot(p.get("mx", 0.0), p.get("my", 0.0)) > .1
+    running = bool(moving and p.get("running") and float(p.get("stamina", 0)) > 1.0 and not p.get("sneaking"))
+    sneaking = bool(moving and p.get("sneaking"))
+    if running:
+        speed *= RUN_SPEED_FACTOR
+    elif sneaking:
+        speed *= SNEAK_SPEED_FACTOR
+    return speed, running, sneaking
+
+
 async def world_tick() -> None:
     last_saved = time.monotonic()
     last_snapshot = 0.0
@@ -3042,13 +3069,17 @@ async def world_tick() -> None:
                 await enter_region(p, "camp", *SPAWN, reason="respawn")
                 await tell(pid, "Ты вернулся в лагерь. Потеряно немного времени, но не добыча.")
             if p["respawn_at"] > now: continue
-            speed = 178 + (p["stats"]["agility"] - 1) * 3.2
+            speed, running, sneaking = player_move_profile(p)
             # Solid scenery: the server slides the player around trunks, rocks
             # and pillars instead of letting them pass through.
             nx = max(25, min(WORLD_W - 25, p["x"] + p["mx"] * speed * dt))
             ny = max(25, min(WORLD_H - 25, p["y"] + p["my"] * speed * dt))
             p["x"], p["y"] = resolve_collision(p.get("region", "camp"), nx, ny, 15.0)
-            p["stamina"] = min(p["max_stamina"], p["stamina"] + (15 + p["stats"]["agility"] * .35) * dt)
+            regen = 15 + p["stats"]["agility"] * .35
+            if running:
+                p["stamina"] = max(0.0, p["stamina"] - 20.0 * dt)
+            else:
+                p["stamina"] = min(p["max_stamina"], p["stamina"] + regen * (1.6 if sneaking else 1.0) * dt)
             p["mana"] = min(p["max_mana"], p.get("mana", 0) + (9.0 + 1.5 * p.get("mana_regen_level", 0)) * dt)
             if float(p.get("roar_until", 0) or 0) > now:
                 p["hp"] = min(p["max_hp"], p["hp"] + 6.0 * dt)
@@ -3127,7 +3158,7 @@ async def world_tick() -> None:
             if dist > 300 and now > mob["wander_at"]:
                 mob["wander_x"], mob["wander_y"] = random.uniform(-1, 1), random.uniform(-1, 1)
                 mob["wander_at"] = now + 2
-            elif dist < 260 and dist > MONSTERS[mob["kind"]]["range"] * .72:
+            elif dist < (165 if target.get("sneaking") else 260) and dist > MONSTERS[mob["kind"]]["range"] * .72:
                 mob["x"], mob["y"] = resolve_collision(
                     mob.get("region", "camp"),
                     mob["x"] + dx / max(1, dist) * mob_speed * dt,
@@ -3385,7 +3416,7 @@ def default_player(pid: str, name: str) -> dict[str, Any]:
          "class": None, "mastery": default_mastery(), "ability_cooldowns": {},
          "roar_until": 0.0, "guard_until": 0.0, "bloodhunt_until": 0.0, "eagle_marks": {},
          "ability_lock_until": 0.0,
-         "dodge_at": 0.0, "dodge_until": 0.0, "weapon": "sword", "weapons": ["sword", "axe", "bow"],
+         "dodge_at": 0.0, "dodge_until": 0.0, "running": False, "sneaking": False, "weapon": "sword", "weapons": ["sword", "axe", "bow"],
          "gear": "traveler", "gear_inventory": [],
          "inventory": {"wood": 0, "herb": 0, "ore": 0, "hide": 0, "slime": 0, "crystal": 0, "shard": 0, "potion": 2, "arrows": 18},
          "quest_stage": 0, "quest_active": False, "quest_kills": {}, "quest_gather": {},
