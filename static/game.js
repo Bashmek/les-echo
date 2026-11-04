@@ -85,7 +85,7 @@ function me(){return snap?.players.find(p=>p.id===myId)}
 function message(text,type='notice',name=''){let box=$('messages'),row=document.createElement('div');row.className='msg '+type;if(type==='chat'){let b=document.createElement('b');b.textContent=name+': ';row.append(b,document.createTextNode(text))}else row.textContent=text;box.append(row);while(box.children.length>5)box.removeChild(box.firstChild);setTimeout(()=>row.remove(),14000)}function toast(t){message(t,'notice')}
 const ABILITY_DEFAULT_KEYS={roar:'KeyR',lunge:'KeyT',whirlwind:'KeyK',iron_guard:'KeyP',bash:'KeyO',bloodhunt:'KeyN',seismic_slam:'KeyL',arrow_rain:'KeyR',piercing_shot:'KeyT',fire_arrow:'KeyK',ice_arrow:'KeyP',double_shot:'KeyX',poison_arrow:'KeyO',blackout_bolt:'KeyN',eagle_mark:'KeyL',arcane_bolt:'KeyR',frost_lance:'KeyT',chain_lightning:'KeyX',arcane_shield:'KeyN',blink:'KeyO',flame_burst:'KeyP',mana_surge:'KeyK',meteor_fall:'KeyL'};
 const ABILITY_TREE_NAMES={warrior:'Воин',ranger:'Следопыт',mage:'Маг'};
-const ABILITY_RESERVED=new Set(['KeyW','KeyA','KeyS','KeyD','KeyE','KeyF','KeyI','KeyM','KeyB','KeyG','KeyH','KeyQ','KeyC','KeyV','KeyZ']);
+const ABILITY_RESERVED=new Set(['KeyW','KeyA','KeyS','KeyD','KeyE','KeyF','KeyI','KeyM','KeyB','KeyG','KeyH', 'KeyJ','KeyQ','KeyC','KeyV','KeyZ']);
 let abilityKeys={};
 try{abilityKeys=JSON.parse(localStorage.getItem('echoAbilityKeys')||'{}')||{}}catch{abilityKeys={}}
 let abilityKeyCodeToId={},pendingAbilityBinding='',classOfferDismissed=false,classChoicePending=false,abilityFx=[],hoverAbilityId='';
@@ -365,8 +365,8 @@ restoreSession();
 const GAME_MENU_IDS=['gameMenuOverlay','keybindOverlay','accountOverlay','charOverlay'];
 // --- общие объявления, доступные и внутри основного IIFE, и после него ---
 let actionKeys={};
-const ACTION_KEY_DEFAULTS={character:'KeyC',inventory:'KeyI',market:'KeyB',wizard:'KeyG',forge:'KeyH',map:'KeyM',dodge:'KeyV',gather:'KeyE',interact:'KeyF',potion:'KeyQ',attack:'Space',chat:'Enter'};
-const ACTION_KEY_NAMES={character:'Меню персонажа',inventory:'Рюкзак и крафт',market:'Лавка',wizard:'Маг',forge:'Кузница',map:'Карта мира',dodge:'Рывок',gather:'Сбор ресурса',interact:'Взаимодействие (Хранитель)',potion:'Настойка',attack:'Атака (удерживай)',chat:'Чат'};
+const ACTION_KEY_DEFAULTS={character:'KeyC',inventory:'KeyI',journal:'KeyJ',market:'KeyB',wizard:'KeyG',forge:'KeyH',map:'KeyM',dodge:'KeyV',gather:'KeyE',interact:'KeyF',potion:'KeyQ',attack:'Space',chat:'Enter'};
+const ACTION_KEY_NAMES={character:'Меню персонажа',inventory:'Рюкзак и крафт',journal:'Журнал поручений',market:'Лавка',wizard:'Маг',forge:'Кузница',map:'Карта мира',dodge:'Рывок',gather:'Сбор ресурса',interact:'Взаимодействие (Хранитель)',potion:'Настойка',attack:'Атака (удерживай)',chat:'Чат'};
 let listeningActionKey=null;
 let toggleCharacter=()=>{};
 let setListeningAction=()=>{};
@@ -394,6 +394,7 @@ function wireGameMenuUI(){
   if(action==='accounts'){lastSubmenuToggle=0;toggleAccounts(true,true);return}
   if(action==='character'){lastGameMenuToggle=0;toggleGameMenu(false,true);toggleCharacter(true,true);return}
   if(action==='inventory'){lastGameMenuToggle=0;toggleGameMenu(false,true);openInventory();return}
+  if(action==='quests'){lastGameMenuToggle=0;toggleGameMenu(false,true);openQuestJournal();return}
   if(action==='classes'){lastGameMenuToggle=0;toggleGameMenu(false,true);openClassPicker();return}
   if(action==='controls'){lastGameMenuToggle=0;toggleGameMenu(false,true);toggleControls(true);return}
   if(action==='spelllib'){lastGameMenuToggle=0;toggleGameMenu(false,true);toggleControls(true);requestAnimationFrame(()=>$('customSpellLibraryList').scrollIntoView({behavior:'smooth',block:'center'}));return}
@@ -455,7 +456,7 @@ renderKeybindSections=()=>{
   const rows=list.map(a=>keybindRow(`${a.name} · ${ABILITY_TREE_NAMES[tree]||''}`,keyLabel(abilityBindingCode(a)),keybindListening?.kind==='ability'&&keybindListening.id===a.id,()=>{keybindListening={kind:'ability',id:a.id};renderKeybindSections()}));
   const reset=document.createElement('button');reset.type='button';reset.className='close';reset.style.marginTop='8px';reset.textContent='Сбросить клавиши способностей';
   reset.onclick=()=>{abilityKeys={};saveAbilityKeys();keybindListening=null;updateActionPanels(me());renderKeybindSections();toast('Клавиши способностей сброшены к стандартным')};
-  host.appendChild(keybindSection(`Способности · ${ABILITY_TREE_NAMES[tree]||tree}`,tree==='mage'?'Способности мага тратят ману. Клавиши — буквы A–Z, кроме занятых (WASD, E, F, I, M, B, G, H, Q, C, V, Z).':'Клавиши — буквы A–Z, кроме занятых (WASD, E, F, I, M, B, G, H, Q, C, V, Z).',rows,reset));
+  host.appendChild(keybindSection(`Способности · ${ABILITY_TREE_NAMES[tree]||tree}`,tree==='mage'?'Способности мага тратят ману. Клавиши — буквы A–Z, кроме занятых (WASD, E, F, I, J, M, B, G, H, Q, C, V, Z).':'Клавиши — буквы A–Z, кроме занятых (WASD, E, F, I, J, M, B, G, H, Q, C, V, Z).',rows,reset));
  }
  if(!p.class||tree==='mage'){
   const catalog=p.spell_catalog||{};
@@ -578,21 +579,114 @@ function pointerWorld(){let r=canvas.getBoundingClientRect();return {x:cam.x+(mo
 function castSpell(id){let p=me();if(!p)return;if(window.heroGesture)heroGesture('cast');let t=hasPointerAim?pointerWorld():{x:p.x+aim.x*180,y:p.y+aim.y*180},dx=t.x-p.x,dy=t.y-p.y;send({type:'spell',spell:id,aim_x:dx,aim_y:dy,target_x:t.x,target_y:t.y})}document.querySelectorAll('[data-spell]').forEach(b=>b.addEventListener('click',()=>{if(b.dataset.spell)castSpell(b.dataset.spell);else remapSpellKeys()}));$('spellSettings').onclick=remapSpellKeys;syncSpellKeys();function toggleGuide(open){const el=$('guideOverlay');el.style.display=(open??el.style.display!=='flex')?'flex':'none';if(el.style.display==='flex')$('closeGuide').focus()}$('guideButton').onclick=()=>toggleGuide(true);$('closeGuide').onclick=()=>toggleGuide(false);$('guideOverlay').addEventListener('click',e=>{if(e.target===$('guideOverlay'))toggleGuide(false)});
 function openInventory(){if(!$('invOverlay'))return;$('invOverlay').style.display='flex';document.querySelectorAll('[data-inv-tab]').forEach(x=>x.classList.toggle('active',x.dataset.invTab==='all'));document.querySelectorAll('[data-inv-section]').forEach(x=>x.style.display='block');inventorySignature='';let p=me();if(p)renderInventory(p);$('closeInventory').focus()}
 function closeInventory(){if($('invOverlay'))$('invOverlay').style.display='none'}
-function updateQuestTracker(p,q,questLine,resLine){const panel=$('questPanel');if(!panel||!q)return;const total=Number(q.total)||questStages.length;const stageLabel=$('questStageLabel'),nameEl=$('questName'),killsLabel=$('questKillsLabel'),killsCount=$('questKillsCount'),killsFill=$('questKillsFill'),gatherLabel=$('questGatherLabel'),gatherCount=$('questGatherCount'),gatherFill=$('questGatherFill'),statusEl=$('questStatus');panel.classList.remove('ready','done');const setTrack=(fill,count,label,current,need,text)=>{count.textContent=`${Math.min(current,need)} / ${need}`;label.textContent=text;fill.style.width=`${need>0?Math.max(0,Math.min(100,100*current/need)):0}%`};
- if(stageLabel)stageLabel.textContent=q.stage>=total?`${total} / ${total}`:`${Math.min(q.stage,total-1)+1} / ${total}`;
- if(q.stage>=total){nameEl.textContent='Путь легенды завершён';setTrack(killsFill,killsCount,killsLabel,1,1,'Все поручения выполнены');setTrack(gatherFill,gatherCount,gatherLabel,1,1,'Добыча собрана');statusEl.textContent='Ты — легенда Леса Эхо.';panel.classList.add('done');return}
- const target=questStages[Math.min(q.stage,total-1)],kind=target[0],needKills=target[1],res=target[2],needRes=target[3];
- nameEl.textContent=q.active?target[4]:`Поручение: ${target[4]}`;
- const killsNow=Math.min(Number(q.kills?.[kind])||0,needKills);
- setTrack(killsFill,killsCount,killsLabel,killsNow,needKills,`${questLine[kind]||kind} · ${target[4].includes('колосс')?'повержен':'погибло'}`);
- if(res){const gatherNow=Math.min(Number(q.gather?.[res])||0,needRes);setTrack(gatherFill,gatherCount,gatherLabel,gatherNow,needRes,resLine[res]||res);gatherFill.parentElement.style.display=''}
- else{setTrack(gatherFill,gatherCount,gatherLabel,1,1,'Особых ресурсов не требуется');gatherFill.parentElement.style.display='none'}
- if(!q.active){statusEl.textContent=q.stage===0?'Поговори с Егором Хранителем в лагере и нажми F.':'Цели достигнуты. Вернись к Хранителю в лагерь (F).';if(q.stage>0)panel.classList.add('ready')}
- else if(questDone(q)){statusEl.textContent='Цели достигнуты. Вернись к Хранителю за наградой (F).';panel.classList.add('ready')}
- else statusEl.textContent='Выполняй цели этапа в указанном регионе.';}
+const QUEST_STATUS_LABEL={active:'В работе',ongoing:'В работе',ready:'Готово к сдаче',short:'Нужны материалы',done:'Выполнено'};
+const QUEST_MOB_NAMES={slime:'Моховые слизни',wolf:'Туманные волки',boar:'Топкие вепри',ashguard:'Стражи руин',colossus:'Пепельный колосс',frost_wyrm:'Ледяные змеи',echo_dragon:'Дракон Пустого Эха',rift_knight:'Рыцари разлома',void_wraith:'Призраки Бездны',obsidian_sentinel:'Стражи чёрного стекла',starseer:'Звёздочёты',ancient_warden:'Хранитель сада'};
+const QUEST_RESOURCE_NAMES={herb:'Лунная трава',ore:'Болотная руда',crystal:'Эхо-кристаллы',shard:'Осколки разлома',wood:'Древесина'};
+function questObjectiveName(objective){
+ const key=objective?.key||'';
+ if(objective?.kind==='kill')return QUEST_MOB_NAMES[key]||mobNames[key]||key;
+ return QUEST_RESOURCE_NAMES[key]||nodeNames[key]||key;
+}
+function questObjectiveDone(objective){return Number(objective?.have||0)>=Number(objective?.need||0)}
+function journalOf(p){return Array.isArray(p?.journal)?p.journal:[]}
+// The server decides the default (ready → in work → nothing) and remembers a pin.
+function trackedQuestEntry(p){const journal=journalOf(p);if(!journal.length)return null;const pinned=p?.tracked_quest;return journal.find(q=>q.id===pinned)||journal.find(q=>q.status==='ready')||journal.find(q=>q.status==='short')||journal.find(q=>q.status==='active'||q.status==='ongoing')||null}
+function questProgressMarkup(quest){
+ return (quest.objectives||[]).map(o=>{const need=Math.max(1,Number(o.need||1)),have=Math.min(Number(o.have||0),need),pct=Math.round(100*have/need);
+  return `<div class="qObjective"><span>${safeText(questObjectiveName(o))}</span><b class="qCount">${have} / ${need}</b></div><div class="questTrack"><i style="width:${pct}%"></i></div>`}).join('');
+}
+function questRewardText(quest){
+ const reward=quest.reward||{},parts=[];
+ if(reward.gold)parts.push(`${reward.gold} монет`);
+ if(reward.xp)parts.push(`${reward.xp} опыта`);
+ if(reward.points)parts.push('+1 очко развития');
+ for(const item of reward.items||[]){
+  const label=item.type==='potion'?'настойка':item.type==='gear'?(gearNames[item.id]||item.id):(weaponNames[item.id]||item.id);
+  parts.push(`${label}${Number(item.count)>1?` ×${item.count}`:''}`);
+ }
+ return parts.join(' · ');
+}
+function updateQuestTracker(p){
+ const panel=$('questPanel');if(!panel)return;
+ const tracked=trackedQuestEntry(p),titleEl=$('questName'),stageEl=$('questStageLabel'),statusEl=$('questStatus'),box=$('questObjectives');
+ panel.classList.remove('ready','done','empty');
+ if(!titleEl||!box)return;
+ if(!tracked){
+  titleEl.textContent='Поручений нет';
+  if(stageEl)stageEl.textContent='—';
+  box.innerHTML='<div class="qEmpty">Поговори с Хранителем истории в лагере и нажми <kbd>F</kbd>, чтобы принять первое поручение.</div>';
+  if(statusEl)statusEl.textContent='Журнал всех поручений: J';
+  panel.classList.add('empty');
+  return;
+ }
+ titleEl.textContent=tracked.title;
+ if(stageEl)stageEl.textContent=tracked.kind==='story'?`${Number(tracked.stage||0)+1} / ${tracked.total||'?'}`:(tracked.region_name||'');
+ box.innerHTML=questProgressMarkup(tracked);
+ if(statusEl){
+  const where=tracked.region_name?` · ${tracked.region_name}`:'';
+  statusEl.textContent=tracked.status==='ready'?`Цели закрыты${where}. Сдай поручение: ${tracked.giver||'Хранитель'} (F).`
+   :tracked.status==='short'?`Цели закрыты, но нужны материалы в рюкзаке${where}.`
+   :tracked.status==='done'?'Поручение выполнено.'
+   :`${QUEST_STATUS_LABEL[tracked.status]||'В работе'}${where}.`;
+ }
+ panel.classList.add(tracked.status==='ready'?'ready':tracked.status==='done'?'done':'active');
+}
+
+/* ── журнал поручений: основная ветка + местные поручения + выбор трекера ── */
+let questJournalSignature='';
+function questJournalCard(quest,trackedId){
+ const done=quest.status==='done',isTracked=quest.id===trackedId;
+ const badge=`<span class="qjStatus ${quest.status}">${QUEST_STATUS_LABEL[quest.status]||'В работе'}</span>`;
+ const chain=quest.kind==='story'?`<span class="qjChapter">${Number(quest.stage||0)+1} / ${quest.total||'?'}</span>`:'';
+ const reward=questRewardText(quest);
+ return `<article class="qjCard${done?' isDone':''}${isTracked?' isTracked':''}" data-quest-card="${safeText(quest.id)}">
+  <header><div class="qjHead"><b>${safeText(quest.title)}</b>${chain}${badge}</div>
+   <button type="button" class="qjTrack" data-quest-track="${safeText(quest.id)}"${done?' disabled':''}>${isTracked?'Отслеживается':'Отслеживать'}</button></header>
+  <div class="qjMeta">${safeText(quest.region_name||'')}${quest.giver?` · ${safeText(quest.giver)}`:''}</div>
+  <div class="qjObjectives">${questProgressMarkup(quest)}</div>
+  <div class="qjReward">Награда: ${safeText(reward||'—')}</div>
+ </article>`;
+}
+function renderQuestJournal(p){
+ const host=$('questJournalBody');if(!host||!p)return;
+ const journal=journalOf(p),tracked=trackedQuestEntry(p),trackedId=tracked?tracked.id:'';
+ const signature=JSON.stringify([journal.map(q=>[q.id,q.status,(q.objectives||[]).map(o=>o.have)]),trackedId]);
+ if(signature===questJournalSignature&&host.dataset.ready==='1')return;
+ questJournalSignature=signature;host.dataset.ready='1';
+ const story=journal.filter(q=>q.kind==='story').sort((a,b)=>Number(a.stage||0)-Number(b.stage||0));
+ const side=journal.filter(q=>q.kind==='region');
+ const active=journal.filter(q=>q.status!=='done').length,ready=journal.filter(q=>q.status==='ready').length,done=journal.filter(q=>q.status==='done').length;
+ $('questJournalStats').innerHTML=`<span>В работе: <b>${active}</b></span><span>Готово к сдаче: <b>${ready}</b></span><span>Выполнено: <b>${done}</b></span>`;
+ const section=(title,hint,items)=>`<section class="qjSection"><h3>${title}${hint?`<small>${hint}</small>`:''}</h3>${items.length?items.map(q=>questJournalCard(q,trackedId)).join(''):'<p class="qjEmpty">Пока пусто.</p>'}</section>`;
+ host.innerHTML=[
+  tracked?`<section class="qjSection qjTrackedSection"><h3>Отслеживается<small>это видно на панели справа сверху</small></h3>${questJournalCard(tracked,trackedId)}</section>`:'',
+  section('Основная ветка','принятые и выполненные поручения Хранителя',story),
+  section('Побочные поручения','местные дела в девяти землях; их выдаёт местный Хранитель',side),
+ ].join('');
+}
+function openQuestJournal(){
+ const el=$('questOverlay');if(!el)return;
+ el.style.display='flex';questJournalSignature='';
+ const p=me();if(p)renderQuestJournal(p);
+ const close=$('closeQuestJournal');if(close)close.focus();
+}
+function closeQuestJournal(){const el=$('questOverlay');if(el)el.style.display='none'}
+function toggleQuestJournal(open){const el=$('questOverlay');if(!el)return;const next=open??el.style.display!=='flex';if(next)openQuestJournal();else closeQuestJournal()}
+if($('closeQuestJournal'))$('closeQuestJournal').onclick=closeQuestJournal;
+if($('questOpenButton'))$('questOpenButton').onclick=openQuestJournal;
+if($('questOverlay'))$('questOverlay').addEventListener('click',e=>{
+ if(e.target===$('questOverlay')){closeQuestJournal();return}
+ const button=e.target.closest('[data-quest-track]');
+ if(!button||button.disabled)return;
+ const id=button.dataset.questTrack;if(!id)return;
+ send({type:'quest_track',id});
+ button.textContent='Отслеживается';
+ button.closest('.qjCard')?.classList.add('isTracked');
+ toast('Поручение закреплено в трекере');
+});
 function updateHud(){let p=me();if(!p)return;$('heroName').textContent=`${p.name} · ур. ${p.level}`;$('gold').textContent=`${p.gold} монет`;const hpPct=Math.max(0,Math.min(100,100*p.hp/Math.max(1,p.max_hp))),stamPct=Math.max(0,Math.min(100,100*p.stamina/Math.max(1,p.max_stamina))),manaPct=Math.max(0,Math.min(100,100*(p.mana||0)/Math.max(1,p.max_mana||1)));$('hpShort').textContent=Math.ceil(p.hp);$('stamShort').textContent=Math.floor(p.stamina);$('manaShort').textContent=Math.floor(p.mana||0);$('hpOrb').title=`Здоровье: ${p.hp} / ${p.max_hp}`;$('manaOrb').title=`Мана: ${Math.floor(p.mana||0)} / ${p.max_mana||0}`;$('stamOrb').title=`Выносливость: ${Math.floor(p.stamina)} / ${p.max_stamina}`;$('hpOrb').style.setProperty('--value',hpPct+'%');$('stamOrb').style.setProperty('--value',stamPct+'%');$('manaOrb').style.setProperty('--value',manaPct+'%');let need=p.level*120;$('xpText').textContent=`${p.xp} / ${need} XP`;$('xpFill').style.width=`${Math.max(0,Math.min(100,100*p.xp/need))}%`;updateSpellBar(p);updateActionPanels(p);
-const z=zoneInfo[p.zone]||zoneInfo.camp;$('zoneLabel').textContent=`${z.name} · ${z.level}`;const q=p.quest;let questLine={slime:'Моховые слизни',wolf:'Туманные волки',boar:'Топкие вепри',ashguard:'Страж руин',colossus:'Пепельный колосс',frost_wyrm:'Ледяные змеи',echo_dragon:'Дракон Пустого Эха',rift_knight:'Рыцарь разлома',void_wraith:'Призрак Бездны',obsidian_sentinel:'Страж чёрного стекла',starseer:'Звёздочёты',ancient_warden:'Хранитель сада'};let resLine={herb:'Лунная трава',ore:'Болотная руда',crystal:'Эхо-кристаллы',shard:'Осколки разлома'};
-updateQuestTracker(p,q,questLine,resLine);
+const z=zoneInfo[p.zone]||zoneInfo.camp;$('zoneLabel').textContent=`${z.name} · ${z.level}`;
+updateQuestTracker(p);if($('questOverlay')&&$('questOverlay').style.display==='flex')renderQuestJournal(p);;
 const inv=p.inventory;for(let k of ['wood','herb','ore','crystal','hide','slime','shard','arrows','potion']){let e=$(k);if(e)e.textContent=inv[k]||0;}$('weaponName').textContent=weaponNames[p.weapon]||p.weapon;$('gearName').textContent=gearNames[p.gear]||'Нет';$('defenseLabel').textContent=`· броня ${gearDefense[p.gear]||0}`;
 
 try{renderInventory(p)}catch(err){console.warn('renderInventory',err)}if($('wizardOverlay').style.display==='flex')renderWizard(p);if($('forgeOverlay').style.display==='flex')renderForge(p);const kind=p.weapon_catalog?.[p.weapon]?.kind||'melee';try{updateCharacterPanel(p)}catch(err){console.warn('updateCharacterPanel',err)}if($('manaBadge'))$('manaBadge').textContent=`${Math.floor(p.mana||0)} / ${p.max_mana||0} маны`;$('marketBalance').textContent=`${p.gold||0} монет`;renderMarket(p);document.querySelectorAll('[data-spell]').forEach(b=>{let costs={fireball:18,lightning:26,heal:24,thorns:23,ice_lance:30,arcane_burst:38,meteor:58},unlocked=new Set(p.spells_unlocked||[]);b.disabled=!unlocked.has(b.dataset.spell)||(p.mana||0)<(costs[b.dataset.spell]||999)});
@@ -609,8 +703,8 @@ canvas.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse'&&e.button==
 addEventListener('pointerup',e=>{if(chargeLocal)releaseAttack(e)});
 document.addEventListener('pointerdown',e=>{const t=e.target&&e.target.closest?e.target.closest('button,[role=button],.actionBtn,.pad,[data-inv-tab]'):null;if(!t)return;if(t.id==='attackButton'||t.id==='dodgeButton'||t.id==='audioToggle'||(t.classList&&t.classList.contains('pad')))return;sfxCall('ui')},true);
 canvas.addEventListener('contextmenu',e=>e.preventDefault());
-function dodge(){const p=me();if(p)fxCall('dodge',p.x,p.y);sfxCall('dodge');send({type:'dodge'})}$('inventoryButton').onclick=openInventory;if($('openInventory'))$('openInventory').onclick=openInventory;$('closeInventory').onclick=closeInventory;$('invOverlay').addEventListener('click',e=>{if(e.target===$('invOverlay'))closeInventory()});$('invOverlay').addEventListener('click',e=>{let g=e.target.closest('button[data-inv-equip-gear]'),w=e.target.closest('button[data-inv-equip-weapon]');if(g&&!g.disabled){send({type:'equip_gear',id:g.dataset.invEquipGear});toast('Надеваю броню…')}if(w&&!w.disabled){send({type:'weapon',id:w.dataset.invEquipWeapon});toast('Оружие экипировано')}});document.querySelectorAll('[data-inv-tab]').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('[data-inv-tab]').forEach(x=>x.classList.toggle('active',x===b));document.querySelectorAll('[data-inv-section]').forEach(x=>x.style.display=b.dataset.invTab==='all'||x.dataset.invSection===b.dataset.invTab?'block':'none')}));$('dodgeButton').onclick=dodge;const movementCodes={KeyW:'w',ArrowUp:'arrowup',KeyS:'s',ArrowDown:'arrowdown',KeyA:'a',ArrowLeft:'arrowleft',KeyD:'d',ArrowRight:'arrowright'};function activeGameMenu(){const ids=['classOverlay','invOverlay','marketOverlay','wizardOverlay','forgeOverlay','customSpellOverlay','controlsOverlay','guideOverlay','mapOverlay','gameMenuOverlay','charOverlay','keybindOverlay','accountOverlay','login'];return ids.some(id=>{const el=$(id);return !!(el&&el.getClientRects().length&&getComputedStyle(el).visibility!=='hidden')})||[...document.querySelectorAll('[role=dialog]')].some(el=>el.getClientRects().length>0&&getComputedStyle(el).visibility!=='hidden')}
-function closeTopGameMenu(){const order=['npcOverlay','atlasOverlay','classOverlay','customSpellOverlay','keybindOverlay','accountOverlay','charOverlay','guideOverlay','wizardOverlay','forgeOverlay','marketOverlay','invOverlay','mapOverlay','controlsOverlay','gameMenuOverlay'];for(const id of order){const el=$(id);if(!el||getComputedStyle(el).display==='none')continue;if(id==='npcOverlay')closeNpc();else if(id==='atlasOverlay')closeAtlas();else if(id==='classOverlay')hideClassOffer();else if(id==='guideOverlay')toggleGuide(false);else if(id==='wizardOverlay'||id==='forgeOverlay')closeStation(id);else if(id==='invOverlay')closeInventory();else if(id==='marketOverlay')closeMarket();else if(id==='controlsOverlay')toggleControls(false);else if(id==='keybindOverlay')toggleKeybinds(false,true);else if(id==='accountOverlay')toggleAccounts(false,true);else if(id==='charOverlay')toggleCharacter(false,true);else if(id==='gameMenuOverlay')toggleGameMenu(false);else el.style.display='none';return true}return false}
+function dodge(){const p=me();if(p)fxCall('dodge',p.x,p.y);sfxCall('dodge');send({type:'dodge'})}$('inventoryButton').onclick=openInventory;if($('openInventory'))$('openInventory').onclick=openInventory;$('closeInventory').onclick=closeInventory;$('invOverlay').addEventListener('click',e=>{if(e.target===$('invOverlay'))closeInventory()});$('invOverlay').addEventListener('click',e=>{let g=e.target.closest('button[data-inv-equip-gear]'),w=e.target.closest('button[data-inv-equip-weapon]');if(g&&!g.disabled){send({type:'equip_gear',id:g.dataset.invEquipGear});toast('Надеваю броню…')}if(w&&!w.disabled){send({type:'weapon',id:w.dataset.invEquipWeapon});toast('Оружие экипировано')}});document.querySelectorAll('[data-inv-tab]').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('[data-inv-tab]').forEach(x=>x.classList.toggle('active',x===b));document.querySelectorAll('[data-inv-section]').forEach(x=>x.style.display=b.dataset.invTab==='all'||x.dataset.invSection===b.dataset.invTab?'block':'none')}));$('dodgeButton').onclick=dodge;const movementCodes={KeyW:'w',ArrowUp:'arrowup',KeyS:'s',ArrowDown:'arrowdown',KeyA:'a',ArrowLeft:'arrowleft',KeyD:'d',ArrowRight:'arrowright'};function activeGameMenu(){const ids=['classOverlay','invOverlay','marketOverlay','wizardOverlay','forgeOverlay','customSpellOverlay','controlsOverlay','guideOverlay','mapOverlay','gameMenuOverlay','charOverlay','keybindOverlay','accountOverlay','questOverlay','login'];return ids.some(id=>{const el=$(id);return !!(el&&el.getClientRects().length&&getComputedStyle(el).visibility!=='hidden')})||[...document.querySelectorAll('[role=dialog]')].some(el=>el.getClientRects().length>0&&getComputedStyle(el).visibility!=='hidden')}
+function closeTopGameMenu(){const order=['npcOverlay','atlasOverlay','classOverlay','customSpellOverlay','keybindOverlay','accountOverlay','charOverlay','guideOverlay','wizardOverlay','forgeOverlay','marketOverlay','questOverlay','invOverlay','mapOverlay','controlsOverlay','gameMenuOverlay'];for(const id of order){const el=$(id);if(!el||getComputedStyle(el).display==='none')continue;if(id==='npcOverlay')closeNpc();else if(id==='atlasOverlay')closeAtlas();else if(id==='questOverlay')closeQuestJournal();else if(id==='classOverlay')hideClassOffer();else if(id==='guideOverlay')toggleGuide(false);else if(id==='wizardOverlay'||id==='forgeOverlay')closeStation(id);else if(id==='invOverlay')closeInventory();else if(id==='marketOverlay')closeMarket();else if(id==='controlsOverlay')toggleControls(false);else if(id==='keybindOverlay')toggleKeybinds(false,true);else if(id==='accountOverlay')toggleAccounts(false,true);else if(id==='charOverlay')toggleCharacter(false,true);else if(id==='gameMenuOverlay')toggleGameMenu(false);else el.style.display='none';return true}return false}
 // Capture keyboard events before global gameplay bindings: visible menus never leak hotkeys.
 document.addEventListener('keydown',e=>{if(!activeGameMenu())return;if(e.key==='Escape'){closeTopGameMenu();e.preventDefault()}if(!(e.key==='Enter'&&e.target===$('chatInput')))e.stopPropagation()},true);
 document.addEventListener('keyup',e=>{if(activeGameMenu()){keys.clear();touchDirs.clear();e.stopPropagation()}},true);
@@ -981,7 +1075,7 @@ function actionByCode(code){for(const k of Object.keys(ACTION_KEY_DEFAULTS)){if(
 function isReservedCode(code){return RESERVED_ACTION_CODES.has(code)||/^(?:Control|Alt|Meta)/.test(code)}
 function actionKeyLabel(act){const code=actionKeys[act];if(act==='dodge'&&/^Shift/.test(code))return code==='ShiftRight'?'ПК Shift':'ЛК Shift';if(act==='attack')return code==='Space'?'Пробел':keyLabel(code)||code;return keyLabel(code)||code||'—'}
 movementCodeSet=()=>new Set(Object.values(movementCodes));
-function actionCodeConflict(code,exceptAct){for(const k of Object.keys(ACTION_KEY_DEFAULTS)){if(k!==exceptAct&&actionKeys[k]===code)return k}return ''}applyActionToGame=(act,e)=>{switch(act){case 'character':toggleCharacter();return true;case 'inventory':if($('invOverlay').style.display==='flex')closeInventory();else openInventory();return true;case 'market':if($('marketOverlay').style.display==='flex')closeMarket();else openMarket();return true;case 'wizard':if($('wizardOverlay').style.display==='flex')closeStation('wizardOverlay');else openWizard();return true;case 'forge':if($('forgeOverlay').style.display==='flex')closeStation('forgeOverlay');else openForge();return true;case 'map':toggleMap();return true;case 'dodge':dodge();return true;case 'gather':sfxCall('gather');send({type:'gather_start'});return true;case 'interact':send({type:'interact'});return true;case 'potion':if(window.heroGesture)heroGesture('drink');sfxCall('drink');{const own=me();if(own)fxCall('heal',own.x,own.y)}send({type:'use_potion'});return true;case 'attack':beginAttack(e);return true;case 'chat':if(document.activeElement===$('chatInput'))return false;if(document.activeElement&&document.activeElement.blur)document.activeElement.blur();$('chatInput').focus();return true}};
+function actionCodeConflict(code,exceptAct){for(const k of Object.keys(ACTION_KEY_DEFAULTS)){if(k!==exceptAct&&actionKeys[k]===code)return k}return ''}applyActionToGame=(act,e)=>{switch(act){case 'character':toggleCharacter();return true;case 'inventory':if($('invOverlay').style.display==='flex')closeInventory();else openInventory();return true;case 'journal':if($('questOverlay')&&$('questOverlay').style.display==='flex')closeQuestJournal();else openQuestJournal();return true;case 'market':if($('marketOverlay').style.display==='flex')closeMarket();else openMarket();return true;case 'wizard':if($('wizardOverlay').style.display==='flex')closeStation('wizardOverlay');else openWizard();return true;case 'forge':if($('forgeOverlay').style.display==='flex')closeStation('forgeOverlay');else openForge();return true;case 'map':toggleMap();return true;case 'dodge':dodge();return true;case 'gather':sfxCall('gather');send({type:'gather_start'});return true;case 'interact':send({type:'interact'});return true;case 'potion':if(window.heroGesture)heroGesture('drink');sfxCall('drink');{const own=me();if(own)fxCall('heal',own.x,own.y)}send({type:'use_potion'});return true;case 'attack':beginAttack(e);return true;case 'chat':if(document.activeElement===$('chatInput'))return false;if(document.activeElement&&document.activeElement.blur)document.activeElement.blur();$('chatInput').focus();return true}};
 setListeningAction=(act)=>{listeningActionKey=act;renderKeybindSections()};
 function finishActionCapture(code){const act=listeningActionKey;listeningActionKey=null;if(!act){renderKeybindSections();return}
  const label=keyLabel(code)||code;
