@@ -816,6 +816,7 @@
     const cls = q.class || o.class || '';
     const weaponId = q.weapon || o.weapon || 'sword';
     const weaponKind = o.weaponKind || (/bow|longbow/.test(weaponId) ? 'bow' : /staff/.test(weaponId) ? 'staff' : 'melee');
+    const gatherKind = o.gatherKind || '';
     const run = !!o.run && moving;
     const sneak = !!o.sneak;
     const aim = clamp(o.aim || 0, 0, 1);
@@ -831,14 +832,16 @@
     const stride = run ? 5.6 : sneak ? 2.1 : 3.4;
     const step = Math.sin(walk) * (moving ? stride : .45);
     const bob = Math.abs(Math.sin(walk)) * (moving ? (run ? 2.6 : 1.6) : .5) * (sneak ? .45 : 1);
-    const crouch = sneak ? 5.2 : gather ? 2.8 : 0;
-    const lean = run ? .14 : sneak ? .26 : gather ? .1 : 0;
+    const crouch = sneak ? 5.2 : gather ? 4.2 : 0;
+    // Positive rotation tips the head toward local +x, i.e. the direction the
+    // hero faces — a sprint leans into the run, it does not lean back.
+    const lean = run ? .14 : sneak ? .26 : gather ? .17 : 0;
     const sway = run ? Math.sin(walk * 2) * .03 : 0;
 
     c.save();
     if (hurt > 0) c.translate(-face * hurt * 1.8, 0);
     c.scale(face, 1);
-    c.rotate(-lean + sway);
+    c.rotate(lean + sway);
     c.translate(0, -bob);
 
     /* cloak: streams behind, tucks in when sneaking */
@@ -937,7 +940,10 @@
     let hand = { x: 9.4 + idleSwing * 4, y: -13.4 };
     let off = { x: -8.6 - idleSwing * 3, y: -14.6 };
     let offRot = 0, weaponAlpha = 1;
-    const tool = gather > 0 ? (-1.35 + Math.abs(Math.sin(t * 8.5)) * 2.5) : null;
+    const tool = null;
+    // Gathering is a two-handed pull, not a weapon flourish: the arm reaches
+    // down to the node and drags the find back toward the chest.
+    const gatherReach = gather > 0 ? (Math.sin(t * 7) + 1) / 2 : 0;
 
     if (aim > 0) {
       hand = { x: 13.2, y: -24.2 - aim * .6 };
@@ -949,8 +955,8 @@
       off = { x: 3.6, y: -28.4 };
       hand = { x: 9.6, y: -13.8 };
     } else if (gather > 0) {
-      hand = { x: 8.4, y: -7.6 };
-      off = { x: 2.2, y: -9.2 };
+      hand = { x: 12.4 - gatherReach * 4.6, y: -9.4 - gatherReach * 4.6 };
+      off = { x: 6.2 - gatherReach * 2.4, y: -8.6 - gatherReach * 3.2 };
     } else if (run) {
       hand = { x: 10.6, y: -16.4 + idleSwing * 2 };
       off = { x: -9.2, y: -17 + Math.sin(walk) * 2 };
@@ -977,7 +983,10 @@
     c.strokeStyle = coat; c.lineWidth = 2.2;
     c.beginPath(); c.moveTo(7.2, -24); c.lineTo(hand.x, hand.y); c.stroke();
     ell(c, hand.x, hand.y, 2.1, 2.1, SKIN);
-    if (weaponAlpha > .05) {
+    if (gather > 0) {
+      // the blade would only wave around at hip height — show the tool instead
+      drawGatherTool(c, gatherKind, t, hand.x, hand.y, gatherReach);
+    } else if (weaponAlpha > .05) {
       c.save();
       c.globalAlpha = weaponAlpha;
       drawHeldWeapon(c, weaponId, weaponKind, trim, swing, local, t, hand.x, hand.y,
@@ -1049,6 +1058,37 @@
   }
 
   /* ── weapons ─────────────────────────────────────────────────────────── */
+    /* ── harvesting tool: the hand works the node, the blade stays sheathed ── */
+  function drawGatherTool(c, kind, t, handX, handY, reach) {
+    const pull = clamp(reach == null ? .5 : reach, 0, 1);
+    c.save();
+    c.translate(handX, handY);
+    // The tool points down-and-forward at the node (+x is the facing side), so
+    // the local +y handle has to swing clockwise; the pull lifts it back up.
+    c.rotate(-.72 + pull * .55);
+    if (kind === 'herb') {
+      P(c, -.9, -3, 1.8, 11, '#6b4d2f');
+      c.strokeStyle = '#d3ddd4'; c.lineWidth = 1.7; c.lineCap = 'round';
+      c.beginPath(); c.arc(.4, 2.4, 5.4, Math.PI * .18, Math.PI * 1.15); c.stroke();
+      c.strokeStyle = '#ffffff88'; c.lineWidth = .8;
+      c.beginPath(); c.arc(.4, 2.4, 5.4, Math.PI * .35, Math.PI * .95); c.stroke();
+    } else if (kind === 'wood') {
+      P(c, -1.1, -4, 2.2, 14, '#7a5a36');
+      P(c, -1.1, -4, .8, 14, '#9b7548');
+      poly(c, [[-5.2, 9.4], [5.2, 9.4], [4.4, 14.2], [-4.4, 14.2]], '#c9d5cf', '#2b3630', .7);
+      P(c, 2.6, 9.4, 2.6, 4.8, '#eef7f1');
+    } else {
+      // pick for ore and crystals
+      P(c, -1.1, -5, 2.2, 15, '#7a5a36');
+      c.strokeStyle = '#ccd8d2'; c.lineWidth = 2.1; c.lineCap = 'round';
+      c.beginPath(); c.moveTo(-6.4, 10.6); c.quadraticCurveTo(0, 7.4, 6.4, 10.2); c.stroke();
+      c.strokeStyle = '#ffffff77'; c.lineWidth = .8;
+      c.beginPath(); c.moveTo(-5.4, 9.2); c.quadraticCurveTo(0, 6.4, 5.6, 8.8); c.stroke();
+    }
+    ell(c, 0, -1.2, 2, 2, '#c79b74');
+    c.restore();
+  }
+
   function drawHeldWeapon(c, id, kind, trim, swing, local, t, handX, handY, pose) {
     const ps = pose || {};
     const glowCol = /frost|ice/.test(id) ? '#a8ecff' : /ember|flame/.test(id) ? '#ffb066' : /void|astral/.test(id) ? '#e0b0ff' : /storm/.test(id) ? '#8fe0ff' : local ? '#ffe6a3' : trim;
@@ -1840,6 +1880,7 @@
       coat, trim, local, class: q.class, weapon: q.weapon, time: now / 1000,
       walk: vis.walk, move: vis.move, swing: vis.swing,
       run: vis.run, sneak: vis.sneak, aim: vis.aim, cast, drink, gather: vis.gather,
+      gatherKind: q.gather_kind || '',
       swap, shoot: vis.shoot, hurt: vis.hurt, charge,
     });
 
