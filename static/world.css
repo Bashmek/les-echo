@@ -1,0 +1,194 @@
+/* Les Echo — world refresh. Loaded after the legacy stylesheet. */
+:root {
+  --region-accent: #e7c77d;
+  --ink: #f2ecd9;
+  --muted: #b7bda8;
+  --gold: #e7c77d;
+  --panel: rgba(18, 26, 21, .92);
+  --line: #4a5a44;
+  font-synthesis: none;
+}
+html, body { background: #0e1510; }
+button { font-family: inherit; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--region-accent); outline-offset: 2px; }
+.panel { border-color: #5a6a50; box-shadow: 0 2px 0 #0006, 0 12px 30px #0007; }
+.game { background: #0e1510; }
+
+/* Top HUD: hero left, region centre, quest right. */
+.hud { inset: 12px 14px auto; align-items: flex-start; }
+.brand { display: none; }
+.hero { width: 300px; max-width: 32vw; padding: 10px 12px 8px; background: linear-gradient(160deg, rgba(24,34,26,.95), rgba(14,20,16,.95)); border-color: #6a7a58; }
+.heroTop { font-size: 12px; font-weight: 700; color: #f4e8c8; }
+.heroTop #gold { color: var(--gold); font-variant-numeric: tabular-nums; }
+.resourceOrbs { gap: 10px; padding-bottom: 6px; }
+.orb { width: 58px; height: 58px; }
+.orbValue { font-size: 16px; }
+.classLine { margin-top: 6px; }
+.right { gap: 8px; }
+.zoneBadge { display: none; }
+.questPanel { width: 250px; padding: 10px 12px; background: rgba(16,24,18,.9); }
+.questPanel h2 { font-size: 9px; letter-spacing: .14em; color: var(--gold); }
+.questPanel .qName { font-size: 12px; }
+.leftStack { display: none; }
+
+.regionRibbon { position: absolute; z-index: 5; top: 12px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; min-width: 330px; max-width: 40vw; padding: 9px 14px; pointer-events: none; background: linear-gradient(90deg, rgba(16,24,18,.94), rgba(24,34,26,.94)); border-color: color-mix(in srgb, var(--region-accent) 45%, #3a4a36); }
+.regionChapter { display: grid; place-items: center; width: 38px; height: 38px; flex: none; border: 1px solid var(--region-accent); border-radius: 50%; color: var(--region-accent); font-family: Georgia, 'Times New Roman', serif; font-size: 18px; }
+.regionText { min-width: 0; }
+.regionText b { display: block; font-family: Georgia, 'Times New Roman', serif; font-size: 16px; letter-spacing: .02em; color: #f6efd8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.regionText small { display: block; font-size: 10px; color: var(--muted); margin-top: 2px; }
+.regionMeta { margin-left: auto; text-align: right; font-size: 9px; color: var(--muted); display: grid; gap: 3px; white-space: nowrap; }
+.regionMeta #regionDanger { color: var(--region-accent); font-weight: 700; }
+.regionMeta #regionDanger.combat { color: #ef8a78; }
+.worldTools { position: absolute; z-index: 5; top: 82px; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; }
+.worldTool { border: 1px solid #5a6a50; border-radius: 7px; background: rgba(18,26,21,.9); color: #e8e0c8; padding: 6px 10px; font-size: 11px; cursor: pointer; box-shadow: 0 2px 0 #0005; }
+.worldTool:hover:not(:disabled) { border-color: var(--region-accent); color: var(--region-accent); }
+.worldTool:disabled { opacity: .45; cursor: default; }
+.worldTool kbd { margin-left: 4px; padding: 1px 4px; border: 1px solid #6a7a58; border-radius: 4px; font-size: 9px; color: var(--gold); }
+.localQuestChip { position: absolute; z-index: 5; top: 118px; left: 50%; transform: translateX(-50%); padding: 4px 10px; border-radius: 20px; background: rgba(18,26,21,.85); border: 1px solid #5a6a50; color: var(--region-accent); font-size: 10px; pointer-events: none; }
+
+.npcPrompt { position: absolute; z-index: 6; left: 50%; bottom: 168px; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 8px 14px; cursor: pointer; text-align: left; color: var(--ink); border-color: var(--region-accent); }
+.npcPrompt[hidden] { display: none; }
+.npcPrompt kbd { display: grid; place-items: center; min-width: 28px; height: 28px; padding: 0 6px; border: 1px solid var(--region-accent); border-radius: 6px; color: var(--region-accent); font-weight: 800; font-size: 12px; }
+.npcPrompt b { display: block; font-size: 12px; }
+.npcPrompt small { display: block; font-size: 9px; color: var(--muted); margin-top: 2px; }
+
+.minimap { border-color: #6a7a58; box-shadow: 0 8px 24px #0008; }
+.maplabel { font-size: 8px; letter-spacing: .08em; color: var(--region-accent); max-width: calc(100% - 16px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat { background: rgba(14,20,16,.82); }
+.toast { top: 42%; max-width: min(520px, 90vw); text-align: center; border-color: var(--region-accent); color: #f6efd8; }
+
+.travelBanner { position: absolute; z-index: 40; left: 50%; top: 34%; transform: translate(-50%, -50%); text-align: center; pointer-events: none; padding: 22px 42px; background: linear-gradient(90deg, transparent, rgba(10,16,12,.9) 20%, rgba(10,16,12,.9) 80%, transparent); opacity: 0; }
+.travelBanner.show { animation: travelIn 3.2s ease both; }
+.travelBanner small { display: block; font-size: 10px; letter-spacing: .3em; color: var(--region-accent); }
+.travelBanner b { display: block; font-family: Georgia, 'Times New Roman', serif; font-size: clamp(26px, 4vw, 44px); color: #f6efd8; margin: 8px 0 4px; text-shadow: 0 2px 20px #000; }
+.travelBanner span { display: block; font-size: 12px; color: var(--muted); font-style: italic; }
+@keyframes travelIn { 0% { opacity: 0; transform: translate(-50%, -40%); } 12% { opacity: 1; transform: translate(-50%, -50%); } 80% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -56%); } }
+
+/* Atlas */
+.atlasOverlay, .npcOverlay { position: absolute; z-index: 30; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(6, 10, 8, .86); padding: 18px; backdrop-filter: blur(3px); }
+.npcOverlay { z-index: 31; }
+.atlasCard { width: min(1180px, 100%); max-height: 94vh; overflow: auto; padding: 18px; background: linear-gradient(160deg, #182219, #101812); }
+.atlasHead { display: flex; align-items: center; gap: 16px; border-bottom: 1px solid #4a5a44; padding-bottom: 12px; margin-bottom: 14px; }
+.atlasHead h2 { margin: 4px 0 0; font-family: Georgia, 'Times New Roman', serif; font-size: 24px; color: #f6efd8; }
+.atlasProgress { margin-left: auto; font-size: 11px; color: var(--gold); border: 1px solid #6a7a58; border-radius: 20px; padding: 5px 12px; }
+.atlasBody { display: grid; grid-template-columns: 1fr 330px; gap: 16px; }
+.atlasGrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; align-content: start; }
+.atlasTile { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-height: 128px; padding: 12px; text-align: left; border: 1px solid #4a5a44; border-radius: 10px; background: linear-gradient(160deg, color-mix(in srgb, var(--region-accent) 12%, #1a241c), #141c16); color: var(--ink); cursor: pointer; overflow: hidden; }
+.atlasTile::before { content: ''; position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--region-accent); opacity: .7; }
+.atlasTile:hover { border-color: var(--region-accent); }
+.atlasTile.selected { border-color: var(--region-accent); box-shadow: 0 0 0 1px var(--region-accent), 0 8px 24px #0006; }
+.atlasTile.locked { opacity: .55; }
+.atlasChapter { font-family: Georgia, serif; font-size: 11px; color: var(--region-accent); letter-spacing: .15em; }
+.atlasTile b { font-size: 13px; line-height: 1.25; }
+.atlasTile small { font-size: 9px; color: var(--muted); }
+.atlasStatus { margin-top: auto; font-size: 9px; font-weight: 700; color: var(--region-accent); }
+.atlasTile.current .atlasStatus { color: #b7e89a; }
+.atlasShop { font-size: 8px; color: #9aa88e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.atlasDetail { border: 1px solid #4a5a44; border-radius: 10px; background: #141c16; padding: 14px; align-self: start; }
+.atlasDetailHero { border-left: 3px solid var(--region-accent); padding-left: 10px; margin-bottom: 10px; }
+.atlasDetailHero h3 { margin: 4px 0 2px; font-family: Georgia, serif; font-size: 20px; color: #f6efd8; }
+.atlasDetailHero p { margin: 0; font-size: 11px; color: var(--region-accent); font-style: italic; }
+.atlasDesc { font-size: 11px; line-height: 1.55; color: var(--muted); }
+.atlasSection { margin-top: 12px; border-top: 1px dashed #3a4a36; padding-top: 10px; }
+.atlasSection h4 { margin: 0 0 6px; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--gold); }
+.atlasSection p { margin: 0; font-size: 11px; color: var(--muted); }
+.atlasNpcs { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.atlasNpcs li { display: flex; gap: 8px; align-items: center; font-size: 11px; }
+.atlasNpcs li > span { color: var(--region-accent); width: 18px; text-align: center; }
+.atlasNpcs b { display: block; font-size: 11px; }
+.atlasNpcs small { display: block; font-size: 9px; color: var(--muted); }
+.atlasTravel { margin-top: 14px; display: grid; gap: 8px; }
+.atlasTravel .primary { background: var(--region-accent); color: #14201a; }
+.atlasTravel .primary:disabled { opacity: .45; cursor: default; }
+.atlasWaypoint { border: 1px solid #6a7a58; border-radius: 6px; background: #223026; color: #e8e0c8; padding: 8px; font-size: 11px; cursor: pointer; }
+.atlasHere, .atlasRoute { font-size: 11px; color: var(--muted); padding: 8px; border: 1px dashed #4a5a44; border-radius: 6px; }
+.atlasHere { color: #b7e89a; }
+.atlasFoot { margin-top: 14px; padding-top: 10px; border-top: 1px solid #3a4a36; font-size: 10px; color: #9aa88e; }
+
+/* NPC dialog */
+.npcCard { position: relative; width: min(560px, 100%); max-height: 92vh; overflow: auto; padding: 20px; background: linear-gradient(160deg, #1c261e, #121a14); }
+.npcClose { position: absolute; top: 12px; right: 12px; }
+.npcHead { display: flex; gap: 14px; align-items: center; margin-bottom: 12px; }
+#npcPortrait { width: 84px; height: 84px; flex: none; border: 1px solid #6a7a58; border-radius: 12px; image-rendering: pixelated; }
+.npcHead h2 { margin: 4px 0; font-family: Georgia, serif; font-size: 22px; color: #f6efd8; }
+.npcRegion { font-size: 10px; color: var(--region-accent); }
+.npcDialogue { font-size: 13px; line-height: 1.6; color: #d8dcc8; font-style: italic; border-left: 3px solid var(--region-accent); padding: 8px 12px; background: #ffffff06; margin: 0 0 14px; }
+.npcShopPreview h3, .npcQuest h3 { margin: 0 0 6px; font-size: 13px; color: var(--gold); }
+.npcShopPreview p, .npcQuest p { margin: 0 0 8px; font-size: 11px; color: var(--muted); line-height: 1.5; }
+.npcStock { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 12px; }
+.npcStock span { display: flex; justify-content: space-between; gap: 8px; padding: 6px 8px; border: 1px solid #3a4a36; border-radius: 6px; font-size: 10px; background: #182219; }
+.npcStock b { color: var(--gold); white-space: nowrap; }
+.npcQuest { border: 1px solid #4a5a44; border-radius: 8px; padding: 12px; margin-top: 10px; background: #182219; }
+.questRow { position: relative; display: flex; justify-content: space-between; gap: 8px; padding: 6px 8px; margin: 4px 0; border: 1px solid #3a4a36; border-radius: 6px; font-size: 11px; overflow: hidden; }
+.questRow i { position: absolute; left: 0; top: 0; bottom: 0; background: #6a8a4a33; z-index: 0; }
+.questRow span, .questRow b { position: relative; z-index: 1; }
+.questRow.done b { color: #b7e89a; }
+.questReward { font-size: 10px; color: var(--gold); margin: 8px 0; }
+.npcQuestButtons { display: flex; gap: 8px; margin-top: 8px; }
+.npcQuestButtons button { flex: 1; border: 1px solid #6a7a58; border-radius: 6px; background: #2a3a2c; color: #e8e0c8; padding: 8px; font-size: 11px; cursor: pointer; }
+.npcQuestButtons button.ready { border-color: var(--gold); color: var(--gold); background: #3a3420; }
+.npcQuestButtons button:disabled { opacity: .45; cursor: default; }
+.npcActions { display: flex; gap: 8px; margin-top: 14px; }
+.npcActions .primary { background: var(--region-accent); color: #14201a; }
+
+/* Local shop */
+.marketNpcName { font-size: 10px; color: var(--region-accent); margin-top: 3px; }
+.shopTools { display: flex; gap: 8px; align-items: center; margin: 10px 0; flex-wrap: wrap; }
+#shopSearch { flex: 1; min-width: 160px; padding: 8px 10px; border: 1px solid #5a6a50; border-radius: 6px; background: #101812; color: var(--ink); font-size: 11px; }
+.shopFilters { display: flex; gap: 4px; }
+.shopFilters button { border: 1px solid #4a5a44; border-radius: 6px; background: #1a241c; color: var(--muted); padding: 6px 9px; font-size: 10px; cursor: pointer; }
+.shopFilters button.active { border-color: var(--gold); color: var(--gold); background: #3a3420; }
+.marketLine { display: flex; align-items: center; gap: 10px; }
+.marketLine[hidden] { display: none; }
+.shopIcon { display: grid; place-items: center; width: 34px; height: 34px; flex: none; border: 1px solid #5a6a50; border-radius: 8px; background: #223026; color: var(--gold); font-size: 16px; }
+.marketLine > div { flex: 1; min-width: 0; }
+
+/* Login */
+#login.overlay { background: radial-gradient(ellipse at 50% 30%, #24382a 0%, #0e1510 70%); }
+#login .dialog { position: relative; width: min(460px, 100%); padding: 30px 28px 26px; background: linear-gradient(165deg, #1c2a20, #121a14); border: 1px solid #6a7a58; box-shadow: 0 30px 80px #000a, 0 0 0 1px #e7c77d22; }
+#login .dialog::before { content: '◈'; display: grid; place-items: center; width: 54px; height: 54px; margin: -58px auto 12px; border: 1px solid var(--gold); border-radius: 50%; background: #14201a; color: var(--gold); font-size: 24px; box-shadow: 0 0 30px #e7c77d33; }
+#login h1 { font-family: Georgia, 'Times New Roman', serif; font-size: 40px; text-align: center; letter-spacing: .04em; color: #f6efd8; margin: 6px 0 10px; }
+#login .eyebrow { text-align: center; color: var(--gold); }
+#login .dialog > p { text-align: center; }
+#login .primary { background: linear-gradient(180deg, #c8e09a, #9cbf72); color: #14201a; font-size: 13px; letter-spacing: .04em; }
+
+/* Responsive */
+@media (max-width: 1000px) {
+  .regionRibbon { min-width: 280px; max-width: 44vw; }
+  .regionText b { font-size: 14px; }
+  .questPanel { width: 210px; }
+  .atlasBody { grid-template-columns: 1fr 280px; }
+  .atlasGrid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 760px) {
+  .hud { inset: 8px; }
+  .hero { width: 260px; max-width: 52vw; }
+  .orb { width: 48px; height: 48px; }
+  .orbValue { font-size: 14px; }
+  .questPanel { display: none; }
+  .regionRibbon { top: auto; bottom: 128px; left: 8px; transform: none; min-width: 0; max-width: 220px; padding: 6px 10px; }
+  .regionChapter { width: 28px; height: 28px; font-size: 13px; }
+  .regionText b { font-size: 12px; }
+  .regionText small, .regionMeta { display: none; }
+  .worldTools { top: 8px; left: auto; right: 8px; transform: none; flex-direction: column; }
+  .localQuestChip { top: 76px; left: auto; right: 8px; transform: none; max-width: 180px; }
+  .npcPrompt { bottom: 190px; max-width: 90vw; }
+  .minimap { width: 160px; height: 100px; right: 8px; bottom: 128px; }
+  .atlasBody { grid-template-columns: 1fr; }
+  .atlasGrid { grid-template-columns: repeat(2, 1fr); }
+  .atlasHead { flex-wrap: wrap; }
+  .atlasProgress { margin-left: 0; }
+  .npcStock { grid-template-columns: 1fr; }
+}
+@media (max-width: 480px) {
+  .hero { max-width: calc(100vw - 16px); width: 100%; }
+  .worldTools { top: 118px; }
+  .localQuestChip { top: 186px; }
+  .atlasGrid { grid-template-columns: 1fr; }
+  .regionRibbon { bottom: 118px; }
+  .minimap { bottom: 118px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .travelBanner.show { animation: none; opacity: 1; }
+  * { transition-duration: .01ms !important; }
+}

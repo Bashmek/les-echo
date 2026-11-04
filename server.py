@@ -19,9 +19,16 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 import uvicorn
 
+from world import (
+    MAP_W, MAP_H, SPAWN, REGIONS, NPCS, PORTALS, POWER_SITES, REGION_QUESTS,
+    ZONES, NPC_RADIUS, PORTAL_RADIUS, COMBAT_LOCK, region_for, is_safe, same_region,
+    near_npc, nearest_npc, build_shops, public_region, atlas_view, migrate_position, populate,
+)
+
 BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = BASE_DIR / "echo_saves.sqlite3"
-WORLD_W, WORLD_H = 12600, 7200
+WORLD_W, WORLD_H = MAP_W, MAP_H
+SNAPSHOT_INTERVAL = 0.05
 TICK = 0.025
 MAX_PLAYERS = 8
 # Молчание клиента дольше этого времени означает, что вкладка закрыта/уснула,
@@ -30,18 +37,6 @@ MAX_PLAYERS = 8
 IDLE_TIMEOUT = 45.0
 CLEANUP_INTERVAL = 5.0
 HEARTBEAT_INTERVAL = 10.0
-
-ZONES = [
-    {"id": "camp", "name": "Лагерь Следопытов", "x0": 0, "x1": 1400, "level": "Безопасная зона", "danger": 0},
-    {"id": "forest", "name": "Шепчущий лес", "x0": 1400, "x1": 2800, "level": "Уровень 1–3", "danger": 1},
-    {"id": "marsh", "name": "Затонувшие топи", "x0": 2800, "x1": 4200, "level": "Уровень 4–6", "danger": 2},
-    {"id": "ruins", "name": "Пепельные руины", "x0": 4200, "x1": 5600, "level": "Уровень 7–10", "danger": 3},
-    {"id": "glacier", "name": "Хребет Синего Пламени", "x0": 5600, "x1": 7000, "level": "Уровень 11–14", "danger": 4},
-    {"id": "rift", "name": "Разлом Эха", "x0": 7000, "x1": 8300, "level": "Уровень 15–19", "danger": 5},
-    {"id": "abyss", "name": "Астральная Бездна", "x0": 8300, "x1": 9600, "level": "Уровень 20–25", "danger": 6},
-    {"id": "obsidian", "name": "Обсидиановый край", "x0": 9600, "x1": 11100, "level": "Уровень 26–30", "danger": 7},
-    {"id": "garden", "name": "Первозданный сад", "x0": 11100, "x1": 12600, "level": "Уровень 31–35", "danger": 8},
-]
 
 WEAPONS = {
     "sword": {"name": "Меч дозорного", "kind": "melee", "damage": 18, "bonus": 22, "charge": .62, "stamina": 13, "range": 44, "arc": .28, "cooldown": .30, "color": "#f2d17d"},
@@ -182,6 +177,7 @@ SHOP_CATALOG = {
     "arrows": {"name": "Колчан стрел", "description": "8 стрел", "price": 20, "kind": "arrows"},
     "echo_crystal": {"name": "Эхо-кристаллы", "description": "3 кристалла", "price": 48, "kind": "crystal"},
     "rift_shard": {"name": "Осколок разлома", "description": "1 осколок", "price": 55, "kind": "shard"},
+    "forest_bow": {"name": "Лук следопыта", "description": "Надёжный лук для первой охоты", "price": 260, "kind": "weapon"},
     "iron_sword": {"name": "Клинок из болотной стали", "description": "Редкое оружие", "price": 230, "kind": "weapon"},
     "daggers": {"name": "Парные клинки теней", "description": "Молниеносные парные кинжалы", "price": 310, "kind": "weapon"},
     "spear": {"name": "Копьё звёздного стража", "description": "Дальний выпад и бронебойность", "price": 420, "kind": "weapon"},
@@ -398,15 +394,7 @@ ELEMENT_FX = {
     "Аркана": {"colors": ["#bd77ff", "#6edfff", "#fff1c8"], "shape": "rune", "burst": "runes"},
     "Всплеск": {"colors": ["#bd75ff", "#f09cff", "#fff0ff"], "shape": "pulse", "burst": "pulse"},
 }
-POWER_SITES = [
-    {"id": "spring", "name": "Источник живой воды", "x": 2050, "y": 850, "radius": 170, "buff": "Восстановление здоровья +2/с"},
-    {"id": "root", "name": "Сердце древнего леса", "x": 3300, "y": 1750, "radius": 180, "buff": "Восстановление маны +3/с"},
-    {"id": "ember", "name": "Жар пепельной кузни", "x": 5000, "y": 900, "radius": 170, "buff": "Выносливость +4/с"},
-    {"id": "glacier", "name": "Кристалл синего пламени", "x": 6400, "y": 3900, "radius": 170, "buff": "Здоровье и мана +1.5/с"},
-    {"id": "echo", "name": "Алтарь эха", "x": 8800, "y": 2500, "radius": 190, "buff": "Все ресурсы восстанавливаются быстрее"},
-    {"id": "obsidian", "name": "Осколок чёрного стекла", "x": 10350, "y": 5700, "radius": 200, "buff": "Все ресурсы восстанавливаются быстрее"},
-    {"id": "garden", "name": "Сердце Первозданного сада", "x": 11800, "y": 1800, "radius": 210, "buff": "Здоровье, мана и выносливость +3/с"},
-]
+REGION_SHOPS = build_shops(SHOP_CATALOG)
 
 
 
@@ -414,11 +402,9 @@ def safe_name(value: Any) -> str:
     return " ".join(str(value).strip().split())[:18] or "Путник"
 
 
-def zone_for_x(x: float) -> dict[str, Any]:
-    for zone in ZONES:
-        if zone["x0"] <= x < zone["x1"]:
-            return zone
-    return ZONES[-1]
+def zone_for_x(x: float, region: str = "camp") -> dict[str, Any]:
+    """Compatibility helper: regions are maps, not horizontal coordinate bands."""
+    return REGIONS.get(region, REGIONS["camp"])
 
 
 # --- Combat status effects -------------------------------------------------
@@ -663,46 +649,9 @@ def grant_weapon(p: dict[str, Any], weapon_id: str) -> bool:
 
 
 def init_world() -> None:
-    if mobs:
-        return
-    random.seed(241)
-    idx = 0
-    population = {
-        "forest": [("slime", 8, 1), ("wolf", 5, 2)],
-        "marsh": [("boar", 6, 4), ("wisp", 5, 5), ("stone", 2, 6)],
-        "ruins": [("ashling", 6, 7), ("ashguard", 4, 8), ("colossus", 1, 10)],
-        "glacier": [("frost_wyrm", 7, 11), ("frost_wyrm", 4, 13)],
-        "rift": [("rift_knight", 7, 15), ("echo_dragon", 1, 20)],
-        "abyss": [("void_wraith", 8, 21), ("astral_titan", 1, 25)],
-        "obsidian": [("obsidian_sentinel", 7, 27), ("void_wraith", 5, 28), ("obsidian_sentinel", 1, 30)],
-        "garden": [("starseer", 7, 31), ("ancient_warden", 1, 35), ("starseer", 5, 33)],
-    }
-    for zone_id, packs in population.items():
-        zone = next(z for z in ZONES if z["id"] == zone_id)
-        for kind, count, level in packs:
-            for _ in range(count):
-                idx += 1
-                x = random.uniform(zone["x0"] + 90, zone["x1"] - 90)
-                y = random.uniform(130, WORLD_H - 130)
-                mobs.append(scaled_mob(kind, level + random.choice([0, 0, 1]), idx, x, y))
-    for i in range(190):
-        x = random.uniform(100, WORLD_W - 100)
-        zone = zone_for_x(x)
-        roll = random.random()
-        if zone["id"] == "camp":
-            kind = "herb" if roll < .6 else "wood"
-        elif zone["id"] == "forest":
-            kind = "wood" if roll < .42 else "herb" if roll < .78 else "ore"
-        elif zone["id"] == "marsh":
-            kind = "herb" if roll < .25 else "ore" if roll < .78 else "crystal"
-        elif zone["id"] in {"rift", "abyss", "obsidian", "garden"}:
-            kind = "shard" if roll < .48 else "crystal" if roll < .82 else "ore" if roll < .96 else "herb"
-        else:
-            kind = "ore" if roll < .45 else "crystal" if roll < .88 else "wood"
-        nodes.append({"id": f"node-{i}", "kind": kind, "x": x,
-                      "y": random.uniform(100, WORLD_H - 100), "active": True,
-                      "respawn_at": 0.0, "zone": zone["id"]})
-    random.seed()
+    global mobs, nodes
+    if not mobs:
+        mobs, nodes = populate(scaled_mob)
 
 
 init_world()
@@ -842,7 +791,7 @@ def player_row(pid: str, p: dict[str, Any], now: float) -> dict[str, Any]:
         action = {"weapon": a["weapon"], "kind": spec["kind"],
                   "charge": min(1.0, max(0.0, (now - a["started"]) / spec["charge"])),
                   "aim_x": a["aim_x"], "aim_y": a["aim_y"]}
-    zone = zone_for_x(p["x"])
+    zone = region_for(p)
     tree = action_tree(p)
     chosen_class = p.get("class") if p.get("class") in CLASSES else None
     return {"id": pid, "name": p["name"], "x": round(p["x"], 1), "y": round(p["y"], 1),
@@ -869,7 +818,7 @@ def player_row(pid: str, p: dict[str, Any], now: float) -> dict[str, Any]:
             "magic_damage_level": int(p.get("magic_damage_level", 0)),
             "insight_level": int(p.get("insight_level", 0) or 0),
             "magic_damage_bonus": int(p.get("magic_damage_level", 0)) * 8,
-            "shop_catalog": SHOP_CATALOG, "sell_prices": SELL_PRICES, "enchant_catalog": ENCHANT_CATALOG,
+            "shop_catalog": REGION_SHOPS[p.get("region", "camp")], "sell_prices": SELL_PRICES, "enchant_catalog": ENCHANT_CATALOG,
             "spell_catalog": all_spells(p), "spells_unlocked": [sid for sid in all_spells(p) if spell_unlocked(p, sid)],
             "spell_uses": dict(p.get("spell_uses", {})),
             "spell_levels": {sid: spell_mastery_level(p, sid) for sid in all_spells(p)},
@@ -889,6 +838,11 @@ def player_row(pid: str, p: dict[str, Any], now: float) -> dict[str, Any]:
                                      "arc": value.get("arc", .28), "spell_power": value.get("spell_power", 0),
                                      "upgrade": item_upgrade_level(p, "weapon", key)}
                                for key, value in WEAPONS.items()},
+            "region": p.get("region", "camp"), "visited_regions": list(p.get("visited_regions", [])),
+            "region_quest": region_quest_view(p, p.get("region", "camp")),
+            "bosses_defeated": list(p.get("bosses_defeated", [])),
+            "recall_ready": time.monotonic() >= float(p.get("recall_at", 0)),
+            "in_combat": time.monotonic() - float(p.get("last_combat", 0)) < COMBAT_LOCK,
             "inventory": dict(p["inventory"]), "attack": action,
             "gathering": p["gathering"] is not None, "gather_progress": (p["gathering"]["progress"] / 1.15 if p["gathering"] else 0), "zone": zone["id"],
             "dodge_ready": now >= p["dodge_at"],
@@ -897,28 +851,39 @@ def player_row(pid: str, p: dict[str, Any], now: float) -> dict[str, Any]:
 
 def snapshot(for_id: str) -> dict[str, Any]:
     now = time.monotonic()
-    return {"type": "state", "you": for_id, "world": {"w": WORLD_W, "h": WORLD_H},
-            "zones": ZONES, "elements": ELEMENT_FX, "power_sites": POWER_SITES,
+    own = players[for_id]
+    rid = own.get("region", "camp")
+    local_players = [(pid, p) for pid, p in players.items() if p.get("region", "camp") == rid]
+    public_fields = ("id", "name", "x", "y", "region", "zone", "face_x", "face_y", "hp", "max_hp", "level",
+                     "class", "class_name", "weapon", "weapon_kind", "gear", "attack", "effects", "status", "respawning", "gathering")
+    rows = []
+    for pid, p in local_players:
+        row = player_row(pid, p, now)
+        rows.append(row if pid == for_id else {k: row[k] for k in public_fields})
+    return {"type": "state", "you": for_id, "world": {"w": MAP_W, "h": MAP_H, "region": rid, "mode": "separate-maps"},
+            "region": public_region(REGIONS[rid]), "regions": atlas_view(), "portals": [v for v in PORTALS.values() if v["region"] == rid],
+            "zones": [public_region(REGIONS[rid])], "elements": ELEMENT_FX,
+            "power_sites": [s for s in POWER_SITES if s["region"] == rid],
             "classes": CLASSES,
-            "players": [player_row(pid, p, now) for pid, p in players.items()],
-            "mobs": [{**{k: mob[k] for k in ("id", "kind", "level", "x", "y", "hp", "max_hp", "boss")},
+            "players": rows,
+            "mobs": [{**{k: mob[k] for k in ("id", "kind", "level", "x", "y", "hp", "max_hp", "boss", "region")},
                       "telegraphing": mob["telegraph_until"] > now,
                       "burning": float(mob.get("burn_until", 0) or 0) > now,
                       "slowed": float(mob.get("slow_until", 0) or 0) > now,
                       "stunned": float(mob.get("stun_until", 0) or 0) > now,
                       "poisoned": float(mob.get("poison_until", 0) or 0) > now,
                       "marked": any(float((pl_.get("eagle_marks") or {}).get(mob["id"], 0) or 0) > now
-                                    for pl_ in players.values())}
-                     for mob in mobs if mob["hp"] > 0],
-            "nodes": [{k: n[k] for k in ("id", "kind", "x", "y", "active", "zone")} for n in nodes],
-            "arrows": [{k: a[k] for k in ("x", "y", "vx", "vy", "life", "kind", "radius", "element", "spell_id", "spell_kind", "spell_rarity", "spell_mastery", "spell_variant", "spell_palette", "max_distance", "travelled") if k in a} for a in arrows],
-            "thorn_fields": [{k: field[k] for k in ("x", "y", "radius", "until", "owner")} for field in thorn_fields],
-            "ground_effects": [{"id": field["id"], "kind": field["kind"], "x": round(field["x"], 1),
+                                    for pl_ in players.values() if same_region(pl_, mob))}
+                     for mob in mobs if mob["hp"] > 0 and mob["region"] == rid],
+            "nodes": [{k: n[k] for k in ("id", "kind", "x", "y", "active", "zone", "region")} for n in nodes if n["region"] == rid],
+            "arrows": [{k: a[k] for k in ("x", "y", "vx", "vy", "life", "kind", "radius", "element", "spell_id", "spell_kind", "spell_rarity", "spell_mastery", "spell_variant", "spell_palette", "max_distance", "travelled", "region") if k in a} for a in arrows if a.get("region") == rid],
+            "thorn_fields": [{k: field[k] for k in ("x", "y", "radius", "until", "owner", "region")} for field in thorn_fields if field.get("region") == rid],
+            "ground_effects": [{"id": field["id"], "region": field["region"], "kind": field["kind"], "x": round(field["x"], 1),
                                  "y": round(field["y"], 1), "radius": field["radius"],
                                  "owner": field.get("owner"), "remaining": round(max(0.0, field["until"] - now), 2),
                                  "telegraph": round(max(0.0, field.get("activate_at", now) - now), 2),
                                  "duration": round(max(.01, field["until"] - field["started"]), 2)}
-                                for field in ground_effects]}
+                                for field in ground_effects if field.get("region") == rid]}
 
 
 def drop_client(pid: str, *, save: bool = True) -> dict[str, Any] | None:
@@ -1001,7 +966,12 @@ async def close_stale_clients() -> None:
 
 async def send_event(event: dict[str, Any]) -> None:
     payload = json.dumps(event, ensure_ascii=False)
+    target, region = event.get("target"), event.get("region")
     for pid, socket in list(clients.items()):
+        if target and pid != target:
+            continue
+        if region and pid in players and players[pid].get("region") != region:
+            continue
         try:
             await socket.send_text(payload)
         except Exception:
@@ -1347,40 +1317,149 @@ def quest_complete(p: dict[str, Any]) -> bool:
     return p["quest_kills"].get(mob, 0) >= mob_n and (not resource or p["quest_gather"].get(resource, 0) >= resource_n)
 
 def near_keeper(p: dict[str, Any]) -> bool:
-    return math.hypot(p["x"] - 330, p["y"] - 1100) < 105
+    return near_npc(p, "camp-guide", "quest") is not None
+
+
+def region_quest_view(p: dict[str, Any], region_id: str) -> dict[str, Any]:
+    spec = REGION_QUESTS[region_id]
+    state = p.setdefault("region_quests", {}).get(region_id, {"active": False, "done": False, "gather": {}, "kills": {}})
+    return {**spec, **state, "region": region_id}
+
+
+async def npc_dialog(p: dict[str, Any], npc: dict[str, Any]) -> None:
+    await send_event({"type": "npc_dialog", "target": p["id"], "npc": npc,
+                      "quest": region_quest_view(p, p["region"]) if "quest" in npc["services"] else None})
 
 
 async def interact_keeper(p: dict[str, Any]) -> None:
-    if not near_keeper(p):
-        await tell(p["id"], "Хранитель ждёт в лагере Следопытов, на западе карты.")
+    npc = nearest_npc(p)
+    if npc:
+        await npc_dialog(p, npc)
         return
-    if p["quest_active"] and quest_complete(p):
-        stage = p["quest_stage"]
-        p["quest_active"] = False
-        p["quest_stage"] += 1
-        gold, xp, rewards = QUEST_REWARDS[stage]
-        p["gold"] += gold
-        add_xp(p, xp)
-        # Поручения Хранителя дают очко развития — ещё один путь прокачки вне боёв.
+    portal = next((v for v in PORTALS.values() if same_region(p, v) and
+                   math.hypot(p["x"] - v["x"], p["y"] - v["y"]) <= PORTAL_RADIUS), None)
+    if portal:
+        await send_event({"type": "portal_dialog", "target": p["id"], "portal": portal})
+        return
+    if any(n["active"] and same_region(p, n) and math.hypot(p["x"] - n["x"], p["y"] - n["y"]) < 75 for n in nodes):
+        start_gather(p, time.monotonic())
+        return
+    await tell(p["id"], "Подойди к жителю, дорожному камню или ресурсу. Жители отмечены в атласе.")
+
+
+async def npc_quest_action(p: dict[str, Any], msg: dict[str, Any]) -> None:
+    npc = near_npc(p, str(msg.get("npc_id", "")), "quest")
+    if not npc:
+        await tell(p["id"], "Хранитель истории должен быть рядом, на этой же карте."); return
+    rid = p["region"]
+    q = region_quest_view(p, rid)
+    action = str(msg.get("action", ""))
+    if rid == "camp" and str(msg.get("quest_kind", "story")) != "region":
+        # The original 13-stage story remains available at the camp guide.
+        if action == "accept" and not p["quest_active"] and p["quest_stage"] < len(QUESTS):
+            p["quest_active"] = True; p["quest_kills"] = {}; p["quest_gather"] = {}
+            await tell(p["id"], f"Новое поручение: {quest_requirements(p['quest_stage'])[4]}.")
+        elif action == "claim" and p["quest_active"] and quest_complete(p):
+            stage = p["quest_stage"]; p["quest_active"] = False; p["quest_stage"] += 1
+            gold, xp, rewards = QUEST_REWARDS[stage]
+            p["gold"] += gold; add_xp(p, xp)
+            p["skill_points"] = int(p.get("skill_points", 0)) + 1
+            p["quest_points"] = int(p.get("quest_points", 0)) + 1
+            for reward_type, item_id, amount in rewards:
+                if reward_type == "potion": p["inventory"]["potion"] += amount
+                elif reward_type == "gear":
+                    for _ in range(amount): grant_gear(p, item_id)
+                elif reward_type == "weapon":
+                    for _ in range(amount): grant_weapon(p, item_id)
+            await tell(p["id"], f"Поручение завершено: +{gold} монет, +{xp} опыта, +1 очко развития и награда.")
+        else:
+            await tell(p["id"], "Поговори с Хранителем: сначала прими поручение, затем выполни его цели.")
+    elif action == "accept" and not q["active"] and not q["done"]:
+        p["region_quests"][rid] = {"active": True, "done": False, "gather": {}, "kills": {}}
+        await tell(p["id"], f"Принято поручение «{q['title']}». Оно засчитывается только в этом регионе.")
+    elif action == "claim" and q["active"] and not q["done"]:
+        ready = (q["gather"].get(q["resource"], 0) >= q["count"] and
+                 (not q["resource2"] or q["count2"] <= 0 or q["gather"].get(q["resource2"], 0) >= q["count2"]) and
+                 (not q["mob"] or q["kills"].get(q["mob"], 0) >= q["mob_count"]))
+        if not ready:
+            await tell(p["id"], "Цели местного поручения ещё не выполнены."); return
+        # Progress is not ownership: materials may have been sold or crafted since.
+        if p["inventory"].get(q["resource"], 0) < q["count"] or (q["resource2"] and q["count2"] > 0 and p["inventory"].get(q["resource2"], 0) < q["count2"]):
+            await tell(p["id"], "Для сдачи поручения принеси материалы в рюкзаке. Часть уже потрачена."); return
+        # Completion consumes gathered materials, never the player's entire stock.
+        p["inventory"][q["resource"]] -= q["count"]
+        if q["resource2"] and q["count2"] > 0: p["inventory"][q["resource2"]] -= q["count2"]
+        p["region_quests"][rid]["active"] = False; p["region_quests"][rid]["done"] = True
+        p["gold"] += q["gold"]; add_xp(p, q["xp"]); p["inventory"]["potion"] += 2
         p["skill_points"] = int(p.get("skill_points", 0)) + 1
-        p["quest_points"] = int(p.get("quest_points", 0)) + 1
-        for reward_type, item_id, amount in rewards:
-            if reward_type == "potion": p["inventory"]["potion"] += amount
-            elif reward_type == "gear":
-                for _ in range(amount): grant_gear(p, item_id)
-            elif reward_type == "weapon":
-                for _ in range(amount): grant_weapon(p, item_id)
-        await tell(p["id"], f"Поручение завершено. Получено {gold} монет, {xp} опыта и награда следопыту.")
-    elif p["quest_active"]:
-        await tell(p["id"], "Поручение ещё не выполнено. Загляни в журнал.")
-    elif p["quest_stage"] >= len(QUESTS):
-        await tell(p["id"], "Ты завершил историю Леса Эха и спас Первозданный сад.")
+        await tell(p["id"], f"«{q['title']}» завершено: +{q['gold']} монет, +{q['xp']} опыта, настойки и очко развития.")
     else:
-        p["quest_active"] = True
-        p["quest_kills"] = {}
-        p["quest_gather"] = {}
-        _, _, _, _, title = quest_requirements(p["quest_stage"])
-        await tell(p["id"], f"Новое поручение: {title}. Цели отмечены в журнале.")
+        await tell(p["id"], "Это поручение уже выполнено или ещё не принято.")
+    await sync_station_state(p)
+    await npc_dialog(p, npc)
+
+
+def record_region_progress(p: dict[str, Any], kind: str, amount: int, *, kill: bool = False) -> None:
+    rid = p.get("region", "camp")
+    state = p.setdefault("region_quests", {}).get(rid)
+    if not state or not state.get("active") or state.get("done"):
+        return
+    bucket = state.setdefault("kills" if kill else "gather", {})
+    bucket[kind] = int(bucket.get(kind, 0)) + amount
+
+
+async def enter_region(p: dict[str, Any], region_id: str, x: float, y: float, reason: str = "travel") -> None:
+    """Atomic map change: no old-map projectiles, gathering or combat can follow."""
+    now = time.monotonic()
+    r = REGIONS[region_id]
+    p.update(region=region_id, zone=region_id, x=float(x), y=float(y), mx=0.0, my=0.0,
+             attack=None, gathering=None, ability_lock_until=now + .35,
+             travel_lock_until=now + 1.2, last_combat=0.0)
+    p.setdefault("visited_regions", [])
+    if region_id not in p["visited_regions"]: p["visited_regions"].append(region_id)
+    arrows[:] = [a for a in arrows if a.get("owner") != p["id"]]
+    thorn_fields[:] = [f for f in thorn_fields if f.get("owner") != p["id"]]
+    ground_effects[:] = [f for f in ground_effects if f.get("owner") != p["id"]]
+    p["eagle_marks"] = {}
+    for key in ("slow_until", "stun_until", "poison_until", "burn_until"):
+        p[key] = 0.0
+    save_character(p)
+    await send_event({"type": "region_changed", "target": p["id"], "region_id": region_id,
+                      "name": r["name"], "reason": reason, "x": x, "y": y})
+    await send_event({**snapshot(p["id"]), "target": p["id"]})
+
+
+async def travel_action(p: dict[str, Any], msg: dict[str, Any]) -> None:
+    now = time.monotonic()
+    if p.get("respawn_at", 0) > now:
+        await tell(p["id"], "Дождись возвращения в лагерь."); return
+    if now < float(p.get("travel_lock_until", 0)):
+        return
+    if now - float(p.get("last_combat", 0)) < COMBAT_LOCK:
+        await tell(p["id"], "Дорожный камень недоступен в бою. Отступи и подожди 6 секунд."); return
+    portal = PORTALS.get(str(msg.get("portal_id", "")))
+    if not portal or not same_region(p, portal) or math.hypot(p["x"] - portal["x"], p["y"] - portal["y"]) > PORTAL_RADIUS:
+        await tell(p["id"], "Подойди к дорожному камню на краю текущей карты."); return
+    target = REGIONS[portal["target"]]
+    if p["level"] < target["min_level"]:
+        await tell(p["id"], f"Для «{target['name']}» нужен уровень {target['min_level']}. Сейчас: {p['level']}."); return
+    arrival = next(v for v in PORTALS.values() if v["region"] == target["id"] and v["target"] == p["region"])
+    x = arrival["x"] + (155 if arrival["side"] == "west" else -155)
+    await enter_region(p, target["id"], x, arrival["y"])
+    await tell(p["id"], f"Открыта дорога: {target['name']}. У каждого края — свой дорожный камень.")
+
+
+async def recall_action(p: dict[str, Any]) -> None:
+    now = time.monotonic()
+    if p.get("respawn_at", 0) > now: return
+    if now - float(p.get("last_combat", 0)) < COMBAT_LOCK:
+        await tell(p["id"], "Возвращение недоступно в бою. Подожди 6 секунд после последнего удара."); return
+    if now < float(p.get("recall_at", 0)):
+        await tell(p["id"], f"Камень возвращения восстановится через {math.ceil(p['recall_at'] - now)} с."); return
+    if p["region"] == "camp":
+        await tell(p["id"], "Ты уже в лагере. Отдохни у костра."); return
+    p["recall_at"] = now + 20
+    await enter_region(p, "camp", *SPAWN, reason="recall")
 
 
 def loot_chance(p: dict[str, Any], base_chance: float) -> bool:
@@ -1394,6 +1473,12 @@ def insight_level(p: dict[str, Any]) -> int:
 
 
 def award_drop(p: dict[str, Any], mob: dict[str, Any]) -> None:
+    record_region_progress(p, mob["kind"], 1, kill=True)
+    if mob.get("boss"):
+        defeated = p.setdefault("bosses_defeated", [])
+        if mob["kind"] not in defeated:
+            defeated.append(mob["kind"])
+            broadcast({"type": "notice", "region": p["region"], "text": f"{p['name']} одолел(а) {MONSTERS[mob['kind']]['name']}!"})
     kind = mob["kind"]
     inv = p["inventory"]
     p["kills"] += 1
@@ -1486,6 +1571,7 @@ def attack_release(p: dict[str, Any], now: float, ax: float, ay: float) -> None:
         broadcast({"type": "notice", "target": p["id"], "text": "Слишком мало выносливости — отступи на мгновение."})
         return
     p["stamina"] -= cost
+    p["last_combat"] = now
     power_bonus = (p["stats"]["might"] - 1) * 2.2
     weapon_upgrade = item_upgrade_level(p, "weapon", weapon_id)
     # A staff's forge upgrade is reserved for spells, never its close-range swing.
@@ -1501,7 +1587,7 @@ def attack_release(p: dict[str, Any], now: float, ax: float, ay: float) -> None:
             broadcast({"type": "notice", "target": p["id"], "text": "Колчан пуст. Стрелы можно изготовить из дерева и руды."})
             return
         p["inventory"]["arrows"] -= 1
-        broadcast({"type": "weapon_action", "action": "attack", "id": p["id"],
+        broadcast({"type": "weapon_action", "region": p["region"], "action": "attack", "id": p["id"],
                                         "weapon": weapon_id, "weapon_kind": spec["kind"],
                                         "x": p["x"], "y": p["y"], "aim_x": ax, "aim_y": ay,
                                         "charge": charge})
@@ -1509,21 +1595,21 @@ def attack_release(p: dict[str, Any], now: float, ax: float, ay: float) -> None:
         speed = 210 + 500 * charge + (p["stats"]["agility"] - 1) * 8
         arrow_range = 180 + 620 * charge
         charged_damage = max(1, round(damage * charge_factor))
-        arrows.append({"x": p["x"] + ax * 18, "y": p["y"] + ay * 18,
+        arrows.append({"region": p["region"], "x": p["x"] + ax * 18, "y": p["y"] + ay * 18,
                        "vx": ax * speed, "vy": ay * speed, "damage": charged_damage,
                        "owner": p["id"], "life": arrow_range / max(1, speed),
                        "max_distance": arrow_range, "travelled": 0.0, "kind": "arrow", "critical": critical,
                        "hit_ids": []})
         award_mastery(p, "ranger", 5 + int(charge * 3))
         return
-    broadcast({"type": "weapon_action", "action": "attack", "id": p["id"],
+    broadcast({"type": "weapon_action", "region": p["region"], "action": "attack", "id": p["id"],
                                     "weapon": weapon_id, "weapon_kind": spec["kind"],
                                     "x": p["x"], "y": p["y"], "aim_x": ax, "aim_y": ay,
                                     "charge": charge})
     reach = (float(spec.get("range", 44)) + 12 * charge) * melee_reach_factor(p)
     hits = []
     for mob in mobs:
-        if mob["hp"] <= 0: continue
+        if mob["hp"] <= 0 or not same_region(p, mob): continue
         dx, dy = mob["x"] - p["x"], mob["y"] - p["y"]
         dist = math.hypot(dx, dy)
         if dist <= reach and dist > .01 and (dx * ax + dy * ay) / dist >= spec["arc"]:
@@ -1537,21 +1623,21 @@ def attack_release(p: dict[str, Any], now: float, ax: float, ay: float) -> None:
         if float(p.get("bloodhunt_until", 0) or 0) > now:
             heal = int(ABILITY_CATALOG["bloodhunt"].get("heal_per_hit", 12))
             p["hp"] = min(p["max_hp"], p["hp"] + heal)
-            broadcast({"type": "hit_player_heal", "id": p["id"], "heal": heal})
+            broadcast({"type": "hit_player_heal", "region": p["region"], "id": p["id"], "heal": heal})
         mob["alert_until"] = now + 4
         add_damage_score(p, damage, "mob", now)
         if mob["hp"] <= 0:
             mob["hp"] = 0
             mob["respawn_at"] = now + random.uniform(24, 40)
             award_drop(p, mob)
-        broadcast({"type": "hit", "mob": mob["id"], "x": mob["x"], "y": mob["y"], "damage": round(damage), "critical": critical})
+        broadcast({"type": "hit", "region": mob["region"], "mob": mob["id"], "x": mob["x"], "y": mob["y"], "damage": round(damage), "critical": critical})
     # Player-versus-player combat is enabled outside the safe camp.
-    if zone_for_x(p["x"])["danger"] > 0:
+    if not is_safe(p):
         candidates = []
         for other in players.values():
-            if other["id"] == p["id"] or other["respawn_at"] > now:
+            if other["id"] == p["id"] or other["respawn_at"] > now or not same_region(p, other):
                 continue
-            if zone_for_x(other["x"])["danger"] == 0:
+            if is_safe(other):
                 continue
             dx, dy = other["x"] - p["x"], other["y"] - p["y"]
             dist = math.hypot(dx, dy)
@@ -1563,7 +1649,7 @@ def attack_release(p: dict[str, Any], now: float, ax: float, ay: float) -> None:
             actual = max(1, round(damage * PVP_DAMAGE_FACTOR) - defense)
             other["hp"] = max(0, other["hp"] - actual)
             add_damage_score(p, actual, "pvp", now)
-            broadcast({"type": "pvp_hit", "attacker": p["id"], "id": other["id"],
+            broadcast({"type": "pvp_hit", "region": p["region"], "attacker": p["id"], "id": other["id"],
                                             "damage": actual, "x": other["x"], "y": other["y"], "critical": critical})
             if other["hp"] <= 0:
                 other["respawn_at"] = now + 5
@@ -1589,7 +1675,7 @@ def start_attack(p: dict[str, Any], now: float, ax: float, ay: float) -> None:
 def start_gather(p: dict[str, Any], now: float) -> None:
     if p["gathering"] is not None or p["attack"] or p["respawn_at"] > now:
         return
-    nearest = min((n for n in nodes if n["active"] and math.hypot(n["x"] - p["x"], n["y"] - p["y"]) < 64),
+    nearest = min((n for n in nodes if n["active"] and same_region(p, n) and math.hypot(n["x"] - p["x"], n["y"] - p["y"]) < 64),
                   key=lambda n: math.hypot(n["x"] - p["x"], n["y"] - p["y"]), default=None)
     if nearest:
         p["gathering"] = {"node": nearest["id"], "started": now, "progress": 0.0}
@@ -1632,8 +1718,7 @@ def enchant_level(p: dict[str, Any], target: str, item_id: str, enchant_id: str)
     return int(p.get("enchantments", {}).get(target, {}).get(item_id, {}).get(enchant_id, 0))
 
 
-WIZARD_X, WIZARD_Y = 470.0, 1100.0
-FORGE_X, FORGE_Y = 625.0, 1100.0
+# Station positions now belong to NPCs on each individual map.
 MAX_ITEM_UPGRADE = 5
 FORGE_SUCCESS_CHANCES = (1.00, 0.90, 0.80, 0.70, 0.60)
 
@@ -1716,17 +1801,19 @@ def player_defense(p: dict[str, Any]) -> int:
 
 
 def near_wizard(p: dict[str, Any]) -> bool:
-    return math.hypot(p["x"] - WIZARD_X, p["y"] - WIZARD_Y) <= 112
+    return any(near_npc(p, n["id"], "wizard") for n in region_for(p)["npcs"])
 
 
 def near_forge(p: dict[str, Any]) -> bool:
-    return math.hypot(p["x"] - FORGE_X, p["y"] - FORGE_Y) <= 112
+    return any(near_npc(p, n["id"], "forge") for n in region_for(p)["npcs"])
 
 async def market_action(p: dict[str, Any], msg: dict[str, Any]) -> None:
+    if not near_npc(p, str(msg.get("npc_id", "")), "shop"):
+        await tell(p["id"], "Подойди к местному торговцу. В каждом регионе своя лавка."); return
     action, item_id = str(msg.get("action", "")), str(msg.get("id", ""))
     inv = p["inventory"]
     if action == "buy":
-        offer = SHOP_CATALOG.get(item_id)
+        offer = REGION_SHOPS[p["region"]].get(item_id)
         if not offer:
             await tell(p["id"], "Такого товара нет в каталоге лавки."); return
         if p["gold"] < offer["price"]:
@@ -1757,6 +1844,7 @@ async def market_action(p: dict[str, Any], msg: dict[str, Any]) -> None:
             except (TypeError, ValueError): count = 1
             earnings = SELL_PRICES[item_id] * count
             inv[item_id] -= count; p["gold"] += earnings
+            await sync_station_state(p)
             await tell(p["id"], f"Продано: {count} × {item_id} за {earnings} монет."); return
         if item_type == "weapon":
             if item_id not in WEAPONS or item_id not in p["weapons"]:
@@ -1767,22 +1855,24 @@ async def market_action(p: dict[str, Any], msg: dict[str, Any]) -> None:
                 await tell(p["id"], "Нельзя продать последнее оружие."); return
             p["weapons"].remove(item_id); p.get("enchantments", {}).get("weapon", {}).pop(item_id, None)
             earnings = weapon_sell_price(item_id); p["gold"] += earnings
+            await sync_station_state(p)
             await tell(p["id"], f"Продано: {WEAPONS[item_id]['name']} за {earnings} монет."); return
         if item_type == "gear":
             if item_id not in GEAR or item_id not in p["gear_inventory"]:
                 await tell(p["id"], "Надетую броню или отсутствующий предмет продать нельзя."); return
             p["gear_inventory"].remove(item_id); p.get("enchantments", {}).get("gear", {}).pop(item_id, None)
             earnings = gear_sell_price(item_id); p["gold"] += earnings
+            await sync_station_state(p)
             await tell(p["id"], f"Продано: {GEAR[item_id]['name']} за {earnings} монет."); return
         await tell(p["id"], "Не удалось определить предмет для продажи."); return
     if action == "enchant":
-        await apply_enchantment(p, item_id, str(msg.get("item_id", "")) or None)
+        await apply_enchantment(p, item_id, str(msg.get("item_id", "")) or None, str(msg.get("npc_id", "")))
         return
     await tell(p["id"], "Неизвестная операция лавки.")
 
-async def apply_enchantment(p: dict[str, Any], enchant_id: str, selected_item: str | None = None) -> None:
-    if math.hypot(p["x"] - WIZARD_X, p["y"] - WIZARD_Y) > 420:
-        await tell(p["id"], "Подойди к волшебнику у святилища в лагере."); return
+async def apply_enchantment(p: dict[str, Any], enchant_id: str, selected_item: str | None = None, npc_id: str = "") -> None:
+    if not near_npc(p, npc_id, "wizard"):
+        await tell(p["id"], "Подойди к местному мастеру чар."); return
     spec = ENCHANT_CATALOG.get(enchant_id)
     if not spec:
         await tell(p["id"], "Такого зачарования нет."); return
@@ -1808,8 +1898,8 @@ async def apply_enchantment(p: dict[str, Any], enchant_id: str, selected_item: s
 
 
 async def forge_action(p: dict[str, Any], msg: dict[str, Any]) -> None:
-    if math.hypot(p["x"] - FORGE_X, p["y"] - FORGE_Y) > 420:
-        await tell(p["id"], "Подойди к кузнице у восточной тропы в лагере."); return
+    if not near_npc(p, str(msg.get("npc_id", "")), "forge"):
+        await tell(p["id"], "Подойди к кузнецу этой карты."); return
     action, recipe_id = str(msg.get("action", "")), str(msg.get("id", ""))
     inv = p["inventory"]
     if action == "craft":
@@ -1874,10 +1964,8 @@ async def forge_action(p: dict[str, Any], msg: dict[str, Any]) -> None:
 
 
 async def wizard_action(p: dict[str, Any], msg: dict[str, Any]) -> None:
-    # Allow the station panel's actions across the camp area; still require a nearby visit.
-    if math.hypot(p["x"] - WIZARD_X, p["y"] - WIZARD_Y) > 420:
-        await tell(p["id"], "Подойди к синему святилищу волшебника у костра.")
-        return
+    if not near_npc(p, str(msg.get("npc_id", "")), "wizard"):
+        await tell(p["id"], "Подойди к местному мастеру чар."); return
     action, item_id = str(msg.get("action", "")), str(msg.get("id", ""))
     if action == "buy_staff":
         offer_price = 185
@@ -1889,13 +1977,13 @@ async def wizard_action(p: dict[str, Any], msg: dict[str, Any]) -> None:
         await sync_station_state(p)
         await tell(p["id"], "Куплен и экипирован посох ученика. Списано 185 монет."); return
     if action == "enchant":
-        await apply_enchantment(p, item_id, str(msg.get("item_id", "")) or None)
+        await apply_enchantment(p, item_id, str(msg.get("item_id", "")) or None, str(msg.get("npc_id", "")))
         return
     await tell(p["id"], "Неизвестная операция волшебника.")
 
 
 def spell_damage(p: dict[str, Any], mob: dict[str, Any], damage: float, now: float) -> None:
-    if mob["hp"] <= 0: return
+    if mob["hp"] <= 0 or not same_region(p, mob): return
     # «Метка орла» усиливает весь урон владельца метки по помеченной цели.
     mark = p.get("eagle_marks") if isinstance(p.get("eagle_marks"), dict) else {}
     if float(mark.get(mob["id"], 0) or 0) > now:
@@ -1903,7 +1991,7 @@ def spell_damage(p: dict[str, Any], mob: dict[str, Any], damage: float, now: flo
     dealt = max(1, round(damage)); mob["hp"] -= dealt; mob["alert_until"] = now + 4
     if mob["hp"] <= 0:
         mob["hp"] = 0; mob["respawn_at"] = now + random.uniform(24, 40); award_drop(p, mob)
-    broadcast({"type": "hit", "mob": mob["id"], "x": mob["x"], "y": mob["y"], "damage": dealt})
+    broadcast({"type": "hit", "region": mob["region"], "mob": mob["id"], "x": mob["x"], "y": mob["y"], "damage": dealt})
 
 def spell_visual(p: dict[str, Any], spell_id: str, spec: dict[str, Any]) -> dict[str, Any]:
     mastery = spell_mastery_level(p, spell_id)
@@ -1915,7 +2003,7 @@ def spell_visual(p: dict[str, Any], spell_id: str, spec: dict[str, Any]) -> dict
 
 
 def spell_fx_event(p: dict[str, Any], spell_id: str, spec: dict[str, Any], x: float, y: float) -> dict[str, Any]:
-    return {"type": "spell_fx", "spell": spell_id, "x": x, "y": y,
+    return {"type": "spell_fx", "region": p["region"], "spell": spell_id, "x": x, "y": y,
             "radius": spec.get("radius", 100), "owner": p.get("id"),
             "kind": spec.get("kind", spell_id), "name": spec.get("name", spell_id),
             "rarity": spec.get("rarity", 1), **spell_visual(p, spell_id, spec)}
@@ -1924,7 +2012,7 @@ def spell_fx_event(p: dict[str, Any], spell_id: str, spec: dict[str, Any], x: fl
 def _ability_event(p: dict[str, Any], ability_id: str, target_x: float, target_y: float,
                    aim_x: float, aim_y: float, **extra: Any) -> dict[str, Any]:
     spec = ABILITY_CATALOG[ability_id]
-    return {"type": "ability_cast", "id": p["id"], "ability": ability_id,
+    return {"type": "ability_cast", "region": p["region"], "id": p["id"], "ability": ability_id,
             "tree": spec["tree"], "name": spec["name"], "icon": spec.get("icon", "✦"),
             "x": round(p["x"], 1), "y": round(p["y"], 1),
             "from_x": round(p["x"], 1), "from_y": round(p["y"], 1),
@@ -1935,18 +2023,18 @@ def _ability_event(p: dict[str, Any], ability_id: str, target_x: float, target_y
 
 def _damage_players_around(p: dict[str, Any], now: float, x: float, y: float, radius: float,
                            damage: float, source: str = "ability") -> None:
-    if zone_for_x(p["x"])["danger"] == 0:
+    if is_safe(p):
         return
     for other in list(players.values()):
-        if other["id"] == p["id"] or other.get("respawn_at", 0) > now:
+        if other["id"] == p["id"] or other.get("respawn_at", 0) > now or not same_region(p, other):
             continue
-        if zone_for_x(other["x"])["danger"] == 0:
+        if is_safe(other):
             continue
         if math.hypot(other["x"] - x, other["y"] - y) > radius:
             continue
         actual = max(1, round(damage * .72) - player_defense(other))
         other["hp"] = max(0, other["hp"] - actual)
-        broadcast({"type": "pvp_hit", "attacker": p["id"], "id": other["id"],
+        broadcast({"type": "pvp_hit", "region": p["region"], "attacker": p["id"], "id": other["id"],
                                         "damage": actual, "x": other["x"], "y": other["y"], "source": source})
         if other["hp"] <= 0:
             other["respawn_at"] = now + 5
@@ -2104,6 +2192,7 @@ async def use_ability(p: dict[str, Any], now: float, ability_id: str, aim_x: flo
         tx = max(0.0, min(WORLD_W, p["x"] + aim_x * (max_range or 180)))
         ty = max(0.0, min(WORLD_H, p["y"] + aim_y * (max_range or 180)))
     p["stamina"] -= cost
+    p["last_combat"] = now
     if arrow_cost:
         p["inventory"]["arrows"] = max(0, int(p["inventory"].get("arrows", 0)) - arrow_cost)
     cooldowns[ability_id] = now + ability_cooldown_seconds(p, ability_id)
@@ -2139,7 +2228,7 @@ async def use_ability(p: dict[str, Any], now: float, ability_id: str, aim_x: flo
         seg_x, seg_y = p["x"] - start_x, p["y"] - start_y
         seg_len = max(.01, math.hypot(seg_x, seg_y))
         for mob in list(mobs):
-            if mob["hp"] <= 0:
+            if mob["hp"] <= 0 or not same_region(p, mob):
                 continue
             rel_x, rel_y = mob["x"] - start_x, mob["y"] - start_y
             projection = (rel_x * seg_x + rel_y * seg_y) / seg_len
@@ -2155,12 +2244,12 @@ async def use_ability(p: dict[str, Any], now: float, ability_id: str, aim_x: flo
         await send_event(event)
     elif ability_id == "whirlwind":
         for mob in list(mobs):
-            if mob["hp"] > 0 and math.hypot(mob["x"] - p["x"], mob["y"] - p["y"]) <= float(spec["radius"]):
+            if mob["hp"] > 0 and same_region(p, mob) and math.hypot(mob["x"] - p["x"], mob["y"] - p["y"]) <= float(spec["radius"]):
                 spell_damage(p, mob, power, now); hits += 1
         _damage_players_around(p, now, p["x"], p["y"], float(spec["radius"]), power, "whirlwind")
         await send_event(event)
     elif ability_id == "arrow_rain":
-        field = {"id": f"rain-{uuid.uuid4().hex[:8]}", "kind": "arrow_rain", "owner": p["id"],
+        field = {"region": p["region"], "id": f"rain-{uuid.uuid4().hex[:8]}", "kind": "arrow_rain", "owner": p["id"],
                  "x": tx, "y": ty, "radius": float(spec["radius"]), "damage": power,
                  "started": now, "activate_at": now + float(spec["telegraph"]),
                  "until": now + float(spec["telegraph"]) + float(spec["duration"]),
@@ -2179,7 +2268,7 @@ async def use_ability(p: dict[str, Any], now: float, ability_id: str, aim_x: flo
             ca, sa = math.cos(offset), math.sin(offset)
             sx, sy = aim_x * ca - aim_y * sa, aim_x * sa + aim_y * ca
             max_distance = float(spec.get("range", 760))
-            arrow = {"x": p["x"] + sx * 18, "y": p["y"] + sy * 18,
+            arrow = {"region": p["region"], "x": p["x"] + sx * 18, "y": p["y"] + sy * 18,
                      "vx": sx * speed, "vy": sy * speed, "damage": max(1, round(power)),
                      "owner": p["id"], "life": max_distance / speed + .08,
                      "max_distance": max_distance, "travelled": 0.0, "kind": "ability_arrow",
@@ -2194,7 +2283,7 @@ async def use_ability(p: dict[str, Any], now: float, ability_id: str, aim_x: flo
         await send_event(event)
     elif ability_id == "bash":
         for mob in list(mobs):
-            if mob["hp"] <= 0:
+            if mob["hp"] <= 0 or not same_region(p, mob):
                 continue
             if math.hypot(mob["x"] - p["x"], mob["y"] - p["y"]) <= float(spec["radius"]) + (40 if mob.get("boss") else 12):
                 spell_damage(p, mob, power, now); hits += 1
@@ -2213,7 +2302,7 @@ async def use_ability(p: dict[str, Any], now: float, ability_id: str, aim_x: flo
         await tell(p["id"], f"Жажда крови: каждый удар восстановит {spec['heal_per_hit']} здоровья на {spec['duration']:.0f} с.")
     elif ability_id == "seismic_slam":
         for mob in list(mobs):
-            if mob["hp"] <= 0:
+            if mob["hp"] <= 0 or not same_region(p, mob):
                 continue
             if math.hypot(mob["x"] - p["x"], mob["y"] - p["y"]) <= float(spec["radius"]) + (48 if mob.get("boss") else 12):
                 spell_damage(p, mob, power, now); hits += 1
@@ -2223,7 +2312,7 @@ async def use_ability(p: dict[str, Any], now: float, ability_id: str, aim_x: flo
         _damage_players_around(p, now, p["x"], p["y"], float(spec["radius"]), power, "seismic_slam")
         await send_event(event)
     elif ability_id == "poison_arrow":
-        arrow = {"x": p["x"] + aim_x * 18, "y": p["y"] + aim_y * 18,
+        arrow = {"region": p["region"], "x": p["x"] + aim_x * 18, "y": p["y"] + aim_y * 18,
                  "vx": aim_x * 760.0, "vy": aim_y * 760.0, "damage": max(1, round(power)),
                  "owner": p["id"], "life": float(spec.get("range", 760)) / 760.0 + .08,
                  "max_distance": float(spec.get("range", 760)), "travelled": 0.0, "kind": "ability_arrow",
@@ -2234,7 +2323,7 @@ async def use_ability(p: dict[str, Any], now: float, ability_id: str, aim_x: flo
         arrows.append(arrow)
         await send_event(event)
     elif ability_id == "blackout_bolt":
-        arrow = {"x": p["x"] + aim_x * 18, "y": p["y"] + aim_y * 18,
+        arrow = {"region": p["region"], "x": p["x"] + aim_x * 18, "y": p["y"] + aim_y * 18,
                  "vx": aim_x * 760.0, "vy": aim_y * 760.0, "damage": max(1, round(power)),
                  "owner": p["id"], "life": float(spec.get("range", 700)) / 760.0 + .08,
                  "max_distance": float(spec.get("range", 700)), "travelled": 0.0, "kind": "ability_arrow",
@@ -2244,7 +2333,7 @@ async def use_ability(p: dict[str, Any], now: float, ability_id: str, aim_x: flo
         await send_event(event)
     elif ability_id == "eagle_mark":
         marked = None
-        candidates = [m for m in mobs if m["hp"] > 0 and math.hypot(m["x"] - tx, m["y"] - ty) <= 96]
+        candidates = [m for m in mobs if m["hp"] > 0 and same_region(p, m) and math.hypot(m["x"] - tx, m["y"] - ty) <= 96]
         if candidates:
             marked = min(candidates, key=lambda m: math.hypot(m["x"] - tx, m["y"] - ty))
         marks = p.setdefault("eagle_marks", {})
@@ -2294,6 +2383,7 @@ async def cast_spell(p: dict[str, Any], now: float, spell_id: str, aim_x: float,
         aim_x, aim_y = dx / dist, dy / dist
     tx, ty = max(0.0, min(WORLD_W, tx)), max(0.0, min(WORLD_H, ty))
     p["mana"] -= spec["mana"]
+    p["last_combat"] = now
     p.setdefault("spell_uses", {})[spell_id] = int(p.get("spell_uses", {}).get(spell_id, 0)) + 1
     cooldowns[spell_id] = now + spell_cooldown_seconds(p, spell_id)
     old_spent = int(p.get("magic_mana_spent", 0))
@@ -2314,7 +2404,7 @@ async def cast_spell(p: dict[str, Any], now: float, spell_id: str, aim_x: float,
             broadcast({"type": "notice", "target": p["id"], "text": f"Открыто заклинание «{unlocked_spec['name']}»! Требуется также уровень {unlocked_spec['unlock_level']}."})
     p["face_x"], p["face_y"] = aim_x, aim_y
     weapon_spec = WEAPONS.get(p.get("weapon", ""), {})
-    await send_event({"type": "weapon_action", "action": "cast", "id": p["id"],
+    await send_event({"type": "weapon_action", "region": p["region"], "action": "cast", "id": p["id"],
                       "weapon": p.get("weapon", ""), "weapon_kind": weapon_spec.get("kind", "melee"),
                       "x": p["x"], "y": p["y"], "aim_x": aim_x, "aim_y": aim_y,
                       "spell": spell_id})
@@ -2322,7 +2412,7 @@ async def cast_spell(p: dict[str, Any], now: float, spell_id: str, aim_x: float,
     if spell_id in {"fireball", "ice_lance", "meteor", "shadow_bolt"} or spec.get("crafted") and spec.get("kind") in {"Огонь", "Лёд", "Тень", "Аркана"}:
         distance = max(1.0, math.hypot(tx - p["x"], ty - p["y"]))
         speed = 420 if spell_id == "fireball" else 500 if spell_id in {"ice_lance", "shadow_bolt"} else 250
-        arrows.append({"x": p["x"] + aim_x * 18, "y": p["y"] + aim_y * 18,
+        arrows.append({"region": p["region"], "x": p["x"] + aim_x * 18, "y": p["y"] + aim_y * 18,
                        "vx": (tx - p["x"]) / distance * speed, "vy": (ty - p["y"]) / distance * speed,
                        "damage": round(spell_damage_base * power), "owner": p["id"],
                        "life": distance / speed + .08, "max_distance": distance, "travelled": 0.0, "kind": "spell_projectile",
@@ -2330,29 +2420,29 @@ async def cast_spell(p: dict[str, Any], now: float, spell_id: str, aim_x: float,
                        "spell_rarity": spec.get("rarity", 1), "spell_mastery": visual["mastery"],
                        "spell_variant": visual["variant"], "spell_palette": visual["palette"], "radius": spec["radius"]})
     elif spell_id == "lightning" or spec.get("crafted") and spec.get("kind") in {"Молния", "Эхо", "Звёзды"}:
-        candidates = sorted((m for m in mobs if m["hp"] > 0 and math.hypot(m["x"] - tx, m["y"] - ty) <= spec["radius"]),
+        candidates = sorted((m for m in mobs if m["hp"] > 0 and same_region(p, m) and math.hypot(m["x"] - tx, m["y"] - ty) <= spec["radius"]),
                            key=lambda m: math.hypot(m["x"] - tx, m["y"] - ty))
         for index, mob in enumerate(candidates[:4]): spell_damage(p, mob, spell_damage_base * power * (0.72 ** index), now)
         await send_event(spell_fx_event(p, spell_id, spec, tx, ty))
     elif spell_id == "frost_nova" or spec.get("crafted") and spec.get("kind") == "Лёд":
         for mob in mobs:
-            if mob["hp"] > 0 and math.hypot(mob["x"] - p["x"], mob["y"] - p["y"]) <= spec["radius"]:
+            if mob["hp"] > 0 and same_region(p, mob) and math.hypot(mob["x"] - p["x"], mob["y"] - p["y"]) <= spec["radius"]:
                 spell_damage(p, mob, spell_damage_base * power, now)
         await send_event(spell_fx_event(p, spell_id, spec, p["x"], p["y"]))
     elif spell_id == "arcane_burst" or spec.get("crafted") and spec.get("kind") == "Всплеск":
         for mob in mobs:
             distance = math.hypot(mob["x"] - tx, mob["y"] - ty)
-            if mob["hp"] > 0 and distance <= spec["radius"]:
+            if mob["hp"] > 0 and same_region(p, mob) and distance <= spec["radius"]:
                 spell_damage(p, mob, spell_damage_base * power * max(.55, 1.0 - distance / (2 * spec["radius"])), now)
         await send_event(spell_fx_event(p, spell_id, spec, tx, ty))
     elif spell_id == "thorns" or spec.get("crafted") and spec.get("kind") in {"Терни", "Яд"}:
-        thorn_fields.append({"x": tx, "y": ty, "radius": spec["radius"], "damage": round(spell_damage_base * power),
+        thorn_fields.append({"region": p["region"], "x": tx, "y": ty, "radius": spec["radius"], "damage": round(spell_damage_base * power),
                              "owner": p["id"], "until": now + 3.2, "next_hit": now})
         await send_event(spell_fx_event(p, spell_id, spec, tx, ty))
     elif spell_id == "heal" or spec.get("crafted") and spec.get("kind") == "Исцеление":
         healed = 0
         for ally in players.values():
-            if math.hypot(ally["x"] - p["x"], ally["y"] - p["y"]) <= spec["radius"] and ally.get("respawn_at", 0) <= now:
+            if same_region(ally, p) and math.hypot(ally["x"] - p["x"], ally["y"] - p["y"]) <= spec["radius"] and ally.get("respawn_at", 0) <= now:
                 before = ally["hp"]; ally["hp"] = min(ally["max_hp"], ally["hp"] + round(spec["heal"] * power)); healed += ally["hp"] - before
         await send_event(spell_fx_event(p, spell_id, spec, p["x"], p["y"]))
         await tell(p["id"], f"Исцеление восстановило {healed} здоровья группе в радиусе {spec['radius']}."); return
@@ -2579,6 +2669,12 @@ async def handle_message(pid: str, p: dict[str, Any], msg: dict[str, Any], now: 
     elif kind == "attack_release":
         try: attack_release(p, now, float(msg.get("aim_x", p["face_x"])), float(msg.get("aim_y", p["face_y"])))
         except (TypeError, ValueError): attack_release(p, now, p["face_x"], p["face_y"])
+    elif kind == "npc_quest":
+        await npc_quest_action(p, msg)
+    elif kind == "travel":
+        await travel_action(p, msg)
+    elif kind == "recall":
+        await recall_action(p)
     elif kind == "shop_action":
         await market_action(p, msg)
     elif kind == "forge_action":
@@ -2690,7 +2786,7 @@ async def handle_message(pid: str, p: dict[str, Any], msg: dict[str, Any], now: 
 stat_names = {"might": "Сила", "vitality": "Живучесть", "agility": "Ловкость", "precision": "Точность", "fortune": "Удача"}
 EXTRA_STAT_NAMES = {"insight": "Прозорливость"}
 PERSIST_FIELDS = (
-    "x", "y", "hp", "stamina", "xp", "level", "skill_points", "stats",
+    "region", "visited_regions", "region_quests", "bosses_defeated", "x", "y", "hp", "stamina", "xp", "level", "skill_points", "stats",
     "gold", "kills", "weapon", "weapons", "gear", "gear_inventory",
     "inventory", "quest_stage", "quest_active", "quest_kills", "quest_gather", "quest_points",
     "class_bonus_points", "class_bonus_spent",
@@ -2878,13 +2974,15 @@ def save_character(p: dict[str, Any]) -> None:
 
 async def world_tick() -> None:
     last_saved = time.monotonic()
+    last_snapshot = 0.0
     while True:
         now = time.monotonic()
         dt = TICK
         for pid, p in list(players.items()):
             if p["respawn_at"] and p["respawn_at"] <= now:
-                p["respawn_at"] = 0.0; p["x"], p["y"] = 330.0, 1100.0
-                p["hp"] = p["max_hp"]; p["stamina"] = p["max_stamina"]
+                p["respawn_at"] = 0.0
+                p["hp"] = p["max_hp"]; p["stamina"] = p["max_stamina"]; p["mana"] = p["max_mana"]
+                await enter_region(p, "camp", *SPAWN, reason="respawn")
                 await tell(pid, "Ты вернулся в лагерь. Потеряно немного времени, но не добыча.")
             if p["respawn_at"] > now: continue
             speed = 178 + (p["stats"]["agility"] - 1) * 3.2
@@ -2895,20 +2993,14 @@ async def world_tick() -> None:
             if float(p.get("roar_until", 0) or 0) > now:
                 p["hp"] = min(p["max_hp"], p["hp"] + 6.0 * dt)
             for site in POWER_SITES:
+                if site["region"] != p.get("region", "camp"): continue
                 if math.hypot(p["x"] - site["x"], p["y"] - site["y"]) <= site["radius"]:
-                    if site["id"] == "spring": p["hp"] = min(p["max_hp"], p["hp"] + 2.0 * dt)
-                    elif site["id"] == "root": p["mana"] = min(p["max_mana"], p["mana"] + 3.0 * dt)
-                    elif site["id"] == "ember": p["stamina"] = min(p["max_stamina"], p["stamina"] + 4.0 * dt)
-                    elif site["id"] == "glacier":
-                        p["hp"] = min(p["max_hp"], p["hp"] + 1.5 * dt)
-                        p["mana"] = min(p["max_mana"], p["mana"] + 1.5 * dt)
-                    elif site["id"] == "obsidian":
-                        p["hp"] = min(p["max_hp"], p["hp"] + 1.0 * dt)
-                        p["mana"] = min(p["max_mana"], p["mana"] + 1.0 * dt)
-                    else:
-                        p["hp"] = min(p["max_hp"], p["hp"] + 3.0 * dt)
-                        p["mana"] = min(p["max_mana"], p["mana"] + 3.0 * dt)
-                        p["stamina"] = min(p["max_stamina"], p["stamina"] + 3.0 * dt)
+                    regen = 4.0 if p["region"] == "camp" else 2.0
+                    p["hp"] = min(p["max_hp"], p["hp"] + regen * dt)
+                    p["mana"] = min(p["max_mana"], p["mana"] + regen * dt)
+                    p["stamina"] = min(p["max_stamina"], p["stamina"] + regen * dt)
+            if is_safe(p) and not p.get("attack") and now - float(p.get("last_combat", 0)) > COMBAT_LOCK:
+                p["hp"] = min(p["max_hp"], p["hp"] + 3.0 * dt)
             if p["gathering"]:
                 g = p["gathering"]
                 node = next((n for n in nodes if n["id"] == g["node"] and n["active"]), None)
@@ -2920,6 +3012,7 @@ async def world_tick() -> None:
                         node["active"] = False; node["respawn_at"] = now + 28
                         amount = random.randint(1, 2) if node["kind"] == "shard" else random.randint(2, 3)
                         p["inventory"][node["kind"]] += amount
+                        record_region_progress(p, node["kind"], amount)
                         if p["quest_active"]: p["quest_gather"][node["kind"]] = p["quest_gather"].get(node["kind"], 0) + amount
                         p["gathering"] = None
                         await tell(pid, f"Собрано: {amount} — {node['kind']}.")
@@ -2928,7 +3021,9 @@ async def world_tick() -> None:
         for mob in mobs:
             if mob["hp"] <= 0:
                 if mob["respawn_at"] <= now:
-                    mob.update(scaled_mob(mob["kind"], mob["level"], int(mob["id"].split("-")[-1]), mob["spawn_x"], mob["spawn_y"]))
+                    fresh = scaled_mob(mob["kind"], mob["level"], int(mob["id"].split("-")[-1]), mob["spawn_x"], mob["spawn_y"])
+                    fresh["id"], fresh["region"] = mob["id"], mob["region"]
+                    mob.update(fresh)
                 continue
             if float(mob.get("burn_until", 0) or 0) > now and float(mob.get("burn_next", 0) or 0) <= now:
                 owner = players.get(str(mob.get("burn_owner", "")))
@@ -2949,18 +3044,24 @@ async def world_tick() -> None:
             if float(mob.get("stun_until", 0) or 0) > now:
                 continue
             target = min((p for p in players.values() if p["respawn_at"] <= now and
-                          zone_for_x(p["x"])["danger"] > 0 and
-                          zone_for_x(p["x"])["id"] == zone_for_x(mob["x"])["id"]),
+                          not is_safe(p) and same_region(p, mob)),
                          key=lambda p: math.hypot(p["x"] - mob["x"], p["y"] - mob["y"]), default=None)
             if target is None:
                 if now > mob["wander_at"]:
                     mob["wander_x"], mob["wander_y"] = random.uniform(-1, 1), random.uniform(-1, 1)
                     mob["wander_at"] = now + random.uniform(1.2, 3.3)
-                mob["x"] += mob["wander_x"] * mob_speed * .16 * dt
-                mob["y"] += mob["wander_y"] * mob_speed * .16 * dt
+                mx = max(45.0, min(WORLD_W - 45.0, mob["x"] + mob["wander_x"] * mob_speed * .16 * dt))
+                my = max(45.0, min(WORLD_H - 45.0, mob["y"] + mob["wander_y"] * mob_speed * .16 * dt))
+                if not is_safe({**mob, "x": mx, "y": my}): mob["x"], mob["y"] = mx, my
                 continue
             dx, dy = target["x"] - mob["x"], target["y"] - mob["y"]
             dist = math.hypot(dx, dy)
+            if dist > 520:
+                mob["alert_until"] = 0.0
+                mob["telegraph_until"] = 0.0
+                mob["x"] += (mob["spawn_x"] - mob["x"]) * dt * .35
+                mob["y"] += (mob["spawn_y"] - mob["y"]) * dt * .35
+                continue
             if dist > 300 and now > mob["wander_at"]:
                 mob["wander_x"], mob["wander_y"] = random.uniform(-1, 1), random.uniform(-1, 1)
                 mob["wander_at"] = now + 2
@@ -2980,9 +3081,10 @@ async def world_tick() -> None:
                     raw_damage = MONSTERS[mob["kind"]]["damage"] + max(0, mob["level"] - MONSTERS[mob["kind"]]["zone"]) * 2
                     actual = max(1, raw_damage - defense)
                     target["hp"] = max(0, target["hp"] - actual)
+                    target["last_combat"] = now
                     mob["telegraph_until"] = 0.0
                     mob["attack_at"] = now + MONSTERS[mob["kind"]]["cooldown"]
-                    await send_event({"type": "hit_player", "id": target["id"], "damage": actual, "mob": mob["kind"]})
+                    await send_event({"type": "hit_player", "region": target["region"], "id": target["id"], "damage": actual, "mob": mob["kind"]})
                     if target["hp"] <= 0:
                         target["respawn_at"] = now + 5
                         target["attack"] = None; target["gathering"] = None
@@ -2994,7 +3096,7 @@ async def world_tick() -> None:
                 owner = players.get(field["owner"])
                 if owner:
                     for mob in mobs:
-                        if mob["hp"] > 0 and math.hypot(mob["x"] - field["x"], mob["y"] - field["y"]) <= field["radius"]:
+                        if mob["hp"] > 0 and same_region(owner, mob) and math.hypot(mob["x"] - field["x"], mob["y"] - field["y"]) <= field["radius"]:
                             spell_damage(owner, mob, field["damage"], now)
                 field["next_hit"] = now + .65
         for field in list(ground_effects):
@@ -3009,11 +3111,11 @@ async def world_tick() -> None:
                 continue
             radius = float(field.get("radius", 0) or 0)
             for mob in list(mobs):
-                if mob["hp"] > 0 and math.hypot(mob["x"] - field["x"], mob["y"] - field["y"]) <= radius:
+                if mob["hp"] > 0 and same_region(owner, mob) and math.hypot(mob["x"] - field["x"], mob["y"] - field["y"]) <= radius:
                     spell_damage(owner, mob, float(field.get("damage", 1) or 1), now)
             _damage_players_around(owner, now, float(field["x"]), float(field["y"]),
                                    radius, float(field.get("damage", 1) or 1) * .8, "arrow_rain")
-            await send_event({"type": "ground_pulse", "id": field["id"], "kind": field["kind"],
+            await send_event({"type": "ground_pulse", "region": field["region"], "id": field["id"], "kind": field["kind"],
                               "x": round(float(field["x"]), 1), "y": round(float(field["y"]), 1),
                               "radius": radius, "owner": field.get("owner")})
         for arrow in list(arrows):
@@ -3029,15 +3131,15 @@ async def world_tick() -> None:
             hit_ids = arrow.setdefault("hit_ids", []) if is_ability_arrow else []
             player_target = next((p for p in players.values()
                                   if arrow.get("kind") != "spell_projectile"
-                                  and p["id"] != arrow.get("owner") and p["respawn_at"] <= now
+                                  and same_region(p, arrow) and p["id"] != arrow.get("owner") and p["respawn_at"] <= now
                                   and p["id"] not in hit_ids
-                                  and zone_for_x(p["x"])["danger"] > 0
+                                  and not is_safe(p)
                                   and math.hypot(p["x"] - arrow["x"], p["y"] - arrow["y"]) < 28), None)
-            if player_target and shooter and zone_for_x(shooter["x"])["danger"] > 0:
+            if player_target and shooter and not is_safe(shooter):
                 defense = player_defense(player_target)
                 actual = max(1, round(arrow["damage"] * .72) - defense)
                 player_target["hp"] = max(0, player_target["hp"] - actual)
-                await send_event({"type": "pvp_hit", "attacker": shooter["id"], "id": player_target["id"],
+                await send_event({"type": "pvp_hit", "region": shooter["region"], "attacker": shooter["id"], "id": player_target["id"],
                                   "damage": actual, "x": player_target["x"], "y": player_target["y"],
                                   **({"element": arrow.get("element", "")} if is_ability_arrow else {})})
                 if player_target["hp"] <= 0:
@@ -3054,12 +3156,12 @@ async def world_tick() -> None:
                 arrows.remove(arrow)
                 continue
             safe_player = next((p for p in players.values() if p["id"] != arrow.get("owner")
-                                and zone_for_x(p["x"])["danger"] == 0
+                                and same_region(p, arrow) and is_safe(p)
                                 and math.hypot(p["x"] - arrow["x"], p["y"] - arrow["y"]) < 28), None)
             if safe_player:
                 arrows.remove(arrow)
                 continue
-            target = next((m for m in mobs if m["hp"] > 0 and m["id"] not in hit_ids
+            target = next((m for m in mobs if m["hp"] > 0 and same_region(m, arrow) and m["id"] not in hit_ids
                            and math.hypot(m["x"] - arrow["x"], m["y"] - arrow["y"]) < (52 if m["boss"] else 30)), None)
             expired = arrow["life"] <= 0 or not (0 <= arrow["x"] <= WORLD_W and 0 <= arrow["y"] <= WORLD_H)
             if is_ability_arrow and target:
@@ -3095,7 +3197,7 @@ async def world_tick() -> None:
                         target["stun_until"] = now + float(arrow.get("stun_duration", 1.8) or 1.8)
                         target["telegraph_until"] = 0.0
                 hit_ids.append(target["id"])
-                await send_event({"type": "ability_impact", "ability": "arrow", "element": arrow.get("element", ""),
+                await send_event({"type": "ability_impact", "region": target["region"], "ability": "arrow", "element": arrow.get("element", ""),
                                   "x": round(target["x"], 1), "y": round(target["y"], 1),
                                   "owner": arrow.get("owner")})
                 arrow["pierce"] = int(arrow.get("pierce", 0)) - 1
@@ -3108,10 +3210,11 @@ async def world_tick() -> None:
                 if owner:
                     radius = arrow.get("radius", 100)
                     for mob in mobs:
+                        if not same_region(owner, mob): continue
                         d = math.hypot(mob["x"] - arrow["x"], mob["y"] - arrow["y"])
                         if mob["hp"] > 0 and d <= radius:
                             spell_damage(owner, mob, arrow["damage"] * max(.55, 1.0-d/max(1.0,2*radius)), now)
-                await send_event({"type": "spell_fx", "spell": spell_id, "kind": arrow.get("spell_kind", spell_id),
+                await send_event({"type": "spell_fx", "region": arrow["region"], "spell": spell_id, "kind": arrow.get("spell_kind", spell_id),
                  "name": arrow.get("spell_name", spell_id), "rarity": arrow.get("spell_rarity", 1),
                  "mastery": arrow.get("spell_mastery", 1), "variant": arrow.get("spell_variant", 0),
                  "palette": arrow.get("spell_palette", ELEMENT_FX["Аркана"]),
@@ -3123,7 +3226,7 @@ async def world_tick() -> None:
                     target["hp"] = 0; target["respawn_at"] = now + random.uniform(24, 40)
                     owner = players.get(arrow["owner"])
                     if owner: award_drop(owner, target)
-                broadcast({"type": "hit", "mob": target["id"], "x": target["x"], "y": target["y"], "damage": round(arrow["damage"])})
+                broadcast({"type": "hit", "region": target["region"], "mob": target["id"], "x": target["x"], "y": target["y"], "damage": round(arrow["damage"])})
                 arrows.remove(arrow)
             elif expired:
                 arrows.remove(arrow)
@@ -3134,7 +3237,8 @@ async def world_tick() -> None:
                 except sqlite3.Error:
                     pass
             last_saved = now
-        if clients:
+        if clients and now - last_snapshot >= SNAPSHOT_INTERVAL:
+            last_snapshot = now
             for pid, ws in list(clients.items()):
                 try: await ws.send_text(json.dumps(snapshot(pid), ensure_ascii=False))
                 except Exception:
@@ -3193,23 +3297,10 @@ async def stats_upgrade_endpoint(request: Request) -> dict[str, Any]:
             "stats": dict(target.get("stats", {}))}
 
 
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket) -> None:
-    account = _account_for_token(websocket.cookies.get("echo_session"))
-    if not account:
-        await websocket.close(code=1008, reason="AUTH_REQUIRED")
-        return
-    await websocket.accept()
-    if len(players) >= MAX_PLAYERS:
-        # Мир «полон» из-за призраков — закрытые вкладки, чьи TCP-соединения
-        # остались висеть. Освобождаем протухшие слоты и пробуем пустить игрока.
-        await close_stale_clients_once()
-    if len(players) >= MAX_PLAYERS:
-        await websocket.send_text(json.dumps({"type": "error", "message": "Мир полон. Максимум 8 следопытов."}, ensure_ascii=False))
-        await websocket.close(code=1008); return
-    pid = uuid.uuid4().hex[:8]
-    name = safe_name(account["username"])
-    p = {"id": pid, "name": name, "x": 330.0, "y": 1100.0, "mx": 0.0, "my": 0.0,
+def default_player(pid: str, name: str) -> dict[str, Any]:
+    """Fresh character state; also used by tests and save migration."""
+    return {"id": pid, "name": name, "region": "camp", "zone": "camp", "visited_regions": ["camp"],
+         "region_quests": {}, "bosses_defeated": [], "x": SPAWN[0], "y": SPAWN[1], "mx": 0.0, "my": 0.0,
          "face_x": 1.0, "face_y": 0.0, "hp": 100, "max_hp": 100, "stamina": 100.0, "max_stamina": 100,
          "xp": 0, "level": 1, "skill_points": 0, "quest_points": 0, "class_bonus_points": 0, "stats": {"might": 1, "vitality": 1, "agility": 1, "precision": 1, "fortune": 1},
          "gold": 0, "kills": 0, "last_attack": 0.0, "attack": None, "respawn_at": 0.0,
@@ -3224,7 +3315,24 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
          "gear": "traveler", "gear_inventory": [],
          "inventory": {"wood": 0, "herb": 0, "ore": 0, "hide": 0, "slime": 0, "crystal": 0, "shard": 0, "potion": 2, "arrows": 18},
          "quest_stage": 0, "quest_active": False, "quest_kills": {}, "quest_gather": {},
-         "gathering": None, "last_chat": 0.0}
+         "gathering": None, "last_chat": 0.0, "last_combat": 0.0, "travel_lock_until": 0.0, "recall_at": 0.0}
+
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket) -> None:
+    account = _account_for_token(websocket.cookies.get("echo_session"))
+    if not account:
+        await websocket.close(code=1008, reason="AUTH_REQUIRED")
+        return
+    await websocket.accept()
+    if len(players) >= MAX_PLAYERS:
+        await close_stale_clients_once()
+    if len(players) >= MAX_PLAYERS:
+        await websocket.send_text(json.dumps({"type": "error", "message": "Мир полон. Максимум 8 следопытов."}, ensure_ascii=False))
+        await websocket.close(code=1008); return
+    pid = uuid.uuid4().hex[:8]
+    name = safe_name(account["username"])
+    p = default_player(pid, name)
     saved = load_character(name)
     p.update(saved)
     # Safe migration for old saves: missing class/mastery/cooldowns become neutral,
@@ -3244,8 +3352,19 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     if not isinstance(p.get("eagle_marks"), dict):
         p["eagle_marks"] = {}
     p["ability_lock_until"] = 0.0
-    p["x"] = max(25.0, min(WORLD_W - 25.0, float(p["x"])))
-    p["y"] = max(25.0, min(WORLD_H - 25.0, float(p["y"])))
+    p["region"], p["x"], p["y"] = migrate_position(p)
+    p["zone"] = p["region"]
+    if not isinstance(p.get("visited_regions"), list): p["visited_regions"] = []
+    p["visited_regions"] = list(dict.fromkeys(["camp", *[r for r in p["visited_regions"] if r in REGIONS], p["region"]]))
+    if not isinstance(p.get("region_quests"), dict): p["region_quests"] = {}
+    for rid, state in list(p["region_quests"].items()):
+        if rid not in REGIONS or not isinstance(state, dict):
+            p["region_quests"].pop(rid); continue
+        p["region_quests"][rid] = {"active": bool(state.get("active")), "done": bool(state.get("done")),
+            "gather": {k: max(0, int(v)) for k, v in (state.get("gather") or {}).items() if k in SELL_PRICES},
+            "kills": {k: max(0, int(v)) for k, v in (state.get("kills") or {}).items() if k in MONSTERS}}
+    if not isinstance(p.get("bosses_defeated"), list): p["bosses_defeated"] = []
+    p["bosses_defeated"] = [k for k in p["bosses_defeated"] if k in MONSTERS]
     p["level"] = max(1, int(p.get("level", 1)))
     p["stats"] = {key: max(1, int(p.get("stats", {}).get(key, 1)))
                   for key in stat_names}
