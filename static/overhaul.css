@@ -1,0 +1,408 @@
+/* Les Echo — visual overhaul: pixel HUD, hotbar, Minecraft-style bag.
+   Loaded last so it can reshape the legacy panels without touching their JS. */
+
+:root {
+  --px-void: #070c09;
+  --px-stone: #161f18;
+  --px-panel: #1b251d;
+  --px-slot: #26312a;
+  --px-slot-hi: #3c4b3e;
+  --px-line: #55654c;
+  --px-line-soft: #33402f;
+  --px-gold: #e9c978;
+  --px-gold-dim: #a8904e;
+  --px-text: #f0ebd8;
+  --px-muted: #a9b09a;
+  --px-hp: #cf5c4e;
+  --px-mana: #4f8fd8;
+  --px-stam: #86b95c;
+  --px-radius: 5px;
+  --px-shadow: 0 0 0 2px #060a07, 0 4px 0 #00000055, 0 12px 26px #00000066;
+  --region-accent: #e7c77d;
+}
+
+html, body { background: #070c09; }
+body { font-family: "Trebuchet MS", ui-sans-serif, system-ui, sans-serif; }
+#world { filter: saturate(1.06) contrast(1.03); }
+
+/* Panels get crisp pixel corners instead of soft glass. */
+.panel {
+  background: linear-gradient(180deg, #1e2a20 0%, #161f18 100%);
+  border: 2px solid var(--px-line);
+  border-radius: var(--px-radius);
+  box-shadow: var(--px-shadow);
+  backdrop-filter: none;
+}
+.panel::before { content: none; }
+
+/* ── HUD layout: calm corners, the world stays visible ───────────────── */
+.hud { inset: 10px 12px auto; align-items: flex-start; }
+.hero {
+  width: 292px; max-width: 30vw; padding: 8px 10px 7px;
+  background: linear-gradient(160deg, #1d2a20ee, #101811ee);
+  border-color: #5a6b50;
+}
+.heroTop { font-size: 11px; letter-spacing: .03em; }
+.heroTop #heroName { color: #f4e8c8; font-weight: 800; }
+.heroTop #gold { font-size: 10px; color: var(--px-gold); }
+.resourceOrbs { gap: 6px; padding: 0 0 6px; justify-content: flex-start; }
+.orb {
+  width: 46px; height: 46px;
+  border-radius: 5px;
+  background: linear-gradient(180deg, #101710, #1c261c);
+  box-shadow: 0 0 0 2px #2b3628, inset 0 0 0 2px #0a0f0a;
+  overflow: hidden;
+}
+.orb::before { display: none; }
+.orb::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(180deg, transparent 35%, var(--orb-color) 35%);
+  opacity: .38; clip-path: inset(calc(100% - var(--value)) 0 0 0);
+  transition: clip-path .14s linear;
+}
+.orbValue { font-size: 13px; z-index: 2; color: #fff6dd; text-shadow: 0 1px 0 #000; }
+.orbLabel { font-size: 6px; letter-spacing: .04em; z-index: 2; color: #cdd3bd; }
+.hpOrb { --orb-color: var(--px-hp); } .manaOrb { --orb-color: var(--px-mana); } .stamOrb { --orb-color: var(--px-stam); }
+.xpFooter { border-top: 1px solid #33402f; padding-top: 4px; font-size: 8px; color: #d8c98f; }
+.xpTrack { height: 4px; border-radius: 2px; background: #0a0f0a; }
+.xpTrack i { background: linear-gradient(90deg, #b89a4a, #efd98a); border-radius: 2px; }
+.classLine { border-top: 1px solid #2c3828; padding-top: 5px; margin-top: 4px; gap: 4px; }
+.classBadge { font-size: 8px; padding: 2px 6px; border-radius: 3px; }
+.masteryChip { font-size: 7px; padding: 1px 4px; border-radius: 3px; }
+.classWarn { font-size: 8px; }
+
+.right { gap: 6px; }
+.questPanel { width: 226px; padding: 8px 10px; background: #111a13e6; opacity: .93; }
+.questPanel h2 { font-size: 8px; margin-bottom: 4px; }
+.questPanel .qName { font-size: 11px; }
+.questPanel .qObjective { font-size: 8px; }
+.questPanel .qStatus { font-size: 8px; margin-top: 4px; }
+.questPanel .questTrack { height: 4px; }
+.zoneBadge, .brand, .leftStack, .hudCounters { display: none !important; }
+
+/* Region ribbon: a slim title plate, not a wall. */
+.regionRibbon {
+  top: 10px; min-width: 0; max-width: 34vw; padding: 5px 12px; gap: 8px;
+  background: #101811e6; border-width: 2px; border-radius: 4px;
+}
+.regionChapter { width: 26px; height: 26px; font-size: 13px; border-radius: 4px; }
+.regionText b { font-size: 13px; }
+.regionText small { font-size: 8px; }
+.regionMeta { font-size: 8px; gap: 1px; }
+.worldTools { top: 62px; gap: 4px; }
+.worldTool { padding: 4px 8px; font-size: 9px; border-width: 2px; border-radius: 4px; background: #111a13dd; }
+.worldTool kbd { font-size: 8px; border-radius: 2px; }
+.localQuestChip { top: 92px; font-size: 8px; padding: 3px 8px; }
+
+/* Chat stays out of the way until you need it. */
+.chat {
+  width: 250px; padding: 4px; background: #0d1410cc; opacity: .72;
+  transition: opacity .15s;
+}
+.chat:hover, .chat:focus-within { opacity: 1; }
+.messages { height: 50px; font-size: 9px; padding: 2px 4px; gap: 2px; }
+.chat form input { padding: 5px 7px; font-size: 9px; background: #0a100c; border-width: 1px; }
+.chat button { padding: 4px 7px; font-size: 9px; background: #55694a; color: #eef3dd; }
+.bottom { bottom: 10px; left: 12px; right: 12px; }
+/* The only desktop HUD button left is MENU — park it in the free
+   bottom-right corner, next to the minimap, well clear of the hotbar. */
+.bottom .actions {
+  position: fixed; top: auto; left: auto; right: 12px; bottom: 12px;
+  display: flex; gap: 4px; max-width: none; flex-wrap: nowrap;
+}
+.bottom .actions .actionBtn, .gameMenuButton {
+  min-width: 0; width: 62px; min-height: 30px; padding: 3px 4px; margin: 0;
+  font-size: 7px; line-height: 1.15; letter-spacing: .02em;
+  background: #17211aee; border: 2px solid #4c5c44; border-radius: 3px;
+  color: #d8dfc8; box-shadow: 0 2px 0 #0008;
+}
+.bottom .actions .actionBtn:hover, .gameMenuButton:hover { background: #2a3a2a; border-color: #7d9069; }
+.bottom .actions .actionBtn small { display: block; font-size: 6px; color: #a9b79c; }
+@media (pointer: coarse) { .bottom .actions { display: none; } }
+
+/* Minimap in a pixel frame. */
+.minimap {
+  right: 12px; bottom: 84px; width: 196px; height: 120px;
+  border: 2px solid #5a6b50; border-radius: 4px;
+  box-shadow: 0 0 0 2px #060a07, 0 6px 18px #000a;
+  background: #0a110b;
+}
+.maplabel { font-size: 7px; top: 5px; left: 6px; letter-spacing: .08em; }
+
+/* Interaction prompt above the hotbar. */
+.npcPrompt { bottom: 150px; border-width: 2px; padding: 6px 12px; border-radius: 4px; }
+.npcPrompt kbd { border-radius: 3px; }
+.progress { bottom: 128px; }
+
+/* Ability strip: small circular-ish buttons above the hotbar. */
+.abilityBar { bottom: 86px; gap: 4px; }
+.abilityBtn {
+  min-width: 64px; height: 44px; padding: 3px 6px 2px;
+  border-width: 2px; border-radius: 4px; background: #1b261d;
+}
+.abilityBtn .abilityIcon { font-size: 14px; }
+.abilityBtn .abilityName { font-size: 8px; }
+.abilityBtn .abilityMeta { display: none; }
+.abilityKey { font-size: 7px; }
+
+/* Boss bar appears only when a boss is close. */
+.bossBar {
+  position: absolute; z-index: 7; top: 116px; left: 50%; transform: translateX(-50%);
+  width: min(460px, 62vw); padding: 6px 10px 7px; text-align: center;
+  background: #12090be8; border: 2px solid #8a4a42; border-radius: 4px;
+  box-shadow: 0 0 0 2px #060a07, 0 0 24px #ff5a4a22;
+  display: none; pointer-events: none;
+}
+.bossBar.show { display: block; animation: bossBarIn .2s ease-out; }
+.bossBar b { display: block; font-size: 11px; letter-spacing: .08em; color: #ffd0b8; text-shadow: 0 1px 0 #000; }
+.bossTrack { height: 9px; margin: 4px 0 2px; background: #2a0f12; border: 1px solid #57262a; border-radius: 2px; overflow: hidden; }
+.bossTrack i { display: block; height: 100%; width: 100%; background: linear-gradient(180deg, #ff7a62, #b83232); transition: width .18s linear; }
+.bossBar small { font-size: 8px; color: #d8a898; }
+@keyframes bossBarIn { from { opacity: 0; transform: translate(-50%, -6px); } to { opacity: 1; transform: translate(-50%, 0); } }
+
+/* ── HOTBAR ──────────────────────────────────────────────────────────── */
+.mcHotbar {
+  position: absolute; z-index: 6; left: 50%; bottom: 14px; transform: translateX(-50%);
+  display: flex; gap: 4px; padding: 5px;
+  background: #0b120de8; border: 2px solid #46553d; border-radius: 5px;
+  box-shadow: 0 0 0 2px #050805, 0 6px 20px #000a;
+  pointer-events: auto;
+}
+.mcHotSlot {
+  position: relative; width: 48px; height: 48px; padding: 0;
+  display: grid; place-items: center; cursor: pointer;
+  background: linear-gradient(180deg, #26312a, #1a231c);
+  border: 2px solid #3b4a38; border-top-color: #4d5e46; border-left-color: #4d5e46;
+  border-radius: 3px; color: var(--px-text);
+  transition: transform .1s, border-color .1s, background .1s;
+  touch-action: manipulation;
+}
+.mcHotSlot:hover { border-color: #8fa078; background: #2f3c31; transform: translateY(-2px); }
+.mcHotSlot:active { transform: translateY(0); }
+.mcHotSlot.isActive { border-color: var(--px-gold); box-shadow: inset 0 0 0 1px #e9c97855, 0 0 12px #e9c97833; }
+.mcHotSlot.isActive::after { content: ''; position: absolute; inset: 0; border: 1px solid #fff2b855; border-radius: 2px; pointer-events: none; }
+.mcHotSlot .mcIcon { width: 32px; height: 32px; image-rendering: pixelated; }
+.mcHotSlot .mcKey { top: 1px; left: 3px; font-size: 8px; }
+.mcHotSlot .mcCount { bottom: 1px; right: 3px; font-size: 9px; }
+.mcSlot .mcKey, .mcHotSlot .mcKey {
+  position: absolute; color: #c8d0b8; opacity: .65; font-size: 8px;
+  font-family: ui-monospace, monospace; pointer-events: none;
+}
+.mcCount {
+  position: absolute; right: 3px; bottom: 1px;
+  font-family: ui-monospace, monospace; font-size: 10px; font-weight: 800;
+  color: #fff4d2; text-shadow: 0 1px 0 #000, 0 0 4px #000;
+  pointer-events: none;
+}
+
+/* ── INVENTORY WINDOW ───────────────────────────────────────────────── */
+.invOverlay.mcInvOverlay {
+  position: absolute; z-index: 24; inset: 0; display: none;
+  align-items: center; justify-content: center; padding: 14px;
+  background: radial-gradient(circle at 50% 45%, #0a110bcc, #040706f2);
+  backdrop-filter: blur(2px);
+}
+.mcWindow {
+  width: min(880px, 100%); max-height: min(92vh, 760px); overflow: hidden;
+  display: flex; flex-direction: column;
+  background: linear-gradient(180deg, #1d271f 0%, #131b15 100%);
+  border: 2px solid #67785a; border-radius: 6px;
+  box-shadow: 0 0 0 3px #060a07, 0 16px 44px #000c, inset 0 1px 0 #ffffff12;
+  animation: mcWindowIn .14s ease-out;
+}
+@keyframes mcWindowIn { from { transform: translateY(8px) scale(.99); opacity: 0; } to { transform: none; opacity: 1; } }
+.mcHead {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 10px 14px; border-bottom: 2px solid #3e4d37;
+  background: linear-gradient(180deg, #26331f, #1a241b);
+}
+.mcEyebrow { font-size: 8px; letter-spacing: .24em; color: #b7c79a; }
+.mcHead h2 { margin: 2px 0 1px; font-size: 18px; letter-spacing: .03em; color: #f6efd8; font-family: Georgia, serif; }
+.mcHead small { font-size: 9px; color: var(--px-muted); }
+.mcHeadRight { display: flex; align-items: center; gap: 10px; }
+.mcGold { font-size: 11px; color: var(--px-gold); border: 1px solid #6a5b34; border-radius: 3px; padding: 3px 8px; background: #221e13; }
+.mcClose {
+  width: 28px; height: 28px; display: grid; place-items: center;
+  border: 2px solid #6b4a42; border-radius: 3px; background: #2d1d1a;
+  color: #f0c8bc; cursor: pointer; font-size: 12px;
+}
+.mcClose:hover { background: #4a2a24; color: #ffe0d4; }
+
+.mcBody { display: grid; grid-template-columns: 218px 1fr; gap: 12px; padding: 12px; overflow: auto; }
+.mcSide { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.mcPaper {
+  position: relative; padding: 8px; border: 2px solid #3e4d37; border-radius: 4px;
+  background: radial-gradient(ellipse at 50% 20%, #2a382b, #131b15 80%);
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+}
+#mcAvatar { width: 150px; height: 180px; image-rendering: pixelated; border-radius: 3px; }
+.mcEquip { display: flex; gap: 6px; width: 100%; justify-content: center; }
+.mcEquipSlot { width: 46px; height: 46px; flex: none; }
+.mcEquipSlot .mcIcon { width: 32px; height: 32px; }
+.mcEquipLabel {
+  position: absolute; left: -4px; right: -4px; bottom: -15px; font-size: 7px;
+  text-align: center; color: #d8cf9f; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.mcStats { display: grid; gap: 2px; padding: 8px 9px; border: 2px solid #3e4d37; border-radius: 4px; background: #162017; }
+.mcStat { display: flex; justify-content: space-between; gap: 8px; font-size: 9px; color: #aab59c; padding: 2px 0; border-bottom: 1px dashed #29352a; }
+.mcStat:last-child { border-bottom: 0; }
+.mcStat b { color: #f2e6bd; font-family: ui-monospace, monospace; font-size: 10px; text-align: right; }
+
+.mcMain { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.mcGrid { display: grid; grid-template-columns: repeat(9, 1fr); gap: 3px; }
+.mcSlot {
+  position: relative; aspect-ratio: 1 / 1; min-width: 0; padding: 0;
+  display: grid; place-items: center; cursor: pointer;
+  background: linear-gradient(160deg, #27322b, #1a231c);
+  border: 2px solid #3a4735; border-top-color: #4b5b44; border-left-color: #4b5b44;
+  border-radius: 3px; color: var(--px-text);
+  transition: border-color .1s, background .1s, transform .08s;
+}
+.mcSlot:hover { border-color: #9aab80; background: #2e3b30; z-index: 2; }
+.mcSlot.isSelected { border-color: var(--px-gold); box-shadow: 0 0 0 1px #e9c97844, inset 0 0 12px #e9c97822; }
+.mcSlot.isEquipped { border-color: #c9b06a; }
+.mcSlot.isDragging { opacity: .45; }
+.mcSlot .mcIcon { width: 34px; height: 34px; image-rendering: pixelated; }
+.mcSlot .mcTag {
+  position: absolute; top: 0; right: 2px; color: var(--px-gold);
+  font-size: 10px; text-shadow: 0 1px 0 #000;
+}
+.mcSlot.rarity-uncommon { border-color: #4f8a55; }
+.mcSlot.rarity-rare { border-color: #4f7d99; }
+.mcSlot.rarity-epic { border-color: #7a5c96; }
+.mcSlot.rarity-legendary { border-color: #b08a44; box-shadow: inset 0 0 10px #e9c97822; }
+.mcSlotKey { font-size: 7px; letter-spacing: .08em; color: #66745e; }
+.mcSlot.mcEquipSlot { aspect-ratio: auto; }
+
+.mcHotbarEdit { border: 2px solid #3e4d37; border-radius: 4px; padding: 6px 8px 8px; background: #141d15; }
+.mcHotbarLabel { display: block; font-size: 8px; letter-spacing: .14em; text-transform: uppercase; color: #b8c79c; margin-bottom: 5px; }
+.mcHotbarSlots { display: grid; grid-template-columns: repeat(9, 1fr); gap: 3px; }
+.mcHotbarSlots .mcSlot { min-height: 42px; }
+
+.mcActions {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  min-height: 52px; padding: 7px 9px; border: 2px solid #3e4d37; border-radius: 4px;
+  background: #141d15;
+}
+.mcHint { font-size: 9px; color: #97a189; line-height: 1.4; }
+.mcSel { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.mcSelIcon { display: grid; place-items: center; width: 38px; height: 38px; flex: none; border: 2px solid #41503a; border-radius: 3px; background: #202b22; }
+.mcSel b { display: block; font-size: 11px; }
+.mcSel small { display: block; font-size: 8px; color: #a5af97; margin-top: 2px; line-height: 1.3; }
+.mcActBtns { display: flex; gap: 5px; flex: none; }
+.mcActBtns button {
+  border: 2px solid #6a7c58; border-radius: 3px; padding: 6px 10px; cursor: pointer;
+  background: #37472f; color: #eef2dd; font-size: 9px; font-weight: 700; letter-spacing: .03em;
+}
+.mcActBtns button:hover { background: #4d623f; border-color: #c9b06a; color: #ffefb8; }
+.mcFootNote { margin: 0; font-size: 8px; color: #7f8a74; }
+.mcFootNote b { color: #cdb877; }
+
+.mcTooltip {
+  position: fixed; z-index: 60; max-width: 260px; padding: 7px 9px;
+  background: #0c130eee; border: 2px solid #6f805d; border-radius: 4px;
+  box-shadow: 0 0 0 2px #050805, 0 8px 20px #000b; pointer-events: none;
+}
+.mcTooltip b { display: block; font-size: 11px; margin-bottom: 3px; }
+.mcTooltip small { display: block; font-size: 8px; color: #b8c0aa; line-height: 1.4; }
+.mcTooltip em { display: block; margin-top: 4px; font-size: 8px; font-style: normal; color: #e0cb8d; }
+.mcGhost {
+  position: fixed; z-index: 100; pointer-events: none;
+  width: 40px; height: 40px; display: grid; place-items: center;
+  background: #1f2b21dd; border: 2px solid #d8c58a; border-radius: 3px;
+  box-shadow: 0 6px 18px #000b; transform: translate(-2px, -2px);
+}
+.mcGhost .mcIcon { width: 32px; height: 32px; image-rendering: pixelated; }
+
+/* keep rarity colours readable on the new dark slots */
+.rarity-common { color: #d7dcc9 !important; }
+.rarity-uncommon { color: #86cf91 !important; }
+.rarity-rare { color: #79bce2 !important; }
+.rarity-epic { color: #c49be8 !important; }
+.rarity-legendary { color: #f1b75e !important; }
+
+/* Old bag markup is replaced on first open; keep it from flashing. */
+.invCard { display: none; }
+
+/* ── responsive ─────────────────────────────────────────────────────── */
+@media (max-width: 1120px) {
+  .mcHotSlot { width: 42px; height: 42px; }
+  .mcHotSlot .mcIcon { width: 28px; height: 28px; }
+  .chat { width: 210px; bottom: 74px; }
+  .messages { height: 36px; }
+  .minimap { width: 168px; height: 104px; bottom: 74px; }
+  .questPanel { width: 200px; }
+}
+@media (max-width: 860px) {
+  .hud { inset: 6px 8px auto; }
+  .hero { width: 220px; max-width: 45vw; padding: 6px 8px; }
+  .orb { width: 38px; height: 38px; }
+  .orbValue { font-size: 11px; }
+  .regionRibbon { max-width: 40vw; padding: 4px 8px; }
+  .regionText b { font-size: 11px; }
+  .regionChapter { width: 22px; height: 22px; font-size: 11px; }
+  .questPanel { width: 176px; padding: 6px 8px; }
+  .questPanel .qStatus, .questPanel .qObjective:nth-of-type(2) { display: none; }
+  .mcBody { grid-template-columns: 1fr; }
+  .mcSide { flex-direction: row; align-items: stretch; }
+  .mcPaper { flex: 1; }
+  #mcAvatar { width: 110px; height: 132px; }
+  .mcStats { flex: 1; }
+  .mcGrid { grid-template-columns: repeat(6, 1fr); }
+  .mcHotbarSlots { grid-template-columns: repeat(9, 1fr); }
+  .mcWindow { max-height: 94vh; }
+  .abilityBar { bottom: 74px; }
+  .npcPrompt { bottom: 132px; }
+}
+@media (max-width: 560px) {
+  .hero { width: 190px; }
+  .heroTop { font-size: 9px; }
+  .orb { width: 32px; height: 32px; }
+  .orbValue { font-size: 9px; }
+  .orbLabel { display: none; }
+  .regionRibbon { display: none; }
+  .questPanel { width: 150px; font-size: 8px; }
+  .questPanel .qName { font-size: 9px; }
+  .questPanel .qObjective { font-size: 7px; }
+  .mcHotbar { gap: 2px; padding: 3px; bottom: 8px; max-width: 98vw; }
+  .mcHotSlot { width: 34px; height: 34px; }
+  .mcHotSlot .mcIcon { width: 24px; height: 24px; }
+  .mcHotSlot .mcKey { font-size: 6px; }
+  /* Phones: hotbar on the bottom edge, abilities and chat above it.
+     The minimap is redundant here — the КАРТА button opens the full map. */
+  .minimap { display: none; }
+  .bottom .actions { display: none; }
+  .abilityBar { bottom: 52px; right: 8px; left: auto; transform: none; max-width: 54vw; justify-content: flex-end; }
+  .abilityBtn { min-width: 44px; height: 36px; }
+  .chat {
+    display: flex; position: fixed; left: 8px; bottom: 52px; width: 42vw;
+    padding: 2px 3px; opacity: .62; z-index: 9;
+  }
+  .chat .messages { display: none; }
+  .chat:focus-within { opacity: 1; z-index: 40; }
+  .chat:focus-within .messages {
+    display: flex; position: absolute; bottom: calc(100% + 4px); left: 0; right: 0;
+    height: 78px; padding: 4px 6px; background: #0a100cef;
+    border: 2px solid #3b4a38; border-radius: 3px;
+  }
+  .chat form input { padding: 4px 6px; font-size: 10px; }
+  .chat form button { padding: 4px 7px; }
+  .abilityName { font-size: 7px; }
+  .mcHead h2 { font-size: 14px; }
+  .mcHead { padding: 7px 9px; }
+  .mcBody { padding: 8px; gap: 8px; }
+  .mcGrid { grid-template-columns: repeat(6, 1fr); }
+  .mcSide { flex-direction: column; }
+  .mcPaper { flex-direction: row; }
+  #mcAvatar { width: 92px; height: 112px; }
+  .mcActions { flex-direction: column; align-items: stretch; }
+  .mcActBtns { justify-content: stretch; }
+  .mcActBtns button { flex: 1; }
+  .mcFootNote { display: none; }
+  .bossBar { top: 78px; width: 76vw; }
+  .npcPrompt { bottom: 112px; font-size: 9px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mcWindow, .bossBar { animation: none; }
+}

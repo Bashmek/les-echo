@@ -152,14 +152,34 @@ function buildTerrain(r) {
     ruins: ['#3a4030', '#5a6040', '#8a8a58'], glacier: ['#4a7080', '#7aa8b8', '#c8e8f0'], rift: ['#3a2a50', '#6a4a8a', '#a87ad0'],
     abyss: ['#2a2a4a', '#4a4a7a', '#7a7ab0'], obsidian: ['#2a1f33', '#4a3050', '#7a5080'], garden: ['#2a5038', '#4f8448', '#a4c86a'],
   };
-  for (let i = 0; i < 260; i++) {
+  // Fine ground texture. Solid props (trees, rocks, pillars, crystals) are
+  // drawn by render.js from the authoritative obstacle list so that what you
+  // see is exactly what blocks movement.
+  const leafCol = r.id === 'glacier' ? '#d8f2f5' : r.id === 'ruins' ? '#b8a06a' : r.id === 'rift' || r.id === 'abyss' ? '#b98ad8' : r.id === 'obsidian' ? '#c88ad8' : r.id === 'garden' ? '#cfe89a' : '#b4d17a';
+  for (let i = 0; i < 420; i++) {
     const x = 40 + rnd() * 1920, y = 40 + rnd() * 1420;
-    if (Math.abs(y - 820) < 65 || (x < 800 && y > 500 && y < 1100) || Math.hypot(x - 1050, y - 430) < 150 || Math.hypot(x - 1480, y - 390) < 150 || Math.hypot(x - 1560, y - 1130) < 140) continue;
-    const v = rnd(), s = 14 + rnd() * 22;
-    if (r.id === 'glacier' || r.id === 'rift' || r.id === 'abyss' || r.id === 'obsidian') { if (v > .45) crystal(c, x, y, s, r.light, r.accent); else rock(c, x, y, s, r.dark); }
-    else if (r.id === 'ruins') { if (v > .6) ruinPillar(c, x, y, 25 + rnd() * 45, r.light); else rock(c, x, y, s, r.light); }
-    else if (r.id === 'marsh') { if (v > .5) { c.strokeStyle = '#7a9a60'; c.lineWidth = 2; for (let j = 0; j < 4; j++) { c.beginPath(); c.moveTo(x + j * 4, y + 8); c.lineTo(x + j * 4 + (rnd() - .5) * 8, y - 14 - rnd() * 10); c.stroke(); } } else pixelTree(c, x, y, s, palettes[r.id], .8); }
-    else { if (v > .25) pixelTree(c, x, y, s, palettes[r.id], rnd()); else rock(c, x, y, s * .7, r.light); }
+    if (Math.abs(y - 820) < 52 || (x < 780 && y > 520 && y < 1080)) continue;
+    const v = rnd();
+    c.globalAlpha = .18 + v * .28;
+    if (v > .82) {
+      // grass tuft
+      c.strokeStyle = r.light; c.lineWidth = 1.4;
+      for (let j = -1; j <= 1; j++) { c.beginPath(); c.moveTo(x, y); c.lineTo(x + j * 3, y - 5 - Math.abs(j)); c.stroke(); }
+    } else if (v > .7) {
+      // fallen leaf / petal
+      px(c, x, y, 3, 2, leafCol);
+    } else if (v > .6) {
+      // pebble
+      px(c, x, y, 3, 2, r.dark);
+    }
+    c.globalAlpha = 1;
+  }
+  // Subtle patches of lighter moss and darker soil.
+  for (let i = 0; i < 40; i++) {
+    const x = rnd() * r.width, y = rnd() * r.height;
+    c.globalAlpha = .07 + rnd() * .06;
+    ellipse(c, x, y, 40 + rnd() * 90, 20 + rnd() * 40, rnd() > .5 ? r.light : r.dark);
+    c.globalAlpha = 1;
   }
   // Hub buildings and NPC stations.
   drawStall(c, 615, 705, '#b86d4a');
@@ -168,10 +188,6 @@ function buildTerrain(r) {
   px(c, 320, 610, 60, 40, '#6a4e32'); px(c, 325, 615, 50, 30, '#d8c8a0'); px(c, 345, 650, 8, 24, '#4a3624');
   if (r.id === 'camp') { drawTent(c, 240, 520, '#7a8a5a'); drawTent(c, 700, 470, '#8a6a4a'); drawStall(c, 800, 650, '#5a7a9a'); }
   drawLandmark(c, r);
-  // Boss arena.
-  if (r.danger > 0) { const [bx, by] = r.boss_arena; c.strokeStyle = r.accent + '66'; c.lineWidth = 3; c.beginPath(); c.ellipse(bx, by, 120, 70, 0, 0, Math.PI * 2); c.stroke(); c.setLineDash([8, 10]); c.beginPath(); c.ellipse(bx, by, 95, 55, 0, 0, Math.PI * 2); c.stroke(); c.setLineDash([]); }
-  // Waystone bases.
-  for (const portal of (snap?.portals || []).filter(p => p.region === r.id)) { ellipse(c, portal.x, portal.y + 24, 40, 14, '#00000044'); px(c, portal.x - 28, portal.y - 40, 12, 64, '#6a6a78'); px(c, portal.x + 16, portal.y - 40, 12, 64, '#6a6a78'); px(c, portal.x - 30, portal.y - 48, 60, 12, '#8a8a98'); }
   // Map border: dense trees / cliffs.
   c.strokeStyle = r.dark; c.lineWidth = 24; c.strokeRect(0, 0, r.width, r.height);
   return cv;
