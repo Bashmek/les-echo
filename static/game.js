@@ -83,9 +83,9 @@ function requestStatUpgrade(button){const stat=button?.dataset.stat;if(!stat||bu
 function renderStatsPanel(p){if(!p)return;const pointsNode=$('points');if(pointsNode){const raw=Number(p.skill_points);const points=Number.isFinite(raw)?Math.max(0,Math.floor(raw)):0;pointsNode.textContent=`Свободно: ${points}`;pointsNode.classList.toggle('hasPoints',points>0)}const view=p.upgrades_view||{},stats=p.stat_values||p.stats||{};const fallback={might:stats.might,vitality:stats.vitality,agility:stats.agility,mana_regen:p.mana_regen_level,magic_damage:p.magic_damage_level,insight:p.insight_level,precision:stats.precision,fortune:stats.fortune};for(const [key,id] of [['might','might'],['vitality','vitality'],['agility','agility'],['mana_regen','manaRegenLevel'],['magic_damage','magicDamageLevel'],['precision','precision'],['fortune','fortune']]){const node=$(id),entry=view[key];if(!node)continue;const raw=entry&&entry.level!==undefined?entry.level:fallback[key];const n=Number(raw);if(Number.isFinite(n)){const value=Math.max(['might','vitality','agility','precision','fortune'].includes(key)?1:0,Math.floor(n));node.textContent=String(value);if(entry?.effect)node.title=entry.effect}}document.querySelectorAll('.upgrade').forEach(button=>refreshUpgradeButton(button,p))}
 function me(){return snap?.players.find(p=>p.id===myId)}
 function message(text,type='notice',name=''){let box=$('messages'),row=document.createElement('div');row.className='msg '+type;if(type==='chat'){let b=document.createElement('b');b.textContent=name+': ';row.append(b,document.createTextNode(text))}else row.textContent=text;box.append(row);while(box.children.length>5)box.removeChild(box.firstChild);setTimeout(()=>row.remove(),14000)}function toast(t){message(t,'notice')}
-const ABILITY_DEFAULT_KEYS={roar:'KeyR',lunge:'KeyT',whirlwind:'KeyC',iron_guard:'KeyV',bash:'KeyB',bloodhunt:'KeyN',seismic_slam:'KeyM',arrow_rain:'KeyR',piercing_shot:'KeyT',fire_arrow:'KeyC',ice_arrow:'KeyV',double_shot:'KeyX',poison_arrow:'KeyB',blackout_bolt:'KeyN',eagle_mark:'KeyM'};
+const ABILITY_DEFAULT_KEYS={roar:'KeyR',lunge:'KeyT',whirlwind:'KeyK',iron_guard:'KeyP',bash:'KeyO',bloodhunt:'KeyN',seismic_slam:'KeyL',arrow_rain:'KeyR',piercing_shot:'KeyT',fire_arrow:'KeyK',ice_arrow:'KeyP',double_shot:'KeyX',poison_arrow:'KeyO',blackout_bolt:'KeyN',eagle_mark:'KeyL',arcane_bolt:'KeyR',frost_lance:'KeyT',chain_lightning:'KeyX',arcane_shield:'KeyN',blink:'KeyO',flame_burst:'KeyP',mana_surge:'KeyK',meteor_fall:'KeyL'};
 const ABILITY_TREE_NAMES={warrior:'Воин',ranger:'Следопыт',mage:'Маг'};
-const ABILITY_RESERVED=new Set(['KeyW','KeyA','KeyS','KeyD','KeyE','KeyF','KeyI','KeyM','KeyB','KeyG','KeyH','KeyQ','KeyP','KeyO','KeyL','KeyJ','KeyK','KeyU','KeyY']);
+const ABILITY_RESERVED=new Set(['KeyW','KeyA','KeyS','KeyD','KeyE','KeyF','KeyI','KeyM','KeyB','KeyG','KeyH','KeyQ','KeyC','KeyV','KeyZ']);
 let abilityKeys={};
 try{abilityKeys=JSON.parse(localStorage.getItem('echoAbilityKeys')||'{}')||{}}catch{abilityKeys={}}
 let abilityKeyCodeToId={},pendingAbilityBinding='',classOfferDismissed=false,classChoicePending=false,abilityFx=[],hoverAbilityId='';
@@ -162,7 +162,7 @@ function renderAbilityCards(container,p,tree,compact){
  container.dataset.renderSig=sig;container.textContent='';
  list.forEach(a=>{
   const b=document.createElement('button');b.type='button';b.className='abilityBtn';b.dataset.ability=a.id;
-  const cost=document.createElement('span');cost.className='abilityCost';cost.textContent=a.arrows?`${a.arrows}➶`:`${a.cost}`;
+  const cost=document.createElement('span');cost.className='abilityCost'+(a.resource==='mana'?' isMana':'');cost.textContent=a.arrows?`${a.arrows}➶`:`${a.cost}`;
   const key=document.createElement('span');key.className='abilityKey';key.textContent=keyLabel(abilityBindingCode(a));
   const icon=document.createElement('span');icon.className='abilityIcon';icon.textContent=a.icon||'✦';
   const name=document.createElement('span');name.className='abilityName';name.textContent=a.name;
@@ -177,7 +177,7 @@ function refreshAbilityCards(p){
  if(!p)return;
  document.querySelectorAll('[data-ability]').forEach(b=>{
   const a=p.abilities?.[b.dataset.ability];if(!a){b.disabled=true;return}
-  const compatible=!!p.class&&p.class===a.tree,remain=Number(a.remaining||0),cd=Math.max(.1,Number(a.cooldown||1)),low=Number(p.stamina||0)<Number(a.cost||0),needArrows=Number(a.arrows||0),arrows=Number(p.inventory?.arrows||0),noArrows=needArrows>arrows;
+  const resKey=a.resource==='mana'?'mana':'stamina',resWord=a.resource==='mana'?'маны':'выносливости',resShort=a.resource==='mana'?'ман':'вын';  const compatible=!!p.class&&p.class===a.tree,remain=Number(a.remaining||0),cd=Math.max(.1,Number(a.cooldown||1)),low=Number(p[resKey]||0)<Number(a.cost||0),needArrows=Number(a.arrows||0),arrows=Number(p.inventory?.arrows||0),noArrows=needArrows>arrows;
   b.disabled=!compatible||!a.unlocked||remain>0||low||noArrows;
   b.classList.toggle('is-locked',!!p.class&&!a.unlocked);
   b.classList.toggle('incompatible',!!p.class&&!compatible);
@@ -189,11 +189,11 @@ function refreshAbilityCards(p){
    else if(!compatible)meta.textContent=`Только для класса «${ABILITY_TREE_NAMES[a.tree]}»`;
    else if(!a.unlocked)meta.textContent=`Откроется на ${a.mastery_required} ур. мастерства`;
    else if(remain>0)meta.textContent=`Перезарядка ${remain.toFixed(1)} с`;
-   else if(low)meta.textContent=`Нужно ${a.cost} выносливости`;
+   else if(low)meta.textContent=`Нужно ${a.cost} ${resWord}`;
    else if(noArrows)meta.textContent=`Нужно стрел: ${needArrows}`;
-   else meta.textContent=`${a.cost} вын · ${cd.toFixed(1)} с${needArrows?` · ${needArrows}➶`:''}`;
+   else meta.textContent=`${a.cost} ${resShort} · ${cd.toFixed(1)} с${needArrows?` · ${needArrows}➶`:''}`;
   }
-  b.title=`${a.name} · ${a.cost} выносливости${needArrows?`, стрел: ${needArrows}`:''} · перезарядка ${cd.toFixed(1)} с · открывается на ${a.mastery_required} ур. мастерства «${ABILITY_TREE_NAMES[a.tree]}». ${a.desc||''}`;
+  b.title=`${a.name} · ${a.cost} ${resWord}${needArrows?`, стрел: ${needArrows}`:''} · перезарядка ${cd.toFixed(1)} с · открывается на ${a.mastery_required} ур. мастерства «${ABILITY_TREE_NAMES[a.tree]}». ${a.desc||''}`;
  });
 }
 function renderAbilityBindings(p,tree){
@@ -218,11 +218,11 @@ function syncAbilityKeyMap(p,tree){
 function updateActionPanels(p){
  if(!p)return;
  renderClassUi(p);
- const tree=p.action_tree||'warrior',chosen=!!p.class,showAbilities=chosen&&tree!=='mage';
+ const tree=p.action_tree||'warrior',chosen=!!p.class,showAbilities=chosen;
  const spellBar=$('spellBar');
  if(spellBar)spellBar.style.display=(!chosen||tree==='mage')?'':'none';
  const bar=$('abilityBar');
- if(bar){bar.style.display=showAbilities?'flex':'none';if(showAbilities)renderAbilityCards(bar,p,tree,true)}
+ if(bar){bar.style.display=showAbilities?'flex':'none';bar.classList.toggle('stacked',showAbilities&&tree==='mage');if(showAbilities)renderAbilityCards(bar,p,tree,true)}
  const section=$('abilitySection');
  if(section){
   section.hidden=!showAbilities;
@@ -244,10 +244,12 @@ function useAbility(id){
  send({type:'ability',ability:id,aim_x:dx,aim_y:dy,target_x:t.x,target_y:t.y});
 }
 function handleAbilityCast(d){
- const colors={roar:'#ffd27a',lunge:'#ffe39a',whirlwind:'#ffcf7c',iron_guard:'#9bd7ff',bash:'#ffb37a',bloodhunt:'#e2555f',seismic_slam:'#d9b26a',arrow_rain:'#c7e884',piercing_shot:'#d8f5b0',fire_arrow:'#ff8b4a',ice_arrow:'#86e8ff',double_shot:'#d8f5b0',poison_arrow:'#9ede6a',blackout_bolt:'#a98bd8',eagle_mark:'#ffd98a'};
+ const colors={roar:'#ffd27a',lunge:'#ffe39a',whirlwind:'#ffcf7c',iron_guard:'#9bd7ff',bash:'#ffb37a',bloodhunt:'#e2555f',seismic_slam:'#d9b26a',arrow_rain:'#c7e884',piercing_shot:'#d8f5b0',fire_arrow:'#ff8b4a',ice_arrow:'#86e8ff',double_shot:'#d8f5b0',poison_arrow:'#9ede6a',blackout_bolt:'#a98bd8',eagle_mark:'#ffd98a',arcane_bolt:'#b678ff',frost_lance:'#65dfff',flame_burst:'#ff7a3d',chain_lightning:'#fff078',blink:'#a6e8ff',arcane_shield:'#8fd4ff',mana_surge:'#86d9ff',meteor_fall:'#ffb347'};
  const col=colors[d.ability]||'#e8d38c',now=performance.now();
- abilityFx.push({kind:d.ability,x:d.x,y:d.y,from_x:d.from_x??d.x,from_y:d.from_y??d.y,to_x:d.target_x??d.x,to_y:d.target_y??d.y,radius:Number(d.radius||0),until:now+(d.ability==='lunge'?380:760)});
- spawnParticles(d.x,d.y,col,16,4.5,4,.55);
+ abilityFx.push({kind:d.ability,x:d.x,y:d.y,from_x:d.from_x??d.x,from_y:d.from_y??d.y,to_x:d.target_x??d.x,to_y:d.target_y??d.y,radius:Number(d.radius||0),chain:Array.isArray(d.chain)?d.chain:[],until:now+(d.ability==='lunge'?380:d.ability==='blink'?420:760)});
+ spawnParticles(d.x,d.y,col,d.ability==='meteor_fall'?30:16,d.ability==='meteor_fall'?6:4.5,d.ability==='meteor_fall'?6:4,.55);
+ // concise audio for the caster's own casts (server echoes are for everyone)
+ if(typeof myId!=='undefined'&&d.id===myId){const a=window.LesEchoAudio;if(a){const elem={arcane_bolt:'Тень',frost_lance:'Лёд',flame_burst:'Огонь',chain_lightning:'Молния',meteor_fall:'Звёзды'}[d.ability];if(d.ability==='meteor_fall'){sfxCall('impact','fire');triggerScreenShake(11,d.x,d.y)}else if(d.ability==='chain_lightning'){sfxCall('cast','Молния');triggerScreenShake(4,d.x,d.y)}else if(d.ability==='blink'){sfxCall('dodge')}else if(d.ability==='mana_surge'){sfxCall('level')}else if(elem){sfxCall('cast',elem)}else{sfxCall('swing',d.ability==='whirlwind'||d.ability==='seismic_slam')}}}
 }
 function drawGroundAndAbilityFx(now,ox,oy){
  if(snap?.ground_effects)for(const f of snap.ground_effects){
@@ -264,6 +266,9 @@ function drawGroundAndAbilityFx(now,ox,oy){
   }
   ctx.restore();
  }
+ drawAbilityFx(now,ox,oy);
+}
+function drawAbilityFx(now,ox,oy){
  for(const fx of abilityFx){
   const life=Math.max(0,Math.min(1,(fx.until-now)/700)),x=fx.x+ox,y=fx.y+oy;
   ctx.save();ctx.globalCompositeOperation='lighter';
@@ -274,6 +279,58 @@ function drawGroundAndAbilityFx(now,ox,oy){
    const rr=30+(1-life)*80;ctx.globalAlpha=life*.8;ctx.strokeStyle='#ffd887';ctx.lineWidth=3;ctx.beginPath();ctx.arc(x,y,rr,0,Math.PI*2);ctx.stroke();
   }else if(fx.kind==='iron_guard'){
    ctx.globalAlpha=life*.7;ctx.strokeStyle='#a8e2ff';ctx.lineWidth=3;ctx.beginPath();ctx.arc(x,y,24+(1-life)*8,0,Math.PI*2);ctx.stroke();
+  }else if(fx.kind==='blink'){
+   // a streak that only ignites toward the landing point, plus fading sparks:
+   // a flat white bar would burn out the whole screen under 'lighter'.
+   const x0=fx.from_x+ox,y0=fx.from_y+oy,x1=fx.to_x+ox,y1=fx.to_y+oy;
+   const along=ctx.createLinearGradient(x0,y0,x1,y1);
+   along.addColorStop(0,'#7fd4ff00');along.addColorStop(.5,'#8fdcff99');along.addColorStop(1,'#eafaff');
+   ctx.lineCap='round';ctx.globalAlpha=life*.8;ctx.strokeStyle=along;ctx.lineWidth=5;
+   ctx.beginPath();ctx.moveTo(x0,y0);ctx.lineTo(x1,y1);ctx.stroke();
+   ctx.globalAlpha=life*.85;ctx.strokeStyle='#ffffff';ctx.lineWidth=1.3;
+   ctx.beginPath();ctx.moveTo(x0+(x1-x0)*.45,y0+(y1-y0)*.45);ctx.lineTo(x1,y1);ctx.stroke();
+   for(let i=0;i<7;i++){const q=i/7;ctx.globalAlpha=life*(1-q)*.6;ctx.fillStyle='#bfe9ff';ctx.beginPath();ctx.arc(x0+(x1-x0)*q,y0+(y1-y0)*q-4*Math.sin(q*7),Math.max(.6,2.6-q*1.8),0,Math.PI*2);ctx.fill()}
+  }else if(fx.kind==='chain_lightning'){
+   const pts=[{x:fx.from_x,y:fx.from_y},...(fx.chain||[]).map(c=>({x:Number(c.x),y:Number(c.y)}))];
+   ctx.lineCap='round';
+   for(let i=1;i<pts.length;i++){
+    const a=pts[i-1],b=pts[i];
+    for(const [w,col,al] of [[6,'#3fa4ff',.55],[2.4,'#eafcff',.95]]){
+     ctx.globalAlpha=life*al;
+     ctx.strokeStyle=col;ctx.lineWidth=w;ctx.beginPath();ctx.moveTo(a.x+ox,a.y+oy);
+     const segs=5;
+     for(let k=1;k<=segs;k++){const t=k/segs,jx=k<segs?(Math.random()-.5)*14:0,jy=k<segs?(Math.random()-.5)*14:0;
+      ctx.lineTo(a.x+ox+(b.x-a.x)*t+jx,a.y+oy+(b.y-a.y)*t+jy)}
+     ctx.stroke();
+    }
+    // sparks where the arc bites each target
+    ctx.globalAlpha=life*.9;
+    for(let n=0;n<5;n++){const ang=n*1.2566+i*.6,len=7+((i*3+n)%5)*2.4;
+     ctx.strokeStyle=n%2?'#fff8c8':'#8fdcff';ctx.lineWidth=1.4;
+     ctx.beginPath();ctx.moveTo(b.x+ox,b.y+oy);ctx.lineTo(b.x+ox+Math.cos(ang)*len,b.y+oy+Math.sin(ang)*len);ctx.stroke()}
+   }
+  }else if(fx.kind==='flame_burst'||fx.kind==='meteor_fall'){
+   const rr=Math.max(60,Number(fx.radius||120)),k=fx.kind==='meteor_fall';
+   ctx.globalAlpha=life*.9;ctx.strokeStyle=k?'#ffb347':'#ff7a3d';ctx.lineWidth=k?7:5;
+   ctx.beginPath();ctx.arc(x,y,rr*(.3+.7*(1-life)),0,Math.PI*2);ctx.stroke();
+   ctx.globalAlpha=life*.6;ctx.strokeStyle=k?'#fff0a8':'#ffd08a';ctx.lineWidth=2;
+   ctx.beginPath();ctx.arc(x,y,rr*(.15+.85*(1-life))*1.12,0,Math.PI*2);ctx.stroke();
+   if(k){const fall=(1-life)*260;ctx.globalAlpha=life;ctx.strokeStyle='#ffd08a';ctx.lineWidth=9;ctx.lineCap='round';
+    ctx.beginPath();ctx.moveTo(x+34,y-fall-40);ctx.lineTo(x,y);ctx.stroke();}
+   else{// flame burst: tongues licking up off the shockwave so it reads as fire, not a ring
+    const edge=rr*(.3+.7*(1-life));
+    for(let n=0;n<12;n++){const ang=n/12*Math.PI*2+.2,h=(9+7*Math.abs(Math.sin(now/145+n*1.7)))*(0.5+life);
+     const bx=x+Math.cos(ang)*edge,by=y+Math.sin(ang)*edge*.72;
+     ctx.globalAlpha=life*.5;ctx.fillStyle=n%2?'#ffb347':'#ff6a34';
+     ctx.beginPath();ctx.moveTo(bx-4,by);ctx.quadraticCurveTo(bx,by-2*h,bx+4,by);ctx.fill()}
+   }
+  }else if(fx.kind==='arcane_shield'){
+   ctx.globalAlpha=life*.7;ctx.strokeStyle='#8fd4ff';ctx.lineWidth=2.5;
+   ctx.beginPath();ctx.arc(x,y-16,26+(1-life)*6,0,Math.PI*2);ctx.stroke();
+   ctx.globalAlpha=life*.35;ctx.fillStyle='#3f7fbf';ctx.beginPath();ctx.arc(x,y-16,24+(1-life)*5,0,Math.PI*2);ctx.fill();
+  }else if(fx.kind==='mana_surge'){
+   for(let i=0;i<9;i++){const q=(i/9+(1-life))%1;ctx.globalAlpha=(1-q)*life;ctx.fillStyle='#a9e7ff';ctx.beginPath();ctx.arc(x+(i%3-1)*10,y-6-q*54,2.4,0,Math.PI*2);ctx.fill()}
+   ctx.globalAlpha=life*.5;ctx.strokeStyle='#86d9ff';ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y,18+(1-life)*26,0,Math.PI*2);ctx.stroke();
   }else if(fx.kind==='whirlwind'){
    const rr=Math.max(70,Number(fx.radius||100));ctx.globalAlpha=life*.8;ctx.strokeStyle='#ffd27a';ctx.lineWidth=5;ctx.beginPath();ctx.arc(x,y,rr*(.45+.55*(1-life)),0,Math.PI*2);ctx.stroke();
   }else{
@@ -393,17 +450,17 @@ renderKeybindSections=()=>{
  const resetAct=document.createElement('button');resetAct.type='button';resetAct.className='close';resetAct.style.marginTop='8px';resetAct.textContent='Сбросить клавиши действий к стандартным';
  resetAct.onclick=()=>{actionKeys={...ACTION_KEY_DEFAULTS};saveActionKeys();listeningActionKey=null;syncActionKeyLabels();updateActionPanels(me());renderKeybindSections();toast('Клавиши действий сброшены')};
  host.appendChild(keybindSection('Игровые действия','Нажмите «Изменить», затем любую свободную клавишу. Esc — отмена. ESC, Enter и WASD защищены от назначения, чтобы меню и чат всегда открывались.',actRows,resetAct));
- if(p.class&&tree!=='mage'){
+ if(p.class){
   const list=classAbilityList(p,tree);
   const rows=list.map(a=>keybindRow(`${a.name} · ${ABILITY_TREE_NAMES[tree]||''}`,keyLabel(abilityBindingCode(a)),keybindListening?.kind==='ability'&&keybindListening.id===a.id,()=>{keybindListening={kind:'ability',id:a.id};renderKeybindSections()}));
   const reset=document.createElement('button');reset.type='button';reset.className='close';reset.style.marginTop='8px';reset.textContent='Сбросить клавиши способностей';
   reset.onclick=()=>{abilityKeys={};saveAbilityKeys();keybindListening=null;updateActionPanels(me());renderKeybindSections();toast('Клавиши способностей сброшены к стандартным')};
-  host.appendChild(keybindSection(`Способности · ${ABILITY_TREE_NAMES[tree]||tree}`,'Буквенные клавиши A–Z, кроме служебных (WASD, E, F, I, M, B, G, H, Q).',rows,reset));
+  host.appendChild(keybindSection(`Способности · ${ABILITY_TREE_NAMES[tree]||tree}`,tree==='mage'?'Способности мага тратят ману. Клавиши — буквы A–Z, кроме занятых (WASD, E, F, I, M, B, G, H, Q, C, V, Z).':'Клавиши — буквы A–Z, кроме занятых (WASD, E, F, I, M, B, G, H, Q, C, V, Z).',rows,reset));
  }
  if(!p.class||tree==='mage'){
   const catalog=p.spell_catalog||{};
-  const rows=spellIds.map((id,i)=>keybindRow(spellNames[id]||id,keyLabel(spellKeyCodes[i]),keybindListening?.kind==='spell'&&keybindListening.id===id,()=>{keybindListening={kind:'spell',id};renderKeybindSections()}));
-  host.appendChild(keybindSection('Классовые заклинания','Для этих клавиш доступны цифры 0–9.',rows));
+  const rows=spellIds.map((id,i)=>keybindRow(spellNames[id]||id,spellKeyLabel(spellKeyCodes[i]),keybindListening?.kind==='spell'&&keybindListening.id===id,()=>{keybindListening={kind:'spell',id};renderKeybindSections()}));
+  host.appendChild(keybindSection('Классовые заклинания','Заклинания нажимаются с Shift + цифра, чтобы не мешать быстрым слотам инвентаря (1–9).',rows));
   const customs=p.custom_spells||[];
   if(customs.length){
    const crows=customs.map(sp=>{const id=sp.id||sp.spell_id||sp.custom_id;if(!id)return null;return keybindRow(sp.name||'Заклинание',displaySpellKey(sp.key),keybindListening?.kind==='custom'&&keybindListening.id===id,()=>{keybindListening={kind:'custom',id};renderKeybindSections()})}).filter(Boolean);
@@ -484,7 +541,9 @@ const defaultSpellCodes=['Digit1','Digit2','Digit3','Digit4','Digit5','Digit6','
 let spellKeyCodes=(()=>{try{let saved=JSON.parse(localStorage.getItem(spellKeyStore)||'null');return Array.isArray(saved)&&saved.length===spellIds.length?saved:defaultSpellCodes.slice()}catch{return defaultSpellCodes.slice()}})();
 let spellKeyCodeToId={}; let customSpellKeys={},customSpellSignature="";
 function keyLabel(code){return code?.startsWith('Digit')?code.slice(5):code?.startsWith('Numpad')?code.slice(6):code?.replace('Key','')||'?'}
-function syncSpellKeys(){spellKeyCodeToId={};spellIds.forEach((id,i)=>{spellKeyCodeToId[spellKeyCodes[i]]=id;let b=document.querySelector(`[data-spell="${id}"]`);if(b){let base=b.dataset.label||id;b.innerHTML=`<span class="spellKey">${keyLabel(spellKeyCodes[i])}</span><span class="spellIcon">${b.dataset.icon||'✦'}</span><span class="spellTitle">${base}</span><span class="spellMeta">ур. 1 · готово</span><i class="spellCooldown"></i>`}})}
+/* Base spells sit on Shift + digits: plain 1–9 feed the inventory hotbar. */
+function spellKeyLabel(code){return `⇧${keyLabel(code)}`}
+function syncSpellKeys(){spellKeyCodeToId={};spellIds.forEach((id,i)=>{spellKeyCodeToId[spellKeyCodes[i]]=id;let b=document.querySelector(`[data-spell="${id}"]`);if(b){let base=b.dataset.label||id;b.innerHTML=`<span class="spellKey">${spellKeyLabel(spellKeyCodes[i])}</span><span class="spellIcon">${b.dataset.icon||'✦'}</span><span class="spellTitle">${base}</span><span class="spellMeta">ур. 1 · готово</span><i class="spellCooldown"></i>`}})}
 function syncCustomSpellButtons(p){if(!p)return;let bar=$('spellBar');if(!bar)return;let customs=p.custom_spells||[],signature=JSON.stringify(customs.map(x=>[x.id,x.name,x.key]));if(signature===customSpellSignature)return;customSpellSignature=signature;bar.querySelectorAll('[data-custom-spell]').forEach(b=>b.remove());customSpellKeys={};customs.forEach(sp=>{let id=sp.id||sp.spell_id||sp.custom_id;if(!id)return;let key=sp.key||'F1';customSpellKeys[id]=key;let b=document.createElement('button');b.type='button';b.className='spellBtn customCrafted';b.dataset.customSpell=id;b.title=`${sp.name} · ${sp.kind||'Аркана'} · ${sp.mana} маны`;b.innerHTML=`<span class="spellKey">${key==='Digit0'?'0':key}</span><span class="spellIcon">✧</span><span class="spellTitle"></span><span class="spellMeta"></span><i class="spellCooldown"></i>`;b.querySelector('.spellTitle').textContent=sp.name;b.dataset.label=sp.name;b.onclick=()=>castSpell(id);bar.appendChild(b)})}
 let customSpellBindingSignature="",customSpellLibrarySignature="",pendingSpellBinding="";
 function displaySpellKey(key){return key==='Digit0'?'0':key||'—'}
@@ -510,7 +569,7 @@ $('classLater').onclick=hideClassOffer;$('classOverlay').addEventListener('click
 function refreshCustomSpellForge(){const p=me();if(!p)return;const cat=p.spell_catalog||{},unlocked=new Set(p.spells_unlocked||[]),entries=Object.entries(cat).filter(([id])=>unlocked.has(id));for(const sel of [$('spellPartA'),$('spellPartB')]){if(!sel)continue;const prev=sel.value;sel.innerHTML='';entries.forEach(([id,sp])=>{let o=document.createElement('option');o.value=id;o.textContent=sp.name;sel.appendChild(o)});if(entries.some(([id])=>id===prev))sel.value=prev}updateSpellPreview()}
 function updateSpellPreview(){const p=me(),a=$('spellPartA')?.value,b=$('spellPartB')?.value,name=$('customSpellName')?.value.trim()||'';const out=$('spellRecipePreview'),btn=$('createSpellButton');if(!p||!out)return;let cat=p.spell_catalog||{},sa=cat[a],sb=cat[b];if(!sa||!sb){out.textContent='Пока не хватает двух изученных заклинаний.';if(btn)btn.disabled=true;return}let words=name.toLowerCase().match(/[а-яёa-z]+/g)||[],lex={огонь:['Огонь',3],пламя:['Огонь',4],жар:['Огонь',2],лед:['Лёд',3],лёд:['Лёд',3],иней:['Лёд',3],мороз:['Лёд',4],молния:['Молния',4],гром:['Молния',3],шторм:['Молния',3],тень:['Тень',3],мрак:['Тень',4],ночь:['Тень',2],пустота:['Тень',4],исцеление:['Исцеление',4],лечение:['Исцеление',4],свет:['Исцеление',2],терн:['Терни',3],шип:['Терни',3],взрыв:['Всплеск',4],звезда:['Звёзды',3],метеор:['Звёзды',4],яд:['Яд',3],кислота:['Яд',3],эхо:['Эхо',2]};let scores={};words.forEach(w=>Object.entries(lex).forEach(([stem,v])=>{if(w===stem||(stem.length>=4&&w.startsWith(stem.slice(0,Math.max(4,stem.length-2)))))scores[v[0]]=(scores[v[0]]||0)+v[1]}));let kind=Object.keys(scores).sort((x,y)=>scores[y]-scores[x])[0]||'Аркана',rarity=Math.min(5,Math.max(1,words.length+(name.length>=12?1:0))),power=Object.values(scores).reduce((x,y)=>x+y,0);let dmg=Math.max(12,Math.min(180,Math.round(((sa.damage||sa.heal||22)+(sb.damage||sb.heal||22))*.42*(.78+rarity*.12+Math.min(power,8)*.025)))),radius=Math.max(52,Math.min(230,Math.round(((sa.radius||90)+(sb.radius||90))*.36*(.82+rarity*.09+Math.min(power,8)*.025)))),mana=Math.max(12,Math.min(100,Math.round(((sa.mana||20)+(sb.mana||20))*.32*(.85+rarity*.14))));out.innerHTML='';let lines=[['Тип: ',kind,' · редкость имени: ',rarity,'/5'],['Сила: ',dmg,' · область: ',radius,' · мана: ',mana]];lines.forEach(parts=>{let div=document.createElement('div');parts.forEach(part=>{if(typeof part==='number')div.append(document.createTextNode(String(part)));else if(part===kind){let b=document.createElement('b');b.textContent=part;div.appendChild(b)}else div.append(document.createTextNode(part))});out.appendChild(div)});if(btn)btn.disabled=!(name.length>=3&&name.length<=28&&a!==b)}
 function openSpellForge(){refreshCustomSpellForge();$('customSpellOverlay').style.display='flex'}$('openSpellForge').onclick=openSpellForge;$('closeSpellForge').onclick=()=>$('customSpellOverlay').style.display='none';$('customSpellOverlay').addEventListener('click',e=>{if(e.target===$('customSpellOverlay'))$('customSpellOverlay').style.display='none'});$('spellPartA').addEventListener('change',updateSpellPreview);$('spellPartB').addEventListener('change',updateSpellPreview);$('customSpellName').addEventListener('input',updateSpellPreview);$('createSpellButton').onclick=()=>{let a=$('spellPartA').value,b=$('spellPartB').value,name=$('customSpellName').value.trim();if(!a||!b||!name)return;send({type:'create_spell',a,b,name,key:$('customSpellKey').value});$('customSpellOverlay').style.display='none';$('customSpellName').value=''};
-function remapSpellKeys(){let used=new Set(),i=0;for(;i<spellIds.length;i++){let accepted=false;while(!accepted){let raw=prompt(`Клавиша для заклинания ${i+1} из ${spellIds.length}. Введите цифру 0–9.`,keyLabel(spellKeyCodes[i]));if(raw===null)break;let n=raw.trim();if(!/^[0-9]$/.test(n)){toast('Для заклинаний доступны клавиши 0–9');continue}let code='Digit'+n;if(used.has(code)){toast('Эта клавиша уже назначена другому заклинанию');continue}used.add(code);spellKeyCodes[i]=code;accepted=true}if(!accepted)break}for(let j=i;j<spellIds.length;j++){let old=spellKeyCodes[j];if(!used.has(old)){used.add(old);continue}let free=Array.from({length:10},(_,n)=>'Digit'+n).find(code=>!used.has(code));if(free){spellKeyCodes[j]=free;used.add(free)}}localStorage.setItem(spellKeyStore,JSON.stringify(spellKeyCodes));syncSpellKeys();toast('Клавиши заклинаний сохранены')}
+function remapSpellKeys(){let used=new Set(),i=0;for(;i<spellIds.length;i++){let accepted=false;while(!accepted){let raw=prompt(`Заклинание ${i+1} из ${spellIds.length}. Введите цифру 0–9 — в бою она нажимается с Shift.`,keyLabel(spellKeyCodes[i]));if(raw===null)break;let n=raw.trim();if(!/^[0-9]$/.test(n)){toast('Для заклинаний доступны цифры 0–9 (в бою — с Shift)');continue}let code='Digit'+n;if(used.has(code)){toast('Эта клавиша уже назначена другому заклинанию');continue}used.add(code);spellKeyCodes[i]=code;accepted=true}if(!accepted)break}for(let j=i;j<spellIds.length;j++){let old=spellKeyCodes[j];if(!used.has(old)){used.add(old);continue}let free=Array.from({length:10},(_,n)=>'Digit'+n).find(code=>!used.has(code));if(free){spellKeyCodes[j]=free;used.add(free)}}localStorage.setItem(spellKeyStore,JSON.stringify(spellKeyCodes));syncSpellKeys();toast('Клавиши заклинаний сохранены')}
 function updateSpellBar(p){if(!p)return;const unlocked=new Set(p.spells_unlocked||[]),levels=p.spell_levels||{},uses=p.spell_uses||{},cooldowns=p.spell_cooldowns||{},catalog=p.spell_catalog||{},spellAllowed=!p.class||(p.class==='mage'&&p.weapon_kind==='staff');for(const b of document.querySelectorAll('#spellBar [data-spell],#spellBar [data-custom-spell]')){const id=b.dataset.spell||b.dataset.customSpell,spec=catalog[id]||{},isUnlocked=unlocked.has(id),level=levels[id]||1,used=Number(uses[id]||0),cd=cooldowns[id]||{},remain=Number(cd.remaining||0),total=Number(cd.total||spec.cooldown||0),mana=Number(spec.mana||0),low=(p.mana||0)<mana;b.disabled=!spellAllowed||!isUnlocked||remain>0||low;b.classList.toggle('is-locked',!isUnlocked);b.classList.toggle('is-cooling',remain>0);b.classList.toggle('no-mana',low);b.classList.toggle('incompatible-spell',!spellAllowed);b.style.setProperty('--cd-width',`${total>0?Math.max(0,Math.min(1,remain/total))*100:0}%`);const meta=b.querySelector('.spellMeta');if(meta)meta.textContent=!spellAllowed?(p.class==='mage'?'Нужен посох':'Только класс «Маг»'):!isUnlocked?`Нужно: уровень ${spec.unlock_level||1}`:remain>0?`Перезарядка ${remain.toFixed(1)} с · ур. ${level}`:low?`Не хватает ${mana} маны`: `Уровень ${level} · применено ${used}`;b.title=`${spec.name||id} · ${mana} маны · перезарядка ${Number(spec.cooldown||0).toFixed(1)} с · личный уровень ${level}${!spellAllowed?' · недоступно: '+(p.class==='mage'?'нужен посох':'класс не Маг'):''}`}}
 
 
@@ -555,7 +614,7 @@ function closeTopGameMenu(){const order=['npcOverlay','atlasOverlay','classOverl
 // Capture keyboard events before global gameplay bindings: visible menus never leak hotkeys.
 document.addEventListener('keydown',e=>{if(!activeGameMenu())return;if(e.key==='Escape'){closeTopGameMenu();e.preventDefault()}if(!(e.key==='Enter'&&e.target===$('chatInput')))e.stopPropagation()},true);
 document.addEventListener('keyup',e=>{if(activeGameMenu()){keys.clear();touchDirs.clear();e.stopPropagation()}},true);
-addEventListener('keydown',e=>{if(e.repeat)return;const target=e.target;if(target&&(target.matches('input,textarea,select')||target.isContentEditable))return;const code=e.code;if(activeGameMenu()){if(code==='Escape'){closeTopGameMenu();e.preventDefault()}return;}let k=movementCodes[code]||e.key.toLowerCase();if(code==='Space'||code.startsWith('Arrow'))e.preventDefault();if(code==='Escape'){if(closeTopGameMenu())return;toggleGameMenu(true);return}if(document.activeElement===$('chatInput')||['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName))return;if(code==='ShiftLeft'||code==='ShiftRight'){runHeld=true;lastInput=0;return}if(code==='ControlLeft'||code==='ControlRight'){sneakHeld=true;lastInput=0;return}if(movementCodes[code]){keys.add(k);return}const act=actionByCode(code);if(act){if(applyActionToGame(act,e))return}if(abilityKeyCodeToId[code]){useAbility(abilityKeyCodeToId[code]);e.preventDefault();return}if(spellKeyCodeToId[code])castSpell(spellKeyCodeToId[code]);if(code.startsWith('F')&&/^F(?:[1-9]|1[0-2])$/.test(code))e.preventDefault();castCustomSpellByKey(code)});addEventListener('keyup',e=>{if(e.code==='ShiftLeft'||e.code==='ShiftRight'){runHeld=false;lastInput=0}if(e.code==='ControlLeft'||e.code==='ControlRight'){sneakHeld=false;lastInput=0}const k=movementCodes[e.code];if(k)keys.delete(k);const upAct=actionByCode(e.code);if(upAct==='gather')send({type:'gather_stop'});if(upAct==='attack')releaseAttack(e)});addEventListener('blur',()=>{keys.clear();touchDirs.clear();runHeld=false;sneakHeld=false;lastInput=0});
+addEventListener('keydown',e=>{if(e.repeat)return;const target=e.target;if(target&&(target.matches('input,textarea,select')||target.isContentEditable))return;const code=e.code;if(activeGameMenu()){if(code==='Escape'){closeTopGameMenu();e.preventDefault()}return;}let k=movementCodes[code]||e.key.toLowerCase();if(code==='Space'||code.startsWith('Arrow'))e.preventDefault();if(code==='Escape'){if(closeTopGameMenu())return;toggleGameMenu(true);return}if(document.activeElement===$('chatInput')||['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName))return;if(code==='ShiftLeft'||code==='ShiftRight'){runHeld=true;lastInput=0;return}if(code==='ControlLeft'||code==='ControlRight'){sneakHeld=true;lastInput=0;return}if(movementCodes[code]){keys.add(k);return}const act=actionByCode(code);if(act){if(applyActionToGame(act,e))return}if(abilityKeyCodeToId[code]){useAbility(abilityKeyCodeToId[code]);e.preventDefault();return}if(e.shiftKey&&spellKeyCodeToId[code])castSpell(spellKeyCodeToId[code]);if(code.startsWith('F')&&/^F(?:[1-9]|1[0-2])$/.test(code))e.preventDefault();castCustomSpellByKey(code)});addEventListener('keyup',e=>{if(e.code==='ShiftLeft'||e.code==='ShiftRight'){runHeld=false;lastInput=0}if(e.code==='ControlLeft'||e.code==='ControlRight'){sneakHeld=false;lastInput=0}const k=movementCodes[e.code];if(k)keys.delete(k);const upAct=actionByCode(e.code);if(upAct==='gather')send({type:'gather_stop'});if(upAct==='attack')releaseAttack(e)});addEventListener('blur',()=>{keys.clear();touchDirs.clear();runHeld=false;sneakHeld=false;lastInput=0});
 let mouse={x:0,y:0};canvas.addEventListener('pointermove',e=>{let r=canvas.getBoundingClientRect();mouse.x=e.clientX-r.left;mouse.y=e.clientY-r.top;setAimFromPointer()});function setAimFromPointer(){let p=me();if(!p)return;let r=canvas.getBoundingClientRect(),wx=cam.x+(mouse.x-r.width/2),wy=cam.y+(mouse.y-r.height/2),dx=wx-p.x,dy=wy-p.y,l=Math.hypot(dx,dy);if(l>.1){aim={x:dx/l,y:dy/l};hasPointerAim=true}}
 document.querySelectorAll('.pad').forEach(b=>{let dir=b.dataset.dir;b.addEventListener('pointerdown',e=>{e.preventDefault();b.setPointerCapture(e.pointerId);touchDirs.add(dir)});['pointerup','pointercancel','lostpointercapture'].forEach(ev=>b.addEventListener(ev,()=>touchDirs.delete(dir))) });
 /* ─── МОБИЛЬНОЕ УПРАВЛЕНИЕ: джойстик-стик для ходьбы + панель кнопок ─── */

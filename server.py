@@ -343,9 +343,10 @@ CLASSES = {
     },
     "mage": {
         "name": "Маг", "title": "Хранитель чар", "style": "Магия посоха",
-        "description": "Использует прежнюю систему заклинаний и созданных чар. Сила магии растёт вместе с мастерством направления.",
+        "description": "Держит дистанцию и бьёт чарами: способности тратят ману, а прежние заклинания и созданные чары остаются в отдельной панели.",
         "stat_bonus": {"vitality": 1, "magic_damage": 1, "mana_regen": 1},
-        "abilities": [],
+        "abilities": ["arcane_bolt", "frost_lance", "flame_burst", "chain_lightning",
+                      "blink", "arcane_shield", "mana_surge", "meteor_fall"],
     },
 }
 ABILITY_CATALOG = {
@@ -407,6 +408,40 @@ ABILITY_CATALOG = {
                    "cost": 12, "arrows": 0, "cooldown": 14.0, "range": 620.0,
                    "duration": 8.0, "bonus_mult": 0.25, "key": "KeyR",
                    "desc": "Метка на цели: 8 секунд весь твой урон по ней усилен на 25%."},
+    # ── Маг: чары в общем наборе способностей. Стоят ману, а не выносливость. ──
+    "arcane_bolt": {"tree": "mage", "name": "Чародейская стрела", "icon": "✦", "mastery": 1,
+                    "resource": "mana", "cost": 10, "cooldown": 4.5, "range": 720.0, "mult": 1.05,
+                    "element": "arcane", "spell_kind": "Аркана", "key": "KeyR",
+                    "desc": "Быстрый сгусток арканы летит в точку прицела и бьёт первого, кого встретит."},
+    "frost_lance": {"tree": "mage", "name": "Ледяное копьё", "icon": "❄", "mastery": 2,
+                    "resource": "mana", "cost": 14, "cooldown": 7.0, "range": 740.0, "mult": 1.0,
+                    "element": "ice", "spell_kind": "Лёд", "slow_duration": 3.5, "slow_factor": .45,
+                    "key": "KeyT",
+                    "desc": "Копьё льда замедляет цель до 45% скорости на 3,5 секунды."},
+    "flame_burst": {"tree": "mage", "name": "Пламенный всплеск", "icon": "🔥", "mastery": 2,
+                    "resource": "mana", "cost": 18, "cooldown": 9.0, "range": 460.0, "radius": 118.0,
+                    "mult": .9, "spell_kind": "Огонь", "burn_duration": 4.0, "burn_tick": .8,
+                    "burn_mult": .14, "key": "KeyP",
+                    "desc": "Вспышка пламени в точке прицела: задевает всех рядом и поджигает на 4 секунды."},
+    "chain_lightning": {"tree": "mage", "name": "Цепная молния", "icon": "⚡", "mastery": 3,
+                        "resource": "mana", "cost": 20, "cooldown": 9.5, "range": 480.0, "radius": 155.0,
+                        "jumps": 3, "falloff": .78, "mult": .8, "spell_kind": "Молния", "key": "KeyX",
+                        "desc": "Молния перескакивает по трём ближайшим врагам; каждый следующий получает меньше."},
+    "blink": {"tree": "mage", "name": "Мерцание", "icon": "✧", "mastery": 3,
+              "resource": "mana", "cost": 12, "cooldown": 8.0, "distance": 190.0, "key": "KeyO",
+              "desc": "Мгновенный шаг сквозь пространство на 190 единиц в сторону прицела."},
+    "arcane_shield": {"tree": "mage", "name": "Чародейский щит", "icon": "🛡", "mastery": 4,
+                      "resource": "mana", "cost": 16, "cooldown": 16.0, "duration": 6.0, "armor": 12,
+                      "key": "KeyN",
+                      "desc": "На 6 секунд окутывает щитом: +12 брони и меньше входящего урона."},
+    "mana_surge": {"tree": "mage", "name": "Прилив маны", "icon": "✶", "mastery": 4,
+                   "resource": "mana", "cost": 0, "cooldown": 18.0, "restore": 28, "key": "KeyK",
+                   "desc": "Вытягивает силу из посоха: возвращает 28 маны. Сам прилив маны не тратит."},
+    "meteor_fall": {"tree": "mage", "name": "Падение метеора", "icon": "☄", "mastery": 5,
+                    "resource": "mana", "cost": 30, "cooldown": 16.0, "range": 520.0, "radius": 132.0,
+                    "mult": 1.45, "spell_kind": "Звёзды", "burn_duration": 3.0, "burn_tick": .75,
+                    "burn_mult": .12, "key": "KeyL",
+                    "desc": "С неба падает метеор: тяжёлый урон по области и короткое горение."},
 }
 for _ability_id, _ability_spec in ABILITY_CATALOG.items():
     _ability_spec["id"] = _ability_id
@@ -1190,6 +1225,9 @@ def player_effects(p: dict[str, Any], now: float) -> list[dict[str, Any]]:
     bloodhunt_until = float(p.get("bloodhunt_until", 0) or 0)
     if bloodhunt_until > now:
         effects.append({"kind": "bloodhunt", "name": "Жажда крови", "remaining": round(bloodhunt_until - now, 2)})
+    ward_until = float(p.get("ward_until", 0) or 0)
+    if ward_until > now:
+        effects.append({"kind": "ward", "name": "Чародейский щит", "remaining": round(ward_until - now, 2)})
     marks = p.get("eagle_marks") if isinstance(p.get("eagle_marks"), dict) else {}
     for mob_id, until in list(marks.items()):
         try:
@@ -1212,6 +1250,7 @@ def abilities_view(p: dict[str, Any], now: float) -> dict[str, dict[str, Any]]:
         result[ability_id] = {
             "id": ability_id, "tree": spec["tree"], "name": spec["name"], "icon": spec.get("icon", "✦"),
             "desc": spec["desc"], "cost": int(spec.get("cost", 0)), "arrows": int(spec.get("arrows", 0)),
+            "resource": str(spec.get("resource") or "stamina"),
             "mastery_required": int(spec["mastery"]), "unlocked": ability_unlocked(p, ability_id),
             "key": spec.get("key", ""), "cooldown": ability_cooldown_seconds(p, ability_id),
             "range": float(spec.get("range", 0) or 0), "radius": float(spec.get("radius", 0) or 0),
@@ -1848,8 +1887,9 @@ def player_defense(p: dict[str, Any]) -> int:
     gear_id = p.get("gear", "traveler")
     base = GEAR.get(gear_id, GEAR["traveler"])["defense"]
     guard = 14 if float(p.get("guard_until", 0) or 0) > time.monotonic() else 0
+    ward = int(p.get("ward_armor", 12) or 12) if float(p.get("ward_until", 0) or 0) > time.monotonic() else 0
     return (base + 3 * item_upgrade_level(p, "gear", gear_id)
-            + 2 * enchant_level(p, "gear", gear_id, "protection") + guard)
+            + 2 * enchant_level(p, "gear", gear_id, "protection") + guard + ward)
 
 
 def near_wizard(p: dict[str, Any]) -> bool:
@@ -2045,6 +2085,20 @@ def spell_damage(p: dict[str, Any], mob: dict[str, Any], damage: float, now: flo
         mob["hp"] = 0; mob["respawn_at"] = now + random.uniform(24, 40); award_drop(p, mob)
     broadcast({"type": "hit", "region": mob["region"], "mob": mob["id"], "x": mob["x"], "y": mob["y"], "damage": dealt})
 
+def _ignite(p: dict[str, Any], mob: dict[str, Any], spec: dict[str, Any], now: float, power: float) -> None:
+    """Set a monster on fire from an area ability (never stacks, only refreshes)."""
+    duration = float(spec.get("burn_duration", 0) or 0)
+    if duration <= 0:
+        return
+    until = now + duration
+    if until > float(mob.get("burn_until", 0) or 0):
+        mob["burn_until"] = until
+    mob["burn_next"] = min(float(mob.get("burn_next", now) or now), now + .05)
+    mob["burn_owner"] = p["id"]
+    mob["burn_damage"] = max(1, round(power * float(spec.get("burn_mult", .14) or .14)))
+    mob["burn_tick"] = float(spec.get("burn_tick", .8) or .8)
+
+
 def spell_visual(p: dict[str, Any], spell_id: str, spec: dict[str, Any]) -> dict[str, Any]:
     mastery = spell_mastery_level(p, spell_id)
     kind = str(spec.get("kind", "Аркана"))
@@ -2217,8 +2271,13 @@ async def use_ability(p: dict[str, Any], now: float, ability_id: str, aim_x: flo
         await tell(p["id"], f"«{spec['name']}» перезаряжается: {float(cooldowns[ability_id]) - now:.1f} с.")
         return
     cost = int(spec.get("cost", 0))
-    if float(p.get("stamina", 0)) < cost:
-        await tell(p["id"], f"Мало выносливости: нужно {cost}, сейчас {int(p.get('stamina', 0))}.")
+    # Магические способности расплачиваются маной, остальные — выносливостью.
+    resource = str(spec.get("resource") or "stamina")
+    if resource not in ("stamina", "mana"):
+        resource = "stamina"
+    resource_name = "маны" if resource == "mana" else "выносливости"
+    if float(p.get(resource, 0)) < cost:
+        await tell(p["id"], f"Мало {resource_name}: нужно {cost}, сейчас {int(p.get(resource, 0))}.")
         return
     arrow_cost = int(spec.get("arrows", 0))
     if arrow_cost and int(p.get("inventory", {}).get("arrows", 0)) < arrow_cost:
@@ -2243,7 +2302,7 @@ async def use_ability(p: dict[str, Any], now: float, ability_id: str, aim_x: flo
     else:
         tx = max(0.0, min(WORLD_W, p["x"] + aim_x * (max_range or 180)))
         ty = max(0.0, min(WORLD_H, p["y"] + aim_y * (max_range or 180)))
-    p["stamina"] -= cost
+    p[resource] = float(p.get(resource, 0)) - cost
     p["last_combat"] = now
     if arrow_cost:
         p["inventory"]["arrows"] = max(0, int(p["inventory"].get("arrows", 0)) - arrow_cost)
@@ -2397,6 +2456,72 @@ async def use_ability(p: dict[str, Any], now: float, ability_id: str, aim_x: flo
         else:
             await send_event(event)
             await tell(p["id"], "Метку не удалось нанести: рядом с точкой прицела нет живой цели.")
+    elif ability_id in {"arcane_bolt", "frost_lance"}:
+        bolt = {"region": p["region"], "x": p["x"] + aim_x * 18, "y": p["y"] + aim_y * 18,
+                "vx": aim_x * 820.0, "vy": aim_y * 820.0, "damage": max(1, round(power)),
+                "owner": p["id"], "life": float(spec.get("range", 720)) / 820.0 + .08,
+                "max_distance": float(spec.get("range", 720)), "travelled": 0.0,
+                "kind": "ability_arrow", "element": str(spec.get("element", "")),
+                "spell_kind": str(spec.get("spell_kind", "")), "pierce": 0, "hit_ids": [],
+                "slow_duration": float(spec.get("slow_duration", 0) or 0),
+                "slow_factor": float(spec.get("slow_factor", .45) or .45)}
+        arrows.append(bolt)
+        await send_event(event)
+    elif ability_id in {"flame_burst", "meteor_fall"}:
+        radius = float(spec["radius"])
+        for mob in list(mobs):
+            if mob["hp"] <= 0 or not same_region(p, mob):
+                continue
+            if math.hypot(mob["x"] - tx, mob["y"] - ty) > radius + (34 if mob.get("boss") else 12):
+                continue
+            spell_damage(p, mob, power, now); hits += 1
+            if mob["hp"] > 0:
+                _ignite(p, mob, spec, now, power)
+        _damage_players_around(p, now, tx, ty, radius, power, ability_id)
+        event["radius"] = radius
+        await send_event(event)
+    elif ability_id == "chain_lightning":
+        jumps = int(spec.get("jumps", 3))
+        falloff = float(spec.get("falloff", .78))
+        radius = float(spec.get("radius", 155))
+        reachable = [m for m in mobs if m["hp"] > 0 and same_region(p, m)
+                     and math.hypot(m["x"] - tx, m["y"] - ty) <= radius + (44 if m.get("boss") else 18)]
+        reachable.sort(key=lambda m: math.hypot(m["x"] - tx, m["y"] - ty))
+        chain = []
+        current = power
+        for mob in reachable[:jumps]:
+            spell_damage(p, mob, current, now); hits += 1
+            chain.append({"x": round(mob["x"], 1), "y": round(mob["y"], 1)})
+            current *= falloff
+        event["chain"] = chain
+        if not chain:
+            await tell(p["id"], "Молнии некуда прыгать: у точки прицела нет врагов.")
+        await send_event(event)
+    elif ability_id == "blink":
+        start_x, start_y = p["x"], p["y"]
+        travel = float(spec.get("distance", 190.0))
+        end_x = max(25.0, min(WORLD_W - 25.0, start_x + aim_x * travel))
+        end_y = max(25.0, min(WORLD_H - 25.0, start_y + aim_y * travel))
+        p["x"], p["y"] = end_x, end_y
+        event["from_x"], event["from_y"] = round(start_x, 1), round(start_y, 1)
+        event["x"], event["y"] = round(end_x, 1), round(end_y, 1)
+        event["target_x"], event["target_y"] = round(end_x, 1), round(end_y, 1)
+        await send_event(event)
+    elif ability_id == "arcane_shield":
+        p["ward_until"] = max(float(p.get("ward_until", 0) or 0), now + float(spec["duration"]))
+        p["ward_armor"] = int(spec.get("armor", 12))
+        await send_event(event)
+        await tell(p["id"], f"Чародейский щит: +{spec['armor']} брони на {spec['duration']:.0f} с.")
+    elif ability_id == "mana_surge":
+        before = float(p.get("mana", 0))
+        p["mana"] = min(float(p.get("max_mana", before)), before + float(spec.get("restore", 28)))
+        gained = int(round(float(p["mana"]) - before))
+        await send_event(event)
+        await tell(p["id"], f"Прилив маны: +{gained} маны." if gained > 0 else "Мана уже полна — прилив не дал ничего.")
+        for pid, current_player in list(players.items()):
+            if current_player is p:
+                broadcast(stats_updated_event(pid, p))
+                break
     award_mastery(p, tree, 8 + int(spec["mastery"]) * 2)
     if hits:
         try:
@@ -3415,6 +3540,7 @@ def default_player(pid: str, name: str) -> dict[str, Any]:
          "mana_regen_level": 0, "magic_damage_level": 0, "insight_level": 0,
          "class": None, "mastery": default_mastery(), "ability_cooldowns": {},
          "roar_until": 0.0, "guard_until": 0.0, "bloodhunt_until": 0.0, "eagle_marks": {},
+         "ward_until": 0.0, "ward_armor": 0,
          "ability_lock_until": 0.0,
          "dodge_at": 0.0, "dodge_until": 0.0, "running": False, "sneaking": False, "weapon": "sword", "weapons": ["sword", "axe", "bow"],
          "gear": "traveler", "gear_inventory": [],
@@ -3454,6 +3580,8 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     p["roar_until"] = 0.0
     p["guard_until"] = 0.0
     p["bloodhunt_until"] = 0.0
+    p["ward_until"] = 0.0
+    p.setdefault("ward_armor", 0)
     if not isinstance(p.get("eagle_marks"), dict):
         p["eagle_marks"] = {}
     p["ability_lock_until"] = 0.0

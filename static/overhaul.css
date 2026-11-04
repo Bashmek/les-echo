@@ -438,3 +438,6 @@ body { font-family: "Trebuchet MS", ui-sans-serif, system-ui, sans-serif; }
 @media (max-width: 700px) {
   .audioToggle { width: 30px; height: 30px; font-size: 13px; right: 8px; }
 }
+
+/* Shift + digit spell chips stay compact inside the existing bar. */
+.spellKey{letter-spacing:-.04em}

@@ -2140,6 +2140,9 @@
     }
     for (const fx of spellFx || []) drawImpactRunes(ctx, fx, now);
     drawWorldFx(ctx, now);
+    // game.js keeps its class-ability arcs (lunge trails, chain lightning, blasts)
+    // in world coordinates — the camera transform is already applied here.
+    if (typeof drawAbilityFx === 'function') drawAbilityFx(now, 0, 0);
 
     // shared particle pool (world coordinates)
     if (typeof updateAndDrawParticles === 'function') updateAndDrawParticles(ctx, 0, 0);

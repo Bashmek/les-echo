@@ -268,3 +268,10 @@ body.is-mobile .leftStack{display:none}
 body.is-mobile .chat{width:min(200px,42vw)}
 body.is-mobile .messages{height:40px}
 @media(max-width:560px){.joystickZone{left:6px;bottom:96px;width:124px;height:124px}.joyKnob{width:50px;height:50px;margin:-25px 0 0 -25px}.mobileActions{right:6px;bottom:96px;max-width:172px}.mobileActions .actionBtn{min-width:48px;min-height:40px}.mobileActions .attack{width:68px;height:58px}}
+
+/* ── Маг: боевой набор встаёт над панелью заклинаний, а не поверх неё ── */
+.abilityBar.stacked{bottom:92px}
+@media(max-width:850px){.abilityBar.stacked{bottom:62px}}
+@media(max-width:560px){.abilityBar.stacked{bottom:58px}}
+.abilityCost.isMana{color:#9fdcff}
+.abilityCost.isMana::after{content:'✦';font-size:8px;margin-left:1px;opacity:.8}
