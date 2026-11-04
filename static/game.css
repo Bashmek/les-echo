@@ -275,3 +275,60 @@ body.is-mobile .messages{height:40px}
 @media(max-width:560px){.abilityBar.stacked{bottom:58px}}
 .abilityCost.isMana{color:#9fdcff}
 .abilityCost.isMana::after{content:'✦';font-size:8px;margin-left:1px;opacity:.8}
+/* ── Панель отслеживаемого поручения: заголовок с кнопкой журнала ────── */
+.questPanel .questHead{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:5px}
+.questPanel .questHead h2{margin:0}
+.questOpenButton{border:1px solid #4a6b3f;background:#1b271b;color:#d9e9b8;border-radius:6px;font:600 9px/1 "Trebuchet MS",system-ui;
+ padding:4px 6px;display:inline-flex;align-items:center;gap:4px;cursor:pointer;letter-spacing:.04em;white-space:nowrap}
+.questOpenButton:hover{background:#243424;color:#fff4cf;border-color:#6f9455}
+.questOpenButton kbd{font:600 8px/1 system-ui;padding:1px 3px;border-radius:3px;background:#0f170f;border:1px solid #3c5334;color:#cfe4a8}
+.questPanel .qObjectives{margin:2px 0 0}
+.questPanel .qEmpty{font-size:10px;line-height:1.5;color:#b9c99a;padding:2px 0 4px}
+.questPanel .qEmpty kbd{font:600 9px/1 system-ui;padding:1px 4px;border-radius:3px;background:#0f170f;border:1px solid #3c5334}
+.questPanel.empty h2{color:#a9b98c}
+.questPanel .questTrack{height:5px;border-radius:3px;background:#12200f;border:1px solid #2e3f27;overflow:hidden;margin:0 0 5px}
+.questPanel .questTrack i{display:block;height:100%;background:linear-gradient(90deg,#7fbf5a,#ffe08c);transition:width .25s ease}
+.questPanel.done .questTrack i{background:linear-gradient(90deg,#5d8a52,#8fbf62)}
+
+/* ── Журнал поручений ────────────────────────────────────────────────── */
+.questOverlay{position:absolute;z-index:26;inset:0;display:none;align-items:center;justify-content:center;background:#071009dd;padding:16px}
+.questCard{width:min(780px,100%);max-height:min(88vh,860px);display:flex;flex-direction:column;padding:16px 18px 14px}
+.questJournalHead{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.questJournalHead h2{margin:2px 0 0;font-size:20px}
+.qjStats{display:flex;flex-wrap:wrap;gap:14px;margin:10px 0 6px;font-size:11px;color:#b9c99a}
+.qjStats b{color:#fff2c4;font-variant-numeric:tabular-nums}
+.qjBody{overflow:auto;padding-right:4px;margin-top:4px;display:flex;flex-direction:column;gap:14px}
+.qjSection h3{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#e7c77d;margin:0 0 8px}
+.qjSection h3 small{font-size:10px;letter-spacing:0;text-transform:none;color:#93a884;font-weight:400}
+.qjTrackedSection .qjCard{border-color:#7a8f56;box-shadow:0 0 0 1px #b7d4882e inset}
+.qjCard{border:1px solid #33452c;border-radius:9px;background:#141f14ae;padding:9px 11px;margin-bottom:8px}
+.qjCard.isDone{opacity:.72}
+.qjCard.isTracked{border-color:#8aa863;background:#1a2a16b8}
+.qjCard header{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.qjHead{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.qjHead b{font-size:13px;color:#f3f0d8}
+.qjChapter{font:600 10px/1 system-ui;color:#a9b98c;background:#111c11;border:1px solid #30432a;border-radius:5px;padding:2px 5px}
+.qjStatus{font:600 9px/1 system-ui;letter-spacing:.06em;text-transform:uppercase;border-radius:999px;padding:3px 7px;border:1px solid}
+.qjStatus.active,.qjStatus.ongoing{color:#d8e8b4;border-color:#4c6a3d;background:#1b2a17}
+.qjStatus.ready{color:#2a1f0a;border-color:#ffe08c;background:#ffe08c}
+.qjStatus.short{color:#ffe6b0;border-color:#8a6a2f;background:#2a2110}
+.qjStatus.done{color:#a8c48f;border-color:#3f5a35;background:#15200f}
+.qjTrack{align-self:flex-start;border:1px solid #4a6b3f;background:#1b271b;color:#dbeab9;border-radius:6px;font:600 10px/1 "Trebuchet MS",system-ui;padding:6px 9px;cursor:pointer;white-space:nowrap}
+.qjTrack:hover:not(:disabled){background:#26381f;color:#fff4cf;border-color:#8aa863}
+.qjTrack:disabled{opacity:.45;cursor:default}
+.qjCard.isTracked .qjTrack{border-color:#8aa863;color:#1d2a16;background:#c8e39a}
+.qjMeta{font-size:10px;color:#93a884;margin:4px 0 6px}
+.qjObjectives .qObjective{font-size:11px;line-height:1.4;color:#c3d3a8;display:flex;justify-content:space-between;gap:8px;margin:3px 0 2px}
+.qjObjectives .qCount{color:#fff0bd;font-variant-numeric:tabular-nums;white-space:nowrap}
+.qjObjectives .questTrack{height:5px;border-radius:3px;background:#101a0f;border:1px solid #2c3d26;overflow:hidden;margin:0 0 4px}
+.qjObjectives .questTrack i{display:block;height:100%;background:linear-gradient(90deg,#7fbf5a,#ffe08c)}
+.qjReward{margin-top:7px;font-size:10px;color:#cbb98a}
+.qjEmpty{font-size:11px;color:#8fa37f;padding:2px 0 8px}
+.qjHint{margin:10px 0 0;font-size:10px;line-height:1.5;color:#93a884}
+.qjHint kbd{font:600 9px/1 system-ui;padding:1px 4px;border-radius:3px;background:#0f170f;border:1px solid #34452c}
+@media(max-width:700px){
+ .questCard{padding:12px;max-height:92vh}
+ .questJournalHead{flex-direction:column;align-items:stretch;gap:8px}
+ .qjCard header{flex-direction:column;align-items:stretch;gap:7px}
+ .qjTrack{width:100%;text-align:center}
+}
