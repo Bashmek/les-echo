@@ -71,6 +71,29 @@ test('every mob model renders without throwing', () => {
   }
 });
 
+test('hero poses: walk, run, sneak, aim, cast, gather, drink, swap, hurt', () => {
+  const c = mockContext();
+  const poses = [
+    { walk: 2.2, move: 120 },
+    { walk: 3.6, move: 330, run: true },
+    { walk: 1.2, move: 70, sneak: true },
+    { aim: .9 }, { shoot: 1 }, { swing: .36, charge: .9 }, { swing: 1 },
+    { cast: 1 }, { gather: 1 }, { drink: 1 }, { swap: .7 }, { hurt: 1 }, { charge: 1 },
+  ];
+  for (const pose of poses) {
+    for (const [kind, weapon] of [['melee', 'iron_sword'], ['bow', 'forest_bow'], ['staff', 'apprentice_staff']]) {
+      assert.doesNotThrow(() => Render.drawHeroModel(c, { class: 'warrior', weapon, face_x: 1 }, {
+        coat: '#547c50', trim: '#e6cf8f', local: true, time: 2.1, walk: 1.5, move: 60, swing: 0, ...pose,
+      }), `${kind} ${JSON.stringify(pose)}`);
+    }
+  }
+});
+
+test('one-shot hero gestures are exposed to the HUD', () => {
+  assert.equal(typeof window.heroGesture, 'function');
+  for (const kind of ['drink', 'swap', 'cast']) assert.doesNotThrow(() => window.heroGesture(kind));
+});
+
 test('hero model renders for every class and weapon family', () => {
   const c = mockContext();
   for (const cls of ['', 'warrior', 'ranger', 'mage']) {

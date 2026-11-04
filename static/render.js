@@ -73,7 +73,7 @@
     document.body.classList.contains('is-mobile');
   function desiredZoom(w, h) {
     if (coarse()) return clamp(Math.min(w, h) / 290, 1, 1.4);
-    return clamp(Math.min(w, h) / 480, 1.6, 2.15);
+    return clamp(Math.min(w, h) / 410, 1.8, 2.35);
   }
   function extendCameraBounds(w, h) {
     const Z = VIEW.zoom, WS = typeof worldSize === 'function' ? worldSize() : { w: 2000, h: 1500 };
@@ -802,6 +802,7 @@
   /* ── hero / NPC sprite ───────────────────────────────────────────────── */
   const SKIN = '#e8c39a', SKIN_SH = '#c09068';
   const HAIR = '#4a3324', HAIR_LIT = '#6b4a30';
+  /* ── hero model: pose-driven so every verb reads at a glance ─────────── */
   function drawHeroModel(c, q, opts) {
     const o = opts || {};
     const t = o.time || 0;
@@ -811,34 +812,61 @@
     const face = Number(q.face_x) < -0.05 ? -1 : 1;
     const walk = o.walk || 0;
     const moving = !!(o.move && o.move > .2);
-    const swing = o.swing || 0;
+    const swing = clamp(o.swing || 0, 0, 1);
     const cls = q.class || o.class || '';
     const weaponId = q.weapon || o.weapon || 'sword';
     const weaponKind = o.weaponKind || (/bow|longbow/.test(weaponId) ? 'bow' : /staff/.test(weaponId) ? 'staff' : 'melee');
-    const step = Math.sin(walk) * (moving ? 3.4 : .45);
-    const bob = Math.abs(Math.sin(walk)) * (moving ? 1.6 : .5);
+    const run = !!o.run && moving;
+    const sneak = !!o.sneak;
+    const aim = clamp(o.aim || 0, 0, 1);
+    const cast = clamp(o.cast || 0, 0, 1);
+    const drink = clamp(o.drink || 0, 0, 1);
+    const gather = clamp(o.gather || 0, 0, 1);
+    const swap = clamp(o.swap || 0, 0, 1);
+    const shoot = clamp(o.shoot || 0, 0, 1);
+    const hurt = clamp(o.hurt || 0, 0, 1);
+    const charge = clamp(o.charge || 0, 0, 1);
     const dark = '#1d2a1f';
 
+    const stride = run ? 5.6 : sneak ? 2.1 : 3.4;
+    const step = Math.sin(walk) * (moving ? stride : .45);
+    const bob = Math.abs(Math.sin(walk)) * (moving ? (run ? 2.6 : 1.6) : .5) * (sneak ? .45 : 1);
+    const crouch = sneak ? 5.2 : gather ? 2.8 : 0;
+    const lean = run ? .14 : sneak ? .26 : gather ? .1 : 0;
+    const sway = run ? Math.sin(walk * 2) * .03 : 0;
+
     c.save();
+    if (hurt > 0) c.translate(-face * hurt * 1.8, 0);
     c.scale(face, 1);
+    c.rotate(-lean + sway);
     c.translate(0, -bob);
-    // tattered cloak behind the body
+
+    /* cloak: streams behind, tucks in when sneaking */
+    const flare = run ? 6 : sneak ? -2 : 0;
     c.beginPath();
-    c.moveTo(-7, -26);
-    c.quadraticCurveTo(-14 - Math.abs(step) * .3, -14, -11 + Math.sin(t * 1.7) * 1.6, -1);
-    c.lineTo(-2, -5);
-    c.lineTo(7, -25);
+    c.moveTo(-7, -26 + crouch);
+    c.quadraticCurveTo(-15 - flare - Math.abs(step) * .35, -13 + Math.sin(t * 2.3) * (run ? 3 : 1.4), -10 - flare * .7, 0);
+    c.lineTo(-2, -5 + crouch * .4);
+    c.lineTo(7, -25 + crouch);
     c.closePath();
-    c.fillStyle = coat; c.globalAlpha = .85; c.fill();
+    c.fillStyle = coat; c.globalAlpha = .88; c.fill();
     c.globalAlpha = 1; c.strokeStyle = dark; c.lineWidth = .9; c.stroke();
-    // legs
-    P(c, -6 + step * .45, -13, 5, 11.5, '#3c4054');
-    P(c, 1.6 - step * .45, -13, 5, 11.5, '#313547');
-    P(c, -6.4 + step * .45, -3, 5.8, 3.4, '#241d15');
-    P(c, 1.4 - step * .45, -3, 5.8, 3.4, '#1e1812');
-    P(c, -6 + step * .45, -13, 5, 1.4, '#565b70');
-    P(c, 1.6 - step * .45, -13, 5, 1.4, '#4a4f63');
-    // torso
+
+    /* legs: bent when sneaking, wide stride when running */
+    const lift = moving ? Math.max(0, Math.sin(walk)) * (run ? 2.6 : 1.2) : 0;
+    P(c, -6 + step * .55, -13, 5, 11.5 - lift * .4, '#3c4054');
+    P(c, 1.6 - step * .55, -13, 5, 11.5 - Math.max(0, -Math.sin(walk)) * (run ? 2 : .9) * .4, '#313547');
+    P(c, -6.4 + step * .55, -3, 5.8, 3.4, '#241d15');
+    P(c, 1.4 - step * .55, -3, 5.8, 3.4, '#1e1812');
+    P(c, -6 + step * .55, -13, 5, 1.4, '#565b70');
+    P(c, 1.6 - step * .55, -13, 5, 1.4, '#4a4f63');
+
+    /* upper body sinks when crouching */
+    c.save();
+    c.translate(0, crouch);
+    if (cast > 0 || drink > 0) c.rotate(Math.sin(t * 2) * .012);
+
+    /* torso */
     const bodyGrad = c.createLinearGradient(-7, -28, 7, -10);
     bodyGrad.addColorStop(0, lighten(coat, 18));
     bodyGrad.addColorStop(.55, coat);
@@ -847,74 +875,170 @@
     c.beginPath();
     c.moveTo(-7.4, -27.5); c.lineTo(7.4, -27.5); c.lineTo(6.2, -12); c.lineTo(-6.2, -12); c.closePath();
     c.fill(); c.strokeStyle = dark; c.lineWidth = 1; c.stroke();
-    // belt & clasp
     P(c, -6.6, -15.4, 13.2, 2.4, '#4a3524');
     P(c, -1.6, -15.8, 3.2, 3, trim);
-    // chest strap
     c.strokeStyle = '#00000044'; c.lineWidth = 1.2;
     c.beginPath(); c.moveTo(-5, -26); c.lineTo(5, -16); c.stroke();
-    // angular shoulder guards
     poly(c, [[-10.6, -27.4], [-5.4, -27.4], [-4.8, -23.8], [-7.6, -22.6], [-10.2, -24.4]], trim, dark, .8);
     poly(c, [[10.6, -27.4], [5.4, -27.4], [4.8, -23.8], [7.6, -22.6], [10.2, -24.4]], trim, dark, .8);
-    // head
-    ell(c, 0, -33, 6.4, 6.8, SKIN);
-    ell(c, -2.2, -33.4, 3.4, 3.6, lighten(SKIN, 10));
+
+    /* head */
+    const headTilt = (drink > 0 ? .18 * drink : 0) - (hurt > 0 ? .1 * hurt : 0) - (aim > 0 ? .05 : 0);
+    c.save();
+    c.translate(0, -33);
+    c.rotate(headTilt);
+    ell(c, 0, 0, 6.4, 6.8, SKIN);
+    ell(c, -2.2, -.4, 3.4, 3.6, lighten(SKIN, 10));
     c.strokeStyle = '#6a4a30'; c.lineWidth = .8;
-    c.beginPath(); c.ellipse(0, -33, 6.4, 6.8, 0, 0, TAU); c.stroke();
-    // hair / hood
+    c.beginPath(); c.ellipse(0, 0, 6.4, 6.8, 0, 0, TAU); c.stroke();
     if (cls === 'mage') {
-      poly(c, [[-7, -33], [-6, -42], [0, -45], [6, -42], [7, -33], [4, -36], [-4, -36]], '#3f5a7a', '#1d2a36', 1);
-      P(c, -1, -44, 2, 4, trim);
+      poly(c, [[-7, 0], [-6, -9], [0, -12], [6, -9], [7, 0], [4, -3], [-4, -3]], '#3f5a7a', '#1d2a36', 1);
+      P(c, -1, -11, 2, 4, trim);
     } else {
       c.fillStyle = HAIR;
-      c.beginPath(); c.arc(0, -35.6, 6.6, Math.PI * 1.03, Math.PI * 2.02); c.fill();
-      P(c, -6.6, -36.4, 3.2, 6.6, HAIR);
-      P(c, 3.4, -37.2, 3.2, 3.6, HAIR_LIT);
-      P(c, -1.4, -40.4, 4.4, 2, HAIR_LIT);
+      c.beginPath(); c.arc(0, -2.6, 6.6, Math.PI * 1.03, Math.PI * 2.02); c.fill();
+      P(c, -6.6, -3.4, 3.2, 6.6, HAIR);
+      P(c, 3.4, -4.2, 3.2, 3.6, HAIR_LIT);
+      P(c, -1.4, -7.4, 4.4, 2, HAIR_LIT);
       c.strokeStyle = '#2a1c12'; c.lineWidth = .7;
-      c.beginPath(); c.arc(0, -35.6, 6.6, Math.PI * 1.03, Math.PI * 2.02); c.stroke();
+      c.beginPath(); c.arc(0, -2.6, 6.6, Math.PI * 1.03, Math.PI * 2.02); c.stroke();
     }
-    if (cls === 'warrior') { P(c, -1.6, -42.4, 3.2, 3, '#a34f45'); P(c, -3.6, -39.4, 7.2, 1.6, '#7e3b35'); }
-    // face: eyes with a stern brow in three-quarter view
-    P(c, .2, -33.6, 2, 1.9, '#15130e');
-    P(c, 3.9, -33.6, 1.7, 1.8, '#15130e');
-    P(c, .9, -34, .7, .7, '#fff8e8');
-    P(c, 4.4, -34, .6, .6, '#fff8e8');
+    if (cls === 'warrior') { P(c, -1.6, -9.4, 3.2, 3, '#a34f45'); P(c, -3.6, -6.4, 7.2, 1.6, '#7e3b35'); }
+    /* face */
+    const eyeShut = hurt > .4 || drink > .5;
+    if (eyeShut) {
+      c.strokeStyle = '#15130e'; c.lineWidth = .9;
+      c.beginPath();
+      c.moveTo(.2, -.6); c.lineTo(2, -.6); c.moveTo(3.9, -.6); c.lineTo(5.6, -.6);
+      c.stroke();
+    } else {
+      P(c, .2, -.6, 2, 1.9, '#15130e');
+      P(c, 3.9, -.6, 1.7, 1.8, '#15130e');
+      P(c, .9, -1, .7, .7, '#fff8e8');
+      P(c, 4.4, -1, .6, .6, '#fff8e8');
+    }
     c.strokeStyle = HAIR_LIT; c.lineWidth = .9;
-    c.beginPath(); c.moveTo(-.4, -35.6); c.lineTo(2.2, -35.2); c.moveTo(3.7, -35.2); c.lineTo(5.4, -35.6); c.stroke();
-    P(c, 2.4, -30.4, 2.4, .9, '#b07a5a');
+    c.beginPath(); c.moveTo(-.4, -2.6); c.lineTo(2.2, -2.2); c.moveTo(3.7, -2.2); c.lineTo(5.4, -2.6); c.stroke();
+    P(c, 2.4, 2.6, 2.4, .9, '#b07a5a');
     if (cls === 'ranger') {
-      // quiver + green hood
-      c.save(); c.translate(-7, -22); c.rotate(-.4);
+      c.save(); c.translate(-7, 11); c.rotate(-.4);
       P(c, -2, -6, 5, 14, '#5a4326'); P(c, -2, -6, 5, 2, '#7a5a36');
       for (let i = -1; i <= 1; i++) P(c, i * 2, -10, 1.2, 6, '#c8d8a8');
       c.restore();
     }
     if (cls === 'mage') {
       c.save(); c.shadowColor = '#8fe8ff'; c.shadowBlur = 7; c.fillStyle = '#baf3ff';
-      c.beginPath(); c.arc(-6, -43, 1.7, 0, TAU); c.fill(); c.restore();
+      c.beginPath(); c.arc(-6, -10, 1.7, 0, TAU); c.fill(); c.restore();
     }
-    // weapon arm: hangs at the side so the blade never covers the face
-    const idleSwing = moving ? Math.sin(walk + Math.PI) * .12 : Math.sin(t * 2) * .035;
-    const handX = 9.4 + idleSwing * 4, handY = -13.4;
+    c.restore();
+
+    /* ── arms & weapon: the hand position is the whole performance ─────── */
+    const idleSwing = moving ? Math.sin(walk + Math.PI) * (run ? .22 : .12) : Math.sin(t * 2) * .035;
+    let hand = { x: 9.4 + idleSwing * 4, y: -13.4 };
+    let off = { x: -8.6 - idleSwing * 3, y: -14.6 };
+    let offRot = 0, weaponAlpha = 1;
+    const tool = gather > 0 ? (-1.35 + Math.abs(Math.sin(t * 8.5)) * 2.5) : null;
+
+    if (aim > 0) {
+      hand = { x: 13.2, y: -24.2 - aim * .6 };
+      off = { x: 5.6 - aim * 1.2, y: -24.6 - aim * 1.4 };
+    } else if (cast > 0) {
+      hand = { x: 6.4, y: -30.4 };
+      off = { x: -7.8, y: -27.4 };
+    } else if (drink > 0) {
+      off = { x: 3.6, y: -28.4 };
+      hand = { x: 9.6, y: -13.8 };
+    } else if (gather > 0) {
+      hand = { x: 8.4, y: -7.6 };
+      off = { x: 2.2, y: -9.2 };
+    } else if (run) {
+      hand = { x: 10.6, y: -16.4 + idleSwing * 2 };
+      off = { x: -9.2, y: -17 + Math.sin(walk) * 2 };
+    } else if (sneak) {
+      hand = { x: 8.2, y: -11.4 };
+      off = { x: -7.4, y: -12.2 };
+    }
+    if (charge > 0 && aim <= 0 && cast <= 0 && drink <= 0) {
+      hand.x -= charge * 1.6;
+      hand.y -= charge * .8;
+    }
+    if (swing > .36) {
+      hand.x += (swing - .36) * 6;
+      hand.y -= (swing - .36) * 5;
+    }
+    if (swap > 0.02) {
+      weaponAlpha = 1 - swap * .9;
+      hand.y += swap * 3;
+    }
+
+    // weapon arm
     c.strokeStyle = dark; c.lineWidth = 2.9;
-    c.beginPath(); c.moveTo(7.2, -24); c.lineTo(handX, handY); c.stroke();
+    c.beginPath(); c.moveTo(7.2, -24); c.lineTo(hand.x, hand.y); c.stroke();
     c.strokeStyle = coat; c.lineWidth = 2.2;
-    c.beginPath(); c.moveTo(7.2, -24); c.lineTo(handX, handY); c.stroke();
-    ell(c, handX, handY, 2.1, 2.1, SKIN);
-    drawHeldWeapon(c, weaponId, weaponKind, trim, swing, local, t, handX, handY);
+    c.beginPath(); c.moveTo(7.2, -24); c.lineTo(hand.x, hand.y); c.stroke();
+    ell(c, hand.x, hand.y, 2.1, 2.1, SKIN);
+    if (weaponAlpha > .05) {
+      c.save();
+      c.globalAlpha = weaponAlpha;
+      drawHeldWeapon(c, weaponId, weaponKind, trim, swing, local, t, hand.x, hand.y,
+        { aim, cast, gather, charge, tool, shoot, swap });
+      c.restore();
+    }
     // off arm
-    c.strokeStyle = dark; c.lineWidth = 2.7;
-    c.beginPath(); c.moveTo(-6.4, -24); c.lineTo(-8.6 - idleSwing * 3, -15); c.stroke();
-    c.strokeStyle = coat; c.lineWidth = 2;
-    c.beginPath(); c.moveTo(-6.4, -24); c.lineTo(-8.6 - idleSwing * 3, -15); c.stroke();
-    ell(c, -8.6 - idleSwing * 3, -14.6, 2, 2, SKIN);
+    const elbowX = off.x * .55 - 1.2, elbowY = off.y * .62 - 8;
+    c.strokeStyle = dark; c.lineWidth = 2.6;
+    c.beginPath(); c.moveTo(-6.4, -24); c.quadraticCurveTo(elbowX, elbowY, off.x, off.y); c.stroke();
+    c.strokeStyle = coat; c.lineWidth = 1.9;
+    c.beginPath(); c.moveTo(-6.4, -24); c.quadraticCurveTo(elbowX, elbowY, off.x, off.y); c.stroke();
+    ell(c, off.x, off.y, 2, 2, SKIN);
+
+    // flask in the off hand while drinking
+    if (drink > .05) {
+      // soft halo so the gesture reads even at gameplay zoom
+      c.save(); c.globalAlpha = Math.min(1, drink) * .3;
+      c.fillStyle = '#8fe8c8';
+      c.beginPath(); c.arc(off.x + 1, off.y - 3, 7, 0, TAU); c.fill();
+      c.restore();
+      for (let i = 0; i < 3; i++) {
+        const ph = ((t * .9 + i * .33) % 1);
+        c.globalAlpha = (1 - ph) * drink * .8;
+        ell(c, off.x + 2 + Math.sin(t * 3 + i) * 2, off.y - 8 - ph * 12, 1.3, 1.3, '#bff4ea');
+      }
+      c.globalAlpha = 1;
+      c.save(); c.translate(off.x + 1.4, off.y - 1.4); c.rotate(-.55);
+      c.globalAlpha = Math.min(1, drink * 1.6);
+      c.shadowColor = '#8fe8c8'; c.shadowBlur = 8;
+      P(c, -2.6, -4.6, 5.2, 7, '#2e6e60');
+      P(c, -2.2, -4.2, 4.4, 6.2, '#7fe0c8');
+      P(c, -1.4, -3.4, 2.8, 3, '#c8fff0');
+      c.shadowBlur = 0;
+      P(c, -1.2, -6.6, 2.4, 2.2, '#d8c8a8');
+      c.strokeStyle = '#1e3a34'; c.lineWidth = .7;
+      c.strokeRect(-2.6, -4.6, 5.2, 7);
+      c.restore();
+    }
+    // shield / focus in the off hand for warriors and mages
     if (cls === 'warrior') {
-      c.save(); c.translate(-11.6, -17.4); c.rotate(-.18);
+      c.save(); c.translate(-11.6, -17.4 + crouch * 0); c.rotate(-.18 + (aim > 0 ? .3 : 0));
       poly(c, [[-6, -7], [4, -8], [6, 1], [3, 8], [-3, 8], [-6, 1]], '#6f5a3f', dark, 1.2);
       poly(c, [[-4, -5], [2.6, -6], [4, 0], [1.6, 5.6], [-2, 5.6], [-4, 0]], '#8d7550');
       poly(c, [[-2.4, -3], [0, -1], [-2.4, 3]], trim);
       P(c, -4, -6.4, 8, 1.4, '#b79a5e');
+      c.restore();
+    }
+    if (cls === 'mage' && cast > .05) {
+      c.save(); c.globalAlpha = cast * .9; c.shadowColor = '#9fe8ff'; c.shadowBlur = 10;
+      ell(c, off.x, off.y - 1.4, 2.6 + cast * 1.6, 2.6 + cast * 1.6, '#cdf6ff');
+      c.restore();
+    }
+    c.restore();
+
+    /* charge shimmer: a thin rim, not a floodlight */
+    if (charge > .02) {
+      c.save();
+      c.globalAlpha = .18 + charge * .3;
+      c.strokeStyle = '#ffe6a3'; c.lineWidth = 1.1;
+      c.beginPath(); c.ellipse(0, 1, 12 + charge * 3, 4.4 + charge * 1.2, 0, 0, TAU); c.stroke();
       c.restore();
     }
     if (local) {
@@ -924,49 +1048,70 @@
     c.restore();
   }
 
-  function drawHeldWeapon(c, id, kind, trim, swing, local, t, handX, handY) {
+  /* ── weapons ─────────────────────────────────────────────────────────── */
+  function drawHeldWeapon(c, id, kind, trim, swing, local, t, handX, handY, pose) {
+    const ps = pose || {};
     const glowCol = /frost|ice/.test(id) ? '#a8ecff' : /ember|flame/.test(id) ? '#ffb066' : /void|astral/.test(id) ? '#e0b0ff' : /storm/.test(id) ? '#8fe0ff' : local ? '#ffe6a3' : trim;
     const px = handX === undefined ? 9 : handX;
     const py = handY === undefined ? -13 : handY;
     c.save();
     c.translate(px, py);
+
     if (kind === 'staff') {
-      c.rotate(.1 + swing * -.25);
+      const raised = ps.cast > 0 ? -0.06 : 0.1 + swing * -.25;
+      c.rotate(raised);
       P(c, -1.3, -44, 2.6, 54, '#5a4630');
       P(c, -1.3, -44, .9, 54, '#8a6a44');
       P(c, -3.4, 8, 6.8, 3, '#3f3020');
       c.translate(0, -46);
-      c.save(); c.shadowColor = glowCol; c.shadowBlur = 14;
-      poly(c, [[0, -7], [4.4, 0], [0, 6], [-4.4, 0]], glowCol, '#ffffff', .9);
-      ell(c, -.6, -.6, 1.8, 1.8, '#ffffff');
+      const flare = 1 + (ps.cast || 0) * 1.4;
+      c.save(); c.shadowColor = glowCol; c.shadowBlur = 12 + (ps.cast || 0) * 14;
+      poly(c, [[0, -7 * flare], [4.4 * flare, 0], [0, 6 * flare], [-4.4 * flare, 0]], glowCol, '#ffffff', .9);
+      ell(c, -.6, -.6, 1.8 * flare, 1.8 * flare, '#ffffff');
       c.restore();
       c.strokeStyle = glowCol + '99'; c.lineWidth = 1;
-      c.beginPath(); c.arc(0, 0, 8, 0, TAU); c.stroke();
+      c.beginPath(); c.arc(0, 0, 8 + (ps.cast || 0) * 4, 0, TAU); c.stroke();
+      if (ps.charge > .02) {
+        c.strokeStyle = `rgba(255,240,190,${.25 + ps.charge * .5})`; c.lineWidth = 1.6;
+        c.beginPath(); c.arc(0, 0, 10 + ps.charge * 5, -Math.PI / 2, -Math.PI / 2 + TAU * ps.charge); c.stroke();
+      }
       c.restore();
       return;
     }
+
     if (kind === 'bow') {
-      c.rotate(.04);
-      const pull = swing > .05 ? swing : 0;
+      const aim = ps.aim || 0;
+      c.rotate(aim > 0 ? -.02 : .04 + (aim > 0 ? 0 : 0));
+      const pull = Math.max(aim, ps.charge || 0, swing > .05 ? swing : 0);
       c.strokeStyle = '#7a5a38'; c.lineWidth = 2.8;
       c.beginPath(); c.arc(-1, -5, 10, -1.24, 1.24); c.stroke();
       c.strokeStyle = '#c9a25a'; c.lineWidth = 1.2;
       c.beginPath(); c.arc(-1, -5, 10, -1.24, 1.24); c.stroke();
       c.strokeStyle = '#efe8cf'; c.lineWidth = .9;
-      c.beginPath(); c.moveTo(2.4, -14.7 + pull * 2.4); c.lineTo(2.4 + pull * 4, -5); c.lineTo(2.4, 4.7 - pull * 2.4); c.stroke();
+      c.beginPath();
+      c.moveTo(2.4, -14.7 + pull * 2.4); c.lineTo(2.4 + pull * 5, -5); c.lineTo(2.4, 4.7 - pull * 2.4);
+      c.stroke();
       if (pull > .05) {
         c.strokeStyle = '#d8e4c8'; c.lineWidth = 1.1;
-        c.beginPath(); c.moveTo(2.4 + pull * 4, -5); c.lineTo(19, -5); c.stroke();
+        c.beginPath(); c.moveTo(2.4 + pull * 5, -5); c.lineTo(19, -5); c.stroke();
         poly(c, [[19, -5], [14.6, -7.4], [14.6, -2.6]], '#e8f2e8');
+        poly(c, [[21.6, -5], [18.4, -6.6], [18.4, -3.4]], '#b8c8b8');
       }
       P(c, -.8, 2, 5, 2.4, '#6b4d2f');
       c.restore();
       return;
     }
+
     const heavy = /greatsword|war_maul|warhammer|obsidian_axe|axe|halberd|glaive|scythe|colossus|spear/.test(id);
     const blazing = /ember|flamberge|astral|void|frost|moon|storm/.test(id);
-    // At rest the blade points down-forward; a swing sweeps it overhead.
-    c.rotate(.34 - swing * 1.5);
+    const toolSwing = ps.tool;
+    const wind = (ps.charge || 0) * .8;
+    const base = .34 + wind;
+    // the release only exists after the wind-up, so the blade sweeps forward
+    const rot = toolSwing !== null && toolSwing !== undefined
+      ? toolSwing
+      : base + Math.max(0, swing - .36) * 2.9;
+    c.rotate(rot);
     P(c, -1.7, -2, 3.4, 9.4, '#6b4d2f');
     P(c, -1.7, -2, 1.2, 9.4, '#8a6a44');
     P(c, -5, -3.6, 10, 2.3, '#b79a5e');
@@ -982,7 +1127,15 @@
     if (blazing) { c.shadowColor = glowCol; c.shadowBlur = 9; }
     c.stroke(); c.shadowBlur = 0;
     P(c, -.7, -len + 3, 1.2, len - 6, '#ffffff77');
-    P(c, -1.4, -len + 1, 1.2, 3, '#ffffff99');
+    // sharp glint that runs up the edge as the swing charges
+    const charge = ps.charge || 0;
+    if (charge > .03) {
+      const gy = -len + 4 + (1 - charge) * (len - 8);
+      c.save(); c.globalAlpha = .35 + charge * .55;
+      c.fillStyle = '#fffbe6'; c.shadowColor = '#ffe6a3'; c.shadowBlur = 8;
+      c.fillRect(-1.9, gy, 1.1, len * .35 + 2);
+      c.restore();
+    }
     c.restore();
   }
 
@@ -1385,19 +1538,76 @@
   const playerViews = new Map();
   const mobViews = new Map();
 
+  /* ── animation state ─────────────────────────────────────────────────── */
+  // Explicit one-shot gestures pushed by the HUD (potion, weapon swap, cast).
+  const gestures = new Map();
+  function heroGesture(kind, id) {
+    const key = id || (typeof myId !== 'undefined' && myId) || 'local';
+    gestures.set(key, { kind, start: performance.now() });
+  }
+  function gestureEnvelope(id, kind, duration) {
+    const g = gestures.get(id);
+    if (!g || g.kind !== kind) return 0;
+    const p = (performance.now() - g.start) / duration;
+    if (p >= 1) { gestures.delete(id); return 0; }
+    // quick in, hold, quick out
+    return p < .22 ? p / .22 : p > .74 ? (1 - p) / .26 : 1;
+  }
+  window.heroGesture = heroGesture;
+
+  function offsetParticle(x, y, color, count, speed, size, life) {
+    if (typeof spawnParticles === 'function') spawnParticles(x, y, color, count, speed, size, life);
+  }
+
   function playerVisual(q, now) {
     let v = playerViews.get(q.id);
-    if (!v) { v = { x: q.x, y: q.y, walk: 0, move: 0, swing: 0, hurt: 0, last: now }; playerViews.set(q.id, v); return v; }
+    if (!v) {
+      v = { x: q.x, y: q.y, walk: 0, move: 0, swing: 0, hurt: 0, last: now, weapon: q.weapon,
+        hp: q.hp, mana: q.mana, swap: 0, cast: 0, aim: 0, shoot: 0, gather: 0,
+        dust: 0, spark: 0, prevAttack: !!q.attack, run: !!q.run, sneak: !!q.sneak };
+      playerViews.set(q.id, v);
+      return v;
+    }
     const dt = Math.max(.001, (now - v.last) / 1000); v.last = now;
     const pos = typeof entityPosition === 'function' ? entityPosition(q, now) : q;
     const dx = pos.x - v.x, dy = pos.y - v.y;
     const speed = Math.hypot(dx, dy) / dt;
     v.move = lerp(v.move || 0, speed, .25);
-    if (speed > 6) v.walk += Math.min(1.2, speed / 180) * dt * 14;
+    if (speed > 6) v.walk += Math.min(1.6, speed / 150) * dt * 14;
     v.x = pos.x; v.y = pos.y;
-    // swing from the server action + local charge
-    if (q.attack) v.swing = clamp(Number(q.attack.charge) || 0, 0, 1) * .35;
-    else v.swing = Math.max(0, (v.swing || 0) - dt * 3.4);
+    v.run = !!q.run; v.sneak = !!q.sneak;
+    v.gather = q.gathering ? 1 : 0;
+
+    // weapon swap: the old blade drops out of frame, the new one arrives
+    if (q.weapon && q.weapon !== v.weapon) { v.weapon = q.weapon; v.swap = 1; }
+    // flinch when hit
+    if (q.hp !== undefined && v.hp !== undefined && q.hp < v.hp - .01) v.hurt = 1;
+    v.hp = q.hp;
+    // a sudden mana drop means a spell just left the staff
+    if (q.mana !== undefined && v.mana !== undefined && v.mana - q.mana > 4) v.cast = 1;
+    v.mana = q.mana;
+
+    const bow = q.weapon_kind === 'bow' || /bow|longbow/.test(q.weapon || '');
+    if (q.attack && bow) {
+      v.aim = clamp(Number(q.attack.charge) || 0, 0, 1);
+    } else {
+      if (v.aim > .12) v.shoot = 1;
+      v.aim = 0;
+    }
+
+    // swing: wind up with the charge, then snap forward on release
+    if (q.attack) {
+      v.swing = clamp(Number(q.attack.charge) || 0, 0, 1) * .35;
+      v.prevAttack = true;
+    } else {
+      if (v.prevAttack) { v.swing = 1; v.prevAttack = false; }
+      v.swing = Math.max(0, v.swing - dt * 5.2);
+    }
+
+    v.swap = Math.max(0, v.swap - dt * 2.6);
+    v.hurt = Math.max(0, v.hurt - dt * 3.2);
+    v.cast = Math.max(0, v.cast - dt * 1.5);
+    v.shoot = Math.max(0, v.shoot - dt * 6);
     return v;
   }
 
@@ -1438,20 +1648,79 @@
       starseer_robe: '#f0c8f8', elder_mantle: '#c8f0a8', leather_vest: '#b89a6a', chain_shirt: '#c8d0d8', bark_plate: '#b8d890',
       ember_mail: '#ffb08a', frostguard_plate: '#c8f0ff', void_cloak: '#b8a0e0',
     };
+    const coat = coatMap[q.gear] || '#547c50';
+    const trim = trimMap[q.gear] || '#e6cf8f';
+    const charge = q.attack ? clamp(Number(q.attack.charge) || 0, 0, 1) : 0;
+    const gid = typeof myId !== 'undefined' && myId ? myId : 'local';
+    const drink = local ? gestureEnvelope(gid, 'drink', 950) : 0;
+    const castG = local ? gestureEnvelope(gid, 'cast', 700) : 0;
+    const swapG = local ? gestureEnvelope(gid, 'swap', 500) : 0;
+    const cast = Math.max(vis.cast, local ? castG : 0);
+    const swap = Math.max(vis.swap, swapG);
+
     c.save(); c.translate(q.x, q.y);
+    // contact shadow
     c.save(); c.translate(0, 1); c.scale(1, .34); ell(c, 0, 0, 13, 4.6, local ? '#00000066' : '#0000004a'); c.restore();
-    drawHeroModel(c, q, {
-      coat: coatMap[q.gear] || '#547c50', trim: trimMap[q.gear] || '#e6cf8f',
-      local, class: q.class, weapon: q.weapon, time: now / 1000,
-      walk: vis.walk, move: vis.move, swing: vis.swing,
-    });
-    // charge aura while winding up
-    const charging = q.attack && Number(q.attack.charge) > .05;
-    if (charging) {
-      const p = clamp(Number(q.attack.charge), 0, 1);
-      c.save(); c.globalCompositeOperation = 'lighter'; c.globalAlpha = .16 + p * .3;
-      ell(c, 0, -22, 20 + p * 12, 26 + p * 12, local ? '#ffdf8a' : '#bfe89a'); c.restore();
+    // magic circle under a casting hero
+    if (cast > .05) {
+      c.save(); c.globalAlpha = cast * .55;
+      c.strokeStyle = '#b8ecff'; c.lineWidth = 1.2;
+      c.beginPath(); c.ellipse(0, 1, 17 + cast * 5, 6 + cast * 2, 0, 0, TAU); c.stroke();
+      c.strokeStyle = '#e6d0ff'; c.lineWidth = 2;
+      c.beginPath(); c.ellipse(0, 1, 13 + cast * 3, 4.6 + cast, 0, now / 260, now / 260 + 4.2); c.stroke();
+      for (let i = 0; i < 6; i++) {
+        const a = now / 420 + i * TAU / 6;
+        ell(c, Math.cos(a) * (16 + cast * 4), 1 + Math.sin(a) * (5.6 + cast), 1.2, 1.2, '#d8f4ff');
+      }
+      c.restore();
     }
+    drawHeroModel(c, q, {
+      coat, trim, local, class: q.class, weapon: q.weapon, time: now / 1000,
+      walk: vis.walk, move: vis.move, swing: vis.swing,
+      run: vis.run, sneak: vis.sneak, aim: vis.aim, cast, drink, gather: vis.gather,
+      swap, shoot: vis.shoot, hurt: vis.hurt, charge,
+    });
+
+    // ── world-space flourishes ───────────────────────────────────────────
+    const speed = vis.move || 0;
+    // footsteps: dust when running, scuffs while walking
+    const dustGap = vis.run ? 120 : vis.sneak ? 620 : 330;
+    if (vis.move > 40 && now - (vis.dust || 0) > dustGap) {
+      vis.dust = now;
+      const col = vis.run ? '#cbb894' : '#a89a80';
+      offsetParticle(q.x - (q.face_x < 0 ? -1 : 1) * 7, q.y + 1, col, vis.run ? 4 : 2, vis.run ? 2.2 : 1.2, vis.run ? 3 : 2, .45);
+    }
+    // sparks fly while gathering
+    if (vis.gather) {
+      if (now - (vis.spark || 0) > 210) {
+        vis.spark = now;
+        const dir = q.face_x < 0 ? -1 : 1;
+        offsetParticle(q.x + dir * 14, q.y - 4, '#ffe6a3', 4, 2.2, 3, .5);
+      }
+    }
+    // spell motes rise from the orb
+    if (cast > .2 && now - (vis.castFx || 0) > 90) {
+      vis.castFx = now;
+      offsetParticle(q.x + (q.face_x < 0 ? -6 : 6), q.y - 34, '#cdf6ff', 3, 1.4, 2, .6);
+    }
+    // potion gloop
+    if (drink > .3 && now - (vis.drinkFx || 0) > 140) {
+      vis.drinkFx = now;
+      offsetParticle(q.x + 2, q.y - 30, '#8fe8c8', 3, 1.1, 2, .5);
+    }
+    // bow release puff
+    if (vis.shoot > .5 && local) offsetParticle(q.x + 18, q.y - 24, '#e8f2e8', 3, 2.4, 2, .3);
+    // wind streaks behind a sprinting hero
+    if (vis.run && speed > 150) {
+      const dir = q.face_x < 0 ? 1 : -1;
+      c.save(); c.globalAlpha = .22; c.strokeStyle = '#eaf4e0'; c.lineWidth = 1.4;
+      for (let i = 0; i < 3; i++) {
+        const yy = -8 - i * 8, len = 7 + ((now / 70 + i * 11) % 12);
+        c.beginPath(); c.moveTo(dir * 9, yy); c.lineTo(dir * (9 + len), yy); c.stroke();
+      }
+      c.restore();
+    }
+
     // player labels
     const nameCol = local ? '#ffe9ab' : '#d8e8d0';
     label(c, q.name, 0, -52, nameCol, 10);
@@ -1734,7 +2003,7 @@
         const range = Number(spec.range || 44) + 12 * charge;
         const half = Math.acos(Math.max(-.99, Math.min(.99, Number(spec.arc ?? .28))));
         const angle = Math.atan2(aim.y, aim.x);
-        ctx.save(); ctx.globalAlpha = .07 + .12 * charge; ctx.fillStyle = charge > .8 ? '#ffe08c' : '#b9d889';
+        ctx.save(); ctx.globalAlpha = .05 + .07 * charge; ctx.fillStyle = charge > .8 ? '#ffe08c' : '#b9d889';
         ctx.beginPath(); ctx.moveTo(p.x, p.y - 10); ctx.arc(p.x, p.y - 10, range, angle - half, angle + half); ctx.closePath(); ctx.fill();
         ctx.globalAlpha = .6; ctx.strokeStyle = charge > .8 ? '#ffe08c' : '#c8e09b'; ctx.lineWidth = 1.2;
         ctx.beginPath(); ctx.arc(p.x, p.y - 10, range, angle - half, angle + half); ctx.stroke(); ctx.restore();

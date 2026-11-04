@@ -477,7 +477,7 @@
     if (!id) { toast(`Слот ${i + 1} пуст. Перетащи в него предмет в сумке.`); return; }
     const item = resolveItem(p, id);
     if (!item) { toast('Этого предмета больше нет в сумке.'); return; }
-    if (item.kind === 'weapon') { if (!item.equipped) { send({ type: 'weapon', id: item.id }); toast(`В руке: ${item.name}`); } return; }
+    if (item.kind === 'weapon') { if (!item.equipped) { if (window.heroGesture) window.heroGesture('swap'); send({ type: 'weapon', id: item.id }); toast(`В руке: ${item.name}`); } return; }
     if (item.kind === 'gear') { if (!item.equipped) { send({ type: 'equip_gear', id: item.id }); } return; }
     if (item.kind === 'consumable') { useConsumable(item); return; }
     if (item.kind === 'ammo') { toast(`Стрелы: ${item.count}. Нужны для лука.`); return; }
@@ -487,6 +487,7 @@
   function useConsumable(item) {
     if (!item || item.kind !== 'consumable') return;
     if (item.count <= 0) { toast('В сумке нет этого зелья.'); return; }
+    if (window.heroGesture) window.heroGesture('drink');
     send({ type: 'use_consumable', id: item.id });
     // A small local flourish so the key press always feels responsive.
     const p = meSafe();
@@ -498,7 +499,7 @@
 
   function primaryAction(item) {
     if (!item) return;
-    if (item.kind === 'weapon' && !item.equipped) { send({ type: 'weapon', id: item.id }); toast(`В руке: ${item.name}`); }
+    if (item.kind === 'weapon' && !item.equipped) { if (window.heroGesture) window.heroGesture('swap'); send({ type: 'weapon', id: item.id }); toast(`В руке: ${item.name}`); }
     else if (item.kind === 'gear' && !item.equipped) { send({ type: 'equip_gear', id: item.id }); }
     else if (item.kind === 'consumable') useConsumable(item);
     else if (item.kind === 'weapon') toast(`${item.name} уже в руке.`);
