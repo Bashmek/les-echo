@@ -856,6 +856,147 @@ def quest_data(p: dict[str, Any]) -> dict[str, Any]:
     return {"stage": p["quest_stage"], "total": len(QUESTS), "active": p["quest_active"],
             "kills": dict(p["quest_kills"]), "gather": dict(p["quest_gather"])}
 
+def quest_objective(kind: str, key: str, need: int, have: int) -> dict[str, Any]:
+    need = max(0, int(need))
+    return {"kind": kind, "key": key, "need": need, "have": max(0, min(need, int(have)))}
+
+
+def quest_reward_view(gold: int, xp: int, items: list[tuple[str, str, int]], points: int = 1) -> dict[str, Any]:
+    return {"gold": int(gold), "xp": int(xp), "points": int(points),
+            "items": [{"type": kind, "id": item, "count": int(amount)} for kind, item, amount in items]}
+
+
+def _guide_name(region_id: str) -> str:
+    guide = NPCS.get(f"{region_id}-guide") or {}
+    return str(guide.get("name") or "Хранитель истории")
+
+
+def _region_name(region_id: str) -> str:
+    return str(REGIONS.get(region_id, {}).get("name") or region_id)
+
+
+def story_quest_status(p: dict[str, Any], stage: int) -> str:
+    """«done», «ready», «active» или «idle» для этапа основной ветки."""
+    current = int(p.get("quest_stage", 0))
+    if stage < current:
+        return "done"
+    if stage > current or not p.get("quest_active"):
+        return "idle"          # ещё не выдано Хранителем — в журнал не попадает
+    return "ready" if quest_complete(p) else "active"
+
+
+def region_quest_status(p: dict[str, Any], region_id: str) -> str:
+    """«done», «ready» (цели и материалы есть), «ongoing» или «idle»."""
+    state = (p.get("region_quests") or {}).get(region_id) or {}
+    if state.get("done"):
+        return "done"
+    if not state.get("active"):
+        return "idle"
+    spec = REGION_QUESTS[region_id]
+    counters_ok = (state.get("gather", {}).get(spec["resource"], 0) >= spec["count"] and
+                   (not spec.get("resource2") or spec.get("count2", 0) <= 0 or
+                    state.get("gather", {}).get(spec["resource2"], 0) >= spec["count2"]) and
+                   (not spec.get("mob") or state.get("kills", {}).get(spec["mob"], 0) >= spec["mob_count"]))
+    if not counters_ok:
+        return "ongoing"
+    # Progress is not ownership: completed objectives only pay out while the
+    # materials are still in the bag.
+    stock_ok = (p.get("inventory", {}).get(spec["resource"], 0) >= spec["count"] and
+                (not spec.get("resource2") or spec.get("count2", 0) <= 0 or
+                 p.get("inventory", {}).get(spec["resource2"], 0) >= spec["count2"]))
+    return "ready" if stock_ok else "short"
+
+
+def gather_node_kind(p: dict[str, Any]) -> str:
+    """Which node the character is working on — the renderer picks the tool by it."""
+    job = p.get("gathering") or {}
+    if not job:
+        return ""
+    node_id = job.get("node")
+    for node in nodes:
+        if node.get("id") == node_id:
+            return str(node.get("kind", ""))
+    return ""
+
+
+def quest_journal(p: dict[str, Any]) -> list[dict[str, Any]]:
+    """Every accepted (and finished) commission, main line and local side work.
+
+    The client renders this list directly: accepted quests carry their live
+    counters, finished ones keep a place in the chain so the journal reads as a
+    history instead of a single floating objective.
+    """
+    journal: list[dict[str, Any]] = []
+    stage_now = int(p.get("quest_stage", 0))
+    for stage, (mob, mob_n, resource, res_n, title) in enumerate(QUESTS):
+        status = story_quest_status(p, stage)
+        if status == "idle":
+            # A stage the keeper has not handed out yet is not part of the journal.
+            continue
+        current = stage == stage_now
+        objectives = []
+        if mob:
+            objectives.append(quest_objective("kill", mob, mob_n,
+                                              mob_n if not current else p.get("quest_kills", {}).get(mob, 0)))
+        if resource:
+            objectives.append(quest_objective("gather", resource, res_n,
+                                              res_n if not current else p.get("quest_gather", {}).get(resource, 0)))
+        gold, xp, rewards = QUEST_REWARDS[stage]
+        journal.append({
+            "id": f"story:{stage}", "kind": "story", "stage": stage, "total": len(QUESTS),
+            "title": title, "status": status, "objectives": objectives,
+            "reward": quest_reward_view(gold, xp, rewards),
+            "region": "camp", "region_name": _region_name("camp"), "giver": _guide_name("camp"),
+            "description": "Основная ветка: каждое поручение Хранителя ведёт дальше по девяти землям.",
+        })
+
+    for region_id, spec in REGION_QUESTS.items():
+        status = region_quest_status(p, region_id)
+        if status == "idle":
+            continue
+        state = (p.get("region_quests") or {}).get(region_id) or {}
+        objectives = []
+        if spec.get("mob"):
+            objectives.append(quest_objective("kill", spec["mob"], spec["mob_count"],
+                                              state.get("kills", {}).get(spec["mob"], 0)))
+        if spec.get("resource"):
+            objectives.append(quest_objective("gather", spec["resource"], spec["count"],
+                                              state.get("gather", {}).get(spec["resource"], 0)))
+        if spec.get("resource2") and spec.get("count2", 0) > 0:
+            objectives.append(quest_objective("gather", spec["resource2"], spec["count2"],
+                                              state.get("gather", {}).get(spec["resource2"], 0)))
+        journal.append({
+            "id": f"region:{region_id}", "kind": "region", "stage": None, "total": None,
+            "title": str(spec["title"]), "status": status, "objectives": objectives,
+            "reward": quest_reward_view(spec["gold"], spec["xp"], [("potion", "potion", 2)]),
+            "region": region_id, "region_name": _region_name(region_id), "giver": _guide_name(region_id),
+            "description": str(spec.get("description") or "Местное поручение: засчитывается только в этих землях."),
+        })
+
+    order = {"ready": 0, "short": 1, "ongoing": 2, "active": 2, "done": 3}
+    main_line = sorted((q for q in journal if q["kind"] == "story"), key=lambda q: q["stage"])
+    side = sorted((q for q in journal if q["kind"] == "region"),
+                  key=lambda q: (order.get(q["status"], 4), list(REGION_QUESTS).index(q["region"])
+                                 if q["region"] in REGION_QUESTS else 99))
+    return main_line + side
+
+
+def default_tracked_quest(p: dict[str, Any], journal: list[dict[str, Any]]) -> str:
+    """The journal's pick when the player has not pinned anything (or it finished)."""
+    if not journal:
+        return ""
+    pinned = str(p.get("tracked_quest") or "")
+    if pinned and any(q["id"] == pinned for q in journal):
+        return pinned
+    for wanted in ("ready", "short"):
+        for quest in journal:
+            if quest["status"] == wanted:
+                return quest["id"]
+    for quest in journal:
+        if quest["status"] in ("ongoing", "active"):
+            return quest["id"]
+    return ""
+
 
 def player_row(pid: str, p: dict[str, Any], now: float) -> dict[str, Any]:
     action = None
@@ -914,6 +1055,8 @@ def player_row(pid: str, p: dict[str, Any], now: float) -> dict[str, Any]:
                                for key, value in WEAPONS.items()},
             "region": p.get("region", "camp"), "visited_regions": list(p.get("visited_regions", [])),
             "region_quest": region_quest_view(p, p.get("region", "camp")),
+            "journal": quest_journal(p), "tracked_quest": default_tracked_quest(p, quest_journal(p)),
+            "gather_kind": gather_node_kind(p),
             "bosses_defeated": list(p.get("bosses_defeated", [])),
             "recall_ready": time.monotonic() >= float(p.get("recall_at", 0)),
             "in_combat": time.monotonic() - float(p.get("last_combat", 0)) < COMBAT_LOCK,
@@ -1443,6 +1586,8 @@ async def npc_quest_action(p: dict[str, Any], msg: dict[str, Any]) -> None:
             await tell(p["id"], f"Новое поручение: {quest_requirements(p['quest_stage'])[4]}.")
         elif action == "claim" and p["quest_active"] and quest_complete(p):
             stage = p["quest_stage"]; p["quest_active"] = False; p["quest_stage"] += 1
+            if str(p.get("tracked_quest") or "") == f"story:{stage}":
+                p["tracked_quest"] = ""   # сданное не висит в трекере — журнал подскажет следующее
             gold, xp, rewards = QUEST_REWARDS[stage]
             p["gold"] += gold; add_xp(p, xp)
             p["skill_points"] = int(p.get("skill_points", 0)) + 1
@@ -1472,6 +1617,8 @@ async def npc_quest_action(p: dict[str, Any], msg: dict[str, Any]) -> None:
         p["inventory"][q["resource"]] -= q["count"]
         if q["resource2"] and q["count2"] > 0: p["inventory"][q["resource2"]] -= q["count2"]
         p["region_quests"][rid]["active"] = False; p["region_quests"][rid]["done"] = True
+        if str(p.get("tracked_quest") or "") == f"region:{rid}":
+            p["tracked_quest"] = ""
         p["gold"] += q["gold"]; add_xp(p, q["xp"]); p["inventory"]["potion"] += 2
         p["skill_points"] = int(p.get("skill_points", 0)) + 1
         await tell(p["id"], f"«{q['title']}» завершено: +{q['gold']} монет, +{q['xp']} опыта, настойки и очко развития.")
@@ -2912,6 +3059,15 @@ async def handle_message(pid: str, p: dict[str, Any], msg: dict[str, Any], now: 
                     await tell(pid, f"Оружие экипировано, но способности «{MASTERY_NAMES.get(tree, tree)}» недоступны твоему классу.")
         else:
             await tell(pid, "Оружие не найдено в сумке.")
+    elif kind == "quest_track":
+        wanted = str(msg.get("id", ""))
+        known = {q["id"] for q in quest_journal(p)}
+        if wanted in known:
+            p["tracked_quest"] = wanted
+        elif not wanted:
+            p["tracked_quest"] = ""      # снять закрепление: трекер выберет сам
+        else:
+            await tell(pid, "Это поручение ещё не принято — сначала поговори с Хранителем.")
     elif kind == "gather_start": start_gather(p, now)
     elif kind == "gather_stop": p["gathering"] = None
     elif kind == "interact": await interact_keeper(p)
@@ -2978,7 +3134,7 @@ PERSIST_FIELDS = (
     "inventory", "quest_stage", "quest_active", "quest_kills", "quest_gather", "quest_points",
     "class_bonus_points", "class_bonus_spent",
     "enchantments", "market_starter_grant", "magic_mana_spent", "upgrades", "mana_regen_level", "magic_damage_level", "insight_level", "spell_uses", "custom_spells",
-    "class", "mastery", "ability_cooldowns",
+    "class", "mastery", "ability_cooldowns", "tracked_quest",
 )
 
 
@@ -3546,7 +3702,8 @@ def default_player(pid: str, name: str) -> dict[str, Any]:
          "gear": "traveler", "gear_inventory": [],
          "inventory": {"wood": 0, "herb": 0, "ore": 0, "hide": 0, "slime": 0, "crystal": 0, "shard": 0, "potion": 2, "arrows": 18},
          "quest_stage": 0, "quest_active": False, "quest_kills": {}, "quest_gather": {},
-         "gathering": None, "last_chat": 0.0, "last_combat": 0.0, "travel_lock_until": 0.0, "recall_at": 0.0}
+         "gathering": None, "last_chat": 0.0, "last_combat": 0.0, "travel_lock_until": 0.0, "recall_at": 0.0,
+         "tracked_quest": ""}
 
 
 @app.websocket("/ws")
@@ -3632,6 +3789,8 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
         p["gold"] = max(0, int(p.get("gold", 0))) + 150
         p["market_starter_grant"] = True
     p["quest_stage"] = max(0, min(len(QUESTS), int(p["quest_stage"])))
+    if not isinstance(p.get("tracked_quest"), str): p["tracked_quest"] = ""
+    p["tracked_quest"] = p["tracked_quest"][:48]
     update_derived(p)
     players[pid] = p; clients[pid] = websocket
     last_seen_at[pid] = time.monotonic(); last_ping_at[pid] = 0.0
