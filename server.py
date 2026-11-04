@@ -23,6 +23,7 @@ from world import (
     MAP_W, MAP_H, SPAWN, REGIONS, NPCS, PORTALS, POWER_SITES, REGION_QUESTS,
     ZONES, NPC_RADIUS, PORTAL_RADIUS, COMBAT_LOCK, region_for, is_safe, same_region,
     near_npc, nearest_npc, build_shops, public_region, atlas_view, migrate_position, populate,
+    resolve_collision, collision_blocked,
 )
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -223,6 +224,44 @@ CONSUMABLES = {
                 "restore_hp": 90, "restore_mana": 60, "restore_stamina": 40},
     "bandage": {"name": "Лубяная повязка", "description": "+24 здоровья мгновенно", "price": 14, "restore_hp": 24},
 }
+CONSUMABLE_ALIASES: dict[str, dict[str, Any]] = {
+    "potion": {"name": "Настойка следопыта", "description": "+48 здоровья", "restore_hp": 48},
+    **CONSUMABLES,
+}
+
+
+def consumable_use(p: dict[str, Any], item_id: str) -> tuple[bool, str, dict[str, Any]]:
+    """Apply one consumable, returning (used, message, effects).
+
+    Every potion sold or brewed in the game has a working use path; the call is
+    rejected with a clear message instead of silently doing nothing.
+    """
+    spec = CONSUMABLE_ALIASES.get(item_id)
+    if not spec:
+        return False, "Этот предмет нельзя использовать.", {}
+    if int(p.get("inventory", {}).get(item_id, 0)) <= 0:
+        return False, f"В сумке нет: {spec['name']}.", {}
+    effects: dict[str, Any] = {}
+    if "restore_hp" in spec:
+        before = float(p["hp"])
+        p["hp"] = min(p["max_hp"], p["hp"] + float(spec["restore_hp"]))
+        effects["hp"] = round(p["hp"] - before, 1)
+    if "restore_mana" in spec:
+        before = float(p.get("mana", 0))
+        p["mana"] = min(float(p.get("max_mana", 0)), p.get("mana", 0) + float(spec["restore_mana"]))
+        effects["mana"] = round(p["mana"] - before, 1)
+    if "restore_stamina" in spec:
+        before = float(p["stamina"])
+        p["stamina"] = min(p["max_stamina"], p["stamina"] + float(spec["restore_stamina"]))
+        effects["stamina"] = round(p["stamina"] - before, 1)
+    if not any(value > 0 for value in effects.values()):
+        return False, f"{spec['name']}: восстанавливать нечего — характеристики полны.", {}
+    p["inventory"][item_id] = max(0, int(p["inventory"].get(item_id, 0)) - 1)
+    effects["id"] = item_id
+    effects["name"] = spec["name"]
+    return True, f"Использовано: {spec['name']}.", effects
+
+
 CRAFT_RECIPES = {
     "arrows": {"name": "Колчан стрел ×8", "cost": {"wood": 2, "ore": 1}},
     "potion": {"name": "Настойка следопыта", "cost": {"herb": 3, "slime": 1}},
@@ -844,6 +883,8 @@ def player_row(pid: str, p: dict[str, Any], now: float) -> dict[str, Any]:
             "recall_ready": time.monotonic() >= float(p.get("recall_at", 0)),
             "in_combat": time.monotonic() - float(p.get("last_combat", 0)) < COMBAT_LOCK,
             "inventory": dict(p["inventory"]), "attack": action,
+            "consumable_catalog": {cid: {"name": c["name"], "description": c.get("description", "")}
+                                   for cid, c in CONSUMABLE_ALIASES.items()},
             "gathering": p["gathering"] is not None, "gather_progress": (p["gathering"]["progress"] / 1.15 if p["gathering"] else 0), "zone": zone["id"],
             "dodge_ready": now >= p["dodge_at"],
             "status": player_status_view(p, now), "damage_points": damage_points_view(p)}
@@ -1618,6 +1659,15 @@ def attack_release(p: dict[str, Any], now: float, ax: float, ay: float) -> None:
     max_hits = 5 if weapon_id == "scythe" else 4 if weapon_id in ("axe", "astral_blade", "obsidian_axe") else 3 if weapon_id in ("iron_sword", "archon_staff", "elder_staff") else 2 if weapon_id in ("spear", "daggers", "stormbrand") else 1
     for _, mob in hits[:max_hits]:
         mob["hp"] -= damage
+        # Physical impact: small, readable knockback scaled by the charge.
+        kick = (9.0 + 17.0 * charge) * (0.6 if spec["kind"] == "staff" else 1.0)
+        if mob.get("boss"):
+            kick *= .35
+        pdx, pdy = mob["x"] - p["x"], mob["y"] - p["y"]
+        pdist = max(.01, math.hypot(pdx, pdy))
+        mob["x"], mob["y"] = resolve_collision(
+            mob["region"], mob["x"] + pdx / pdist * kick, mob["y"] + pdy / pdist * kick,
+            max(9.0, mob_hit_radius(mob) * .5))
         vampirism = enchant_level(p, "weapon", weapon_id, "vampirism")
         if vampirism: p["hp"] = min(p["max_hp"], p["hp"] + round(damage * .06 * vampirism))
         if float(p.get("bloodhunt_until", 0) or 0) > now:
@@ -2754,10 +2804,17 @@ async def handle_message(pid: str, p: dict[str, Any], msg: dict[str, Any], now: 
             await tell(pid, f"Экипировано: {GEAR[gear_id]['name']} · защита {GEAR[gear_id]['defense']}.")
         else:
             await tell(pid, "Предмет не найден в рюкзаке. Обнови инвентарь и попробуй снова.")
-    elif kind == "use_potion":
-        if p["inventory"]["potion"] > 0 and p["hp"] < p["max_hp"]:
-            p["inventory"]["potion"] -= 1; p["hp"] = min(p["max_hp"], p["hp"] + 48)
-            await tell(pid, "Настойка восстановила здоровье.")
+    elif kind in ("use_potion", "use_consumable"):
+        item_id = str(msg.get("id") or ("potion" if kind == "use_potion" else "potion"))
+        used, text, effects = consumable_use(p, item_id)
+        await tell(pid, text)
+        if used:
+            p["last_combat"] = max(float(p.get("last_combat", 0)), 0)
+            await send_event({"type": "consumable_used", "region": p.get("region", "camp"),
+                              "id": p["id"], "item": item_id, "effects": effects,
+                              "x": round(p["x"], 1), "y": round(p["y"], 1)})
+            await send_event({"type": "player_update", "target": pid,
+                              "player": player_row(pid, p, time.monotonic())})
     elif kind == "sync":
         # The client asks for an authoritative copy of its own row.
         await send_event({"type": "player_update", "target": pid,
@@ -2773,8 +2830,8 @@ async def handle_message(pid: str, p: dict[str, Any], msg: dict[str, Any], now: 
             dx, dy = p["mx"], p["my"]
             if math.hypot(dx, dy) < .1: dx, dy = p["face_x"], p["face_y"]
             length = max(.01, math.hypot(dx, dy)); dx /= length; dy /= length
-            p["x"] = max(25, min(WORLD_W - 25, p["x"] + dx * 125))
-            p["y"] = max(25, min(WORLD_H - 25, p["y"] + dy * 125))
+            p["x"], p["y"] = resolve_collision(p.get("region", "camp"),
+                                               p["x"] + dx * 125, p["y"] + dy * 125, 15.0)
             p["stamina"] -= 24; p["dodge_at"] = now + .85; p["dodge_until"] = now + .18
     elif kind == "chat":
         text = " ".join(str(msg.get("text", "")).split())[:180]
@@ -2986,8 +3043,11 @@ async def world_tick() -> None:
                 await tell(pid, "Ты вернулся в лагерь. Потеряно немного времени, но не добыча.")
             if p["respawn_at"] > now: continue
             speed = 178 + (p["stats"]["agility"] - 1) * 3.2
-            p["x"] = max(25, min(WORLD_W - 25, p["x"] + p["mx"] * speed * dt))
-            p["y"] = max(25, min(WORLD_H - 25, p["y"] + p["my"] * speed * dt))
+            # Solid scenery: the server slides the player around trunks, rocks
+            # and pillars instead of letting them pass through.
+            nx = max(25, min(WORLD_W - 25, p["x"] + p["mx"] * speed * dt))
+            ny = max(25, min(WORLD_H - 25, p["y"] + p["my"] * speed * dt))
+            p["x"], p["y"] = resolve_collision(p.get("region", "camp"), nx, ny, 15.0)
             p["stamina"] = min(p["max_stamina"], p["stamina"] + (15 + p["stats"]["agility"] * .35) * dt)
             p["mana"] = min(p["max_mana"], p.get("mana", 0) + (9.0 + 1.5 * p.get("mana_regen_level", 0)) * dt)
             if float(p.get("roar_until", 0) or 0) > now:
@@ -3052,7 +3112,9 @@ async def world_tick() -> None:
                     mob["wander_at"] = now + random.uniform(1.2, 3.3)
                 mx = max(45.0, min(WORLD_W - 45.0, mob["x"] + mob["wander_x"] * mob_speed * .16 * dt))
                 my = max(45.0, min(WORLD_H - 45.0, mob["y"] + mob["wander_y"] * mob_speed * .16 * dt))
-                if not is_safe({**mob, "x": mx, "y": my}): mob["x"], mob["y"] = mx, my
+                if not is_safe({**mob, "x": mx, "y": my}):
+                    mob["x"], mob["y"] = resolve_collision(mob.get("region", "camp"), mx, my,
+                                                           max(10.0, mob_hit_radius(mob) * .55))
                 continue
             dx, dy = target["x"] - mob["x"], target["y"] - mob["y"]
             dist = math.hypot(dx, dy)
@@ -3066,8 +3128,11 @@ async def world_tick() -> None:
                 mob["wander_x"], mob["wander_y"] = random.uniform(-1, 1), random.uniform(-1, 1)
                 mob["wander_at"] = now + 2
             elif dist < 260 and dist > MONSTERS[mob["kind"]]["range"] * .72:
-                mob["x"] += dx / max(1, dist) * mob_speed * dt
-                mob["y"] += dy / max(1, dist) * mob_speed * dt
+                mob["x"], mob["y"] = resolve_collision(
+                    mob.get("region", "camp"),
+                    mob["x"] + dx / max(1, dist) * mob_speed * dt,
+                    mob["y"] + dy / max(1, dist) * mob_speed * dt,
+                    max(10.0, mob_hit_radius(mob) * .55))
             if dist <= MONSTERS[mob["kind"]]["range"] and mob["attack_at"] <= now:
                 if mob["telegraph_until"] <= now:
                     mob["telegraph_until"] = now + .72
@@ -3084,7 +3149,16 @@ async def world_tick() -> None:
                     target["last_combat"] = now
                     mob["telegraph_until"] = 0.0
                     mob["attack_at"] = now + MONSTERS[mob["kind"]]["cooldown"]
-                    await send_event({"type": "hit_player", "region": target["region"], "id": target["id"], "damage": actual, "mob": mob["kind"]})
+                    # The blow shoves the hero back into the scenery, never through it.
+                    shove = 34.0 if mob.get("boss") else 20.0
+                    sdist = max(.01, math.hypot(dx, dy))
+                    target["x"], target["y"] = resolve_collision(
+                        target.get("region", "camp"),
+                        target["x"] + dx / sdist * shove, target["y"] + dy / sdist * shove, 15.0)
+                    await send_event({"type": "hit_player", "region": target["region"], "id": target["id"],
+                                      "damage": actual, "mob": mob["kind"], "mob_id": mob["id"],
+                                      "x": round(mob["x"], 1), "y": round(mob["y"], 1),
+                                      "push_x": round(dx / sdist * shove, 1), "push_y": round(dy / sdist * shove, 1)})
                     if target["hp"] <= 0:
                         target["respawn_at"] = now + 5
                         target["attack"] = None; target["gathering"] = None

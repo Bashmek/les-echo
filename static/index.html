@@ -4,7 +4,8 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <meta name="theme-color" content="#121913"><title>Лес Эхо: Пробуждение</title>
 <link rel="stylesheet" href="/static/game.css">
-<link rel="stylesheet" href="/static/world.css"></head>
+<link rel="stylesheet" href="/static/world.css">
+<link rel="stylesheet" href="/static/overhaul.css"></head>
 <body><main class="game" aria-label="Лес Эхо: пиксельная кооперативная RPG">
 <canvas id="world"></canvas><div class="damageflash" id="flash"></div>
 <div class="hud"><section class="brand panel hudFade" title="Лес Эхо: Пробуждение · совместный мир"><b>ЛЕС ЭХО</b><small>ПРОБУЖДЕНИЕ · СОВМЕСТНЫЙ МИР</small></section><section class="hero panel hudFade"><div class="line heroTop"><span id="heroName">Путник · ур. 1</span><span id="gold">0 монет</span></div><div class="resourceOrbs"><div class="orb hpOrb" id="hpOrb"><span class="orbValue" id="hpShort">100</span><span class="orbLabel">ЗДОРОВЬЕ</span></div><div class="orb manaOrb" id="manaOrb"><span class="orbValue" id="manaShort">60</span><span class="orbLabel">МАНА</span></div><div class="orb stamOrb" id="stamOrb"><span class="orbValue" id="stamShort">100</span><span class="orbLabel">ВЫНОСЛ.</span></div></div><div class="xpFooter"><span id="xpText">0 / 120 XP</span><div class="xpTrack"><i id="xpFill"></i></div></div><div class="classLine"><b id="classBadge" class="classBadge">Путник</b><div id="masteryStrip" class="masteryStrip" aria-label="Уровни мастерства"></div></div><div id="classWarning" class="classWarn" hidden></div></section><div class="right"><div class="zoneBadge panel hudFade" id="zoneLabel">Лагерь Следопытов</div><section class="questPanel panel hudFade" id="questPanel" aria-live="polite"><h2>Текущий квест · <span id="questStageLabel">—</span></h2><strong class="qName" id="questName">Найди Хранителя</strong><div class="qObjective"><span id="questKillsLabel">Убийства</span><b class="qCount" id="questKillsCount">0 / 0</b></div><div class="questTrack"><i id="questKillsFill"></i></div><div class="qObjective"><span id="questGatherLabel">Сбор</span><b class="qCount" id="questGatherCount">0 / 0</b></div><div class="questTrack"><i id="questGatherFill"></i></div><div class="qStatus" id="questStatus">Поговори с Хранителем в лагере (F).</div></section></div></div>
@@ -43,4 +44,6 @@
 <script src="/static/map-events.js"></script>
 <script src="/static/game.js"></script>
 <script src="/static/world.js"></script>
+<script src="/static/render.js"></script>
+<script src="/static/inventory.js"></script>
 </body></html>

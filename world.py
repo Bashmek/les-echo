@@ -146,6 +146,123 @@ for _i, _data in enumerate(_REGION_DATA):
                             x=1050, y=430, radius=170, buff="Здоровье, мана и выносливость +2/с"))
 
 ZONES = list(REGIONS.values())
+
+# ---------------------------------------------------------------------------
+# Solid scenery
+# ---------------------------------------------------------------------------
+# The client draws these props from the same list, so a tree you can see is a
+# tree you cannot walk through.  Placement is deterministic (region seed), is
+# kept off the roads, the hub plaza, waystones, the power site and the boss
+# arena, and leaves enough room to fight around every prop.
+OBSTACLE_KINDS: dict[str, dict[str, Any]] = {
+    "tree": {"r": 17.0, "block": 13.0, "h": 46.0},
+    "bush": {"r": 11.0, "block": 8.0, "h": 16.0},
+    "rock": {"r": 15.0, "block": 12.0, "h": 18.0},
+    "pillar": {"r": 13.0, "block": 10.0, "h": 58.0},
+    "crystal": {"r": 14.0, "block": 11.0, "h": 34.0},
+    "reed": {"r": 9.0, "block": 6.0, "h": 22.0},
+    "stump": {"r": 12.0, "block": 9.0, "h": 14.0},
+}
+
+_REGION_OBSTACLE_MIX = {
+    "camp": [("tree", 46), ("bush", 14), ("rock", 8), ("stump", 4)],
+    "forest": [("tree", 58), ("bush", 16), ("rock", 8), ("stump", 5)],
+    "marsh": [("tree", 30), ("reed", 30), ("rock", 10), ("bush", 8)],
+    "ruins": [("pillar", 26), ("rock", 26), ("bush", 12), ("stump", 6)],
+    "glacier": [("crystal", 30), ("rock", 28), ("tree", 14)],
+    "rift": [("crystal", 34), ("pillar", 24), ("rock", 14)],
+    "abyss": [("crystal", 38), ("pillar", 22), ("rock", 12)],
+    "obsidian": [("crystal", 34), ("rock", 30), ("pillar", 14)],
+    "garden": [("tree", 40), ("bush", 24), ("rock", 10), ("crystal", 12)],
+}
+
+
+def _build_region_obstacles() -> None:
+    for r in REGIONS.values():
+        rng = random.Random(int(r["seed"]) * 31 + 7)
+        mix = _REGION_OBSTACLE_MIX.get(r["id"], [("tree", 30), ("rock", 20)])
+        weights = [w for _, w in mix]
+        pool = [k for k, _ in mix]
+        total = 96 if r["danger"] else 72
+        portals = [p for p in PORTALS.values() if p["region"] == r["id"]]
+        obstacles: list[dict[str, Any]] = []
+        for attempt in range(total * 90):
+            if len(obstacles) >= total:
+                break
+            x = round(rng.uniform(70, MAP_W - 70), 1)
+            y = round(rng.uniform(90, MAP_H - 70), 1)
+            # Main road corridor and the settlement need room to breathe.
+            if 728 <= y <= 912:
+                continue
+            if x < 840 and 470 <= y <= 1130:
+                continue
+            if math.hypot(x - r["safe_center"][0], y - r["safe_center"][1]) < 360:
+                continue
+            if math.hypot(x - 1050, y - 430) < 245:
+                continue
+            if math.hypot(x - r["landmark_pos"][0], y - r["landmark_pos"][1]) < 205:
+                continue
+            if math.hypot(x - r["boss_arena"][0], y - r["boss_arena"][1]) < 195:
+                continue
+            if any(math.hypot(x - p["x"], y - p["y"]) < 155 for p in portals):
+                continue
+            if any(math.hypot(x - n["x"], y - n["y"]) < 128 for n in r["npcs"]):
+                continue
+            if any(math.hypot(x - o["x"], y - o["y"]) < 84 for o in obstacles):
+                continue
+            kind = rng.choices(pool, weights=weights, k=1)[0]
+            spec = OBSTACLE_KINDS[kind]
+            scale = round(rng.uniform(.82, 1.22) * (1.0 if kind in ("bush", "reed") else rng.uniform(.9, 1.08)), 2)
+            obstacles.append({
+                "id": f"{r['id']}-ob-{len(obstacles)}",
+                "kind": kind,
+                "x": x, "y": y,
+                "r": round(spec["block"] * scale, 1),
+                "h": round(spec["h"] * scale, 1),
+                "variant": round(rng.random(), 3),
+                "scale": scale,
+            })
+        r["obstacles"] = obstacles
+
+
+_build_region_obstacles()
+
+
+def obstacles_for(region_id: str) -> list[dict[str, Any]]:
+    return REGIONS.get(region_id, REGIONS["camp"]).get("obstacles", [])
+
+
+def resolve_collision(region_id: str, x: float, y: float, radius: float = 15.0) -> tuple[float, float]:
+    """Push a circle out of the solid scenery of one region.
+
+    Three relaxation passes are enough for the sparse prop layout and keep the
+    result stable when a player is squeezed between a tree and the map border.
+    """
+    x = max(25.0, min(MAP_W - 25.0, float(x)))
+    y = max(25.0, min(MAP_H - 25.0, float(y)))
+    for _ in range(3):
+        moved = False
+        for ob in obstacles_for(region_id):
+            dx, dy = x - ob["x"], y - ob["y"]
+            min_d = radius + float(ob["r"])
+            if abs(dx) > min_d or abs(dy) > min_d:
+                continue
+            d = math.hypot(dx, dy)
+            if d >= min_d:
+                continue
+            if d < 0.001:
+                dx, dy, d = 1.0, 0.0, 1.0
+            x = ob["x"] + dx / d * min_d
+            y = ob["y"] + dy / d * min_d
+            moved = True
+        if not moved:
+            break
+    return max(25.0, min(MAP_W - 25.0, x)), max(25.0, min(MAP_H - 25.0, y))
+
+
+def collision_blocked(region_id: str, x: float, y: float, radius: float = 15.0) -> bool:
+    return any(math.hypot(x - ob["x"], y - ob["y"]) < radius + float(ob["r"])
+               for ob in obstacles_for(region_id))
 POPULATION = {
     "forest": [("slime", 8, 1), ("wolf", 5, 2)],
     "marsh": [("boar", 6, 4), ("wisp", 5, 5), ("stone", 2, 6)],
@@ -207,7 +324,7 @@ def public_region(r: dict[str, Any]) -> dict[str, Any]:
     return {k: r[k] for k in ("id", "name", "short", "chapter", "min_level", "danger", "level", "accent",
                               "ground", "dark", "light", "description", "lore", "landmark", "weather", "width",
                               "height", "seed", "spawn", "safe_center", "safe_radius", "neighbors", "landmark_pos",
-                              "boss_arena", "npcs", "stock_note")}
+                              "boss_arena", "npcs", "stock_note", "obstacles")}
 
 
 def atlas_view() -> list[dict[str, Any]]:
