@@ -670,6 +670,8 @@
       const tag = e.target?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target?.isContentEditable) return;
       if (typeof activeGameMenu === 'function' && activeGameMenu()) return;
+      // Shift + digit is the spell row, so modified digits never reach the hotbar.
+      if (e.shiftKey || e.ctrlKey || e.altKey || e.metaKey) return;
       const m = /^(?:Digit|Numpad)([1-9])$/.exec(e.code);
       if (!m) return;
       const i = Number(m[1]) - 1;
