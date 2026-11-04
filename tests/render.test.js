@@ -247,3 +247,50 @@ test('boss plate tracks the nearest boss and ignores distant ones', () => {
   global.me = () => null;
   global.snap = { mobs: [] };
 });
+
+/* ── FX bus: combat moments must turn into cosmetic effects ───────────── */
+test('effect bus registers every combat cue', () => {
+  for (const kind of ['hit', 'crit', 'cast', 'level', 'dodge', 'pickup', 'heal']) {
+    assert.equal(typeof Render.EFFECTS[kind], 'number', kind);
+    assert.ok(Render.EFFECTS[kind] > 0, kind);
+  }
+});
+
+test('world effects render and then expire', () => {
+  const c = mockContext();
+  assert.equal(Render.list.length, 0);
+  Render.spawn({ kind: 'hit', x: 10, y: 20, color: '#fff' });
+  Render.spawn({ kind: 'crit', x: 12, y: 22 });
+  Render.spawn({ kind: 'cast', x: 14, y: 24 });
+  Render.spawn({ kind: 'level', x: 16, y: 26 });
+  Render.spawn({ kind: 'dodge', x: 18, y: 28 });
+  Render.spawn({ kind: 'pickup', x: 20, y: 30 });
+  Render.spawn({ kind: 'heal', x: 22, y: 32 });
+  assert.equal(Render.list.length, 7);
+  const start = Render.list[0].start;
+  for (const dt of [0, 60, 140, 300, 500]) {
+    assert.doesNotThrow(() => Render.drawWorldFx(c, start + dt), 'frame +' + dt);
+  }
+  Render.drawWorldFx(c, start + 100000);
+  assert.equal(Render.list.length, 0, 'expired effects are collected');
+});
+
+test('hit-stop and punch zoom stay inside sane bounds', () => {
+  Render.punch(0);
+  assert.equal(Render.VIEW.punch, 0);
+  for (let i = 0; i < 20; i++) Render.punch(.05);
+  assert.ok(Render.VIEW.punch <= .075 + 1e-9, 'punch is clamped');
+  Render.freeze(0);
+  Render.freeze(80);
+  Render.freeze(80);
+  assert.ok(Render.VIEW.freeze <= 190, 'freeze is clamped');
+  assert.ok(Render.VIEW.freeze >= 80, 'freeze keeps the longest request');
+});
+
+test('heavy charged swings and casts draw without throwing', () => {
+  const c = mockContext();
+  const now = performance.now();
+  assert.doesNotThrow(() => Render.drawSlashFx(c, { class: 'warrior', weapon: 'ember_greatsword', weapon_kind: 'melee', x: 0, y: 0, aim_x: 1, aim_y: 0, charge: 1, started: now - 40 }, now));
+  assert.doesNotThrow(() => Render.drawSlashFx(c, { class: 'mage', weapon: 'elder_staff', weapon_kind: 'staff', x: 0, y: 0, aim_x: 0, aim_y: 1, charge: 0, action: 'cast', started: now - 40 }, now));
+  assert.doesNotThrow(() => Render.drawSlashFx(c, { class: 'ranger', weapon: 'bow', weapon_kind: 'bow', x: 0, y: 0, aim_x: -1, aim_y: 0, charge: .4, started: now - 40 }, now));
+});

@@ -68,7 +68,7 @@
   function vignetteAlpha() { return 1; }
 
   /* ── camera ──────────────────────────────────────────────────────────── */
-  const VIEW = { zoom: 1.85, targetZoom: 1.85, lookY: 0, ready: false, shakeX: 0, shakeY: 0, hurt: 0 };
+  const VIEW = { zoom: 1.85, targetZoom: 1.85, lookY: 0, ready: false, shakeX: 0, shakeY: 0, hurt: 0, punch: 0, freeze: 0, lastFrame: 0 };
   const coarse = () => (typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches) ||
     document.body.classList.contains('is-mobile');
   function desiredZoom(w, h) {
@@ -1371,35 +1371,190 @@
   };
   function paletteFor(kind) { return ELEMENT_PALETTE[kind] || ELEMENT_PALETTE['Аркана']; }
 
+  /* ── impact flourish pool (client-side, purely cosmetic) ────────────── */
+  const worldFx = [];
+  const FX_LIFE = { hit: 430, crit: 680, cast: 760, level: 1500, dodge: 420, pickup: 560, heal: 820 };
+
+  function spawnWorldFx(kind, x, y, opts) {
+    const o = opts || {};
+    worldFx.push({
+      kind, x, y,
+      color: o.color || '#ffe6a3',
+      color2: o.color2 || '#fff6d8',
+      power: clamp(o.power == null ? 1 : o.power, .2, 3),
+      radius: o.radius || 46,
+      start: (typeof performance !== 'undefined' ? performance.now() : Date.now()),
+    });
+    if (worldFx.length > 70) worldFx.shift();
+  }
+
+  function punch(amount) { const a = amount == null ? .03 : Math.max(0, amount); VIEW.punch = Math.min(.075, VIEW.punch + a); }
+  function freeze(ms) { VIEW.freeze = Math.min(190, Math.max(VIEW.freeze, ms || 60)); }
+
+  function drawWorldFx(c, now) {
+    if (!worldFx.length) return;
+    for (let i = worldFx.length - 1; i >= 0; i--) {
+      const fx = worldFx[i];
+      const life = FX_LIFE[fx.kind] || 500;
+      const t = (now - fx.start) / life;
+      if (t >= 1 || t < 0) { if (t >= 1) worldFx.splice(i, 1); continue; }
+      const e = easeOut(t);
+      const k = fx.power;
+      c.save();
+      c.translate(fx.x, fx.y);
+      if (fx.kind === 'hit' || fx.kind === 'crit') {
+        c.globalCompositeOperation = 'lighter';
+        // ground shockwave: one bright ring, one soft echo, both squashed
+        c.globalAlpha = (1 - t) * .7;
+        c.strokeStyle = fx.color2; c.lineWidth = (2.8 - 2 * t) * k;
+        c.beginPath(); c.ellipse(0, 0, (8 + fx.radius * e) * k, (4 + fx.radius * e * .42) * k, 0, 0, TAU); c.stroke();
+        c.globalAlpha = (1 - t) * .38;
+        c.strokeStyle = fx.color; c.lineWidth = 1.4;
+        c.beginPath(); c.ellipse(0, 0, (4 + fx.radius * e * .58) * k, (2 + fx.radius * e * .26) * k, 0, 0, TAU); c.stroke();
+        // four thin light spokes, fading fast — reads as force, not a wheel
+        if (t < .45) {
+          c.globalAlpha = (1 - t / .45) * .5;
+          c.strokeStyle = fx.color2; c.lineWidth = 1.2;
+          for (let n = 0; n < 4; n++) {
+            const ang = n / 4 * TAU + .4;
+            const r0 = fx.radius * e * .7, r1 = r0 + 12 * k;
+            c.beginPath();
+            c.moveTo(Math.cos(ang) * r0, Math.sin(ang) * r0 * .4);
+            c.lineTo(Math.cos(ang) * r1, Math.sin(ang) * r1 * .4);
+            c.stroke();
+          }
+        }
+        // white flash: a small disc plus a cross flare
+        if (t < .28) {
+          const ft = t / .28;
+          c.globalAlpha = (1 - ft) * .8;
+          c.fillStyle = '#fffdf2';
+          c.beginPath(); c.arc(0, -6, Math.max(.8, (5.5 - ft * 12) * k), 0, TAU); c.fill();
+          c.globalAlpha = (1 - ft) * .55;
+          const arm = 10 + 24 * ft;
+          c.beginPath();
+          c.moveTo(-arm * k, -6); c.lineTo(arm * k, -6);
+          c.moveTo(0, -6 - arm * .7 * k); c.lineTo(0, -6 + arm * .7 * k);
+          c.lineWidth = 1.6; c.strokeStyle = '#fffdf2'; c.stroke();
+        }
+        // dust kicked up on the ground line
+        c.globalCompositeOperation = 'source-over';
+        c.globalAlpha = (1 - t) * .3;
+        for (let n = 0; n < 4; n++) {
+          const a = n * 1.7 + fx.start * .0007;
+          ell(c, Math.cos(a) * fx.radius * e * .9, 2 + Math.sin(a) * fx.radius * .2, 3 * (1 - t), 1.5 * (1 - t), fx.color);
+        }
+      } else if (fx.kind === 'cast') {
+        c.globalAlpha = (1 - t) * .75;
+        c.strokeStyle = fx.color; c.lineWidth = 2.2 * (1 - t * .6);
+        c.beginPath(); c.arc(0, 0, 10 + fx.radius * e, 0, TAU); c.stroke();
+        c.globalAlpha = (1 - t) * .5;
+        c.strokeStyle = fx.color2; c.lineWidth = 1.3;
+        c.beginPath(); c.arc(0, 0, 6 + fx.radius * e * .62, 0, TAU); c.stroke();
+        // runes
+        for (let n = 0; n < 6; n++) {
+          const a = fx.start * .002 + n * TAU / 6;
+          const r = 12 + fx.radius * e * .78;
+          c.globalAlpha = (1 - t) * .85;
+          P(c, Math.cos(a) * r - 1.4, Math.sin(a) * r * .55 - 1.4, 2.8, 2.8, fx.color2);
+        }
+        // rising motes
+        c.globalAlpha = (1 - t) * .7;
+        for (let n = 0; n < 7; n++) {
+          const a = n * 2.1 + fx.start * .001;
+          ell(c, Math.cos(a) * 14, -10 - e * 34 - n * 2, 1.6, 1.6, n % 2 ? fx.color : fx.color2);
+        }
+      } else if (fx.kind === 'level') {
+        const col = '#ffe08c';
+        c.globalCompositeOperation = 'lighter';
+        c.globalAlpha = (1 - t) * .5;
+        const grad = c.createLinearGradient(0, -150, 0, 8);
+        grad.addColorStop(0, 'rgba(255,224,140,0)');
+        grad.addColorStop(.5, 'rgba(255,224,140,.42)');
+        grad.addColorStop(1, 'rgba(255,246,216,.8)');
+        c.fillStyle = grad;
+        c.fillRect(-16 - 6 * e, -150, 32 + 12 * e, 158);
+        for (let n = 0; n < 2; n++) {
+          const p = clamp(t * 1.3 - n * .18, 0, 1);
+          c.globalAlpha = (1 - p) * .8;
+          c.strokeStyle = n ? '#fff6d8' : col; c.lineWidth = 2;
+          c.beginPath(); c.ellipse(0, 1, 14 + 40 * p, 5 + 14 * p, 0, 0, TAU); c.stroke();
+        }
+        c.globalAlpha = (1 - t) * .9;
+        for (let n = 0; n < 10; n++) {
+          const a = n * 2.4 + fx.start * .0015;
+          ell(c, Math.cos(a) * (16 + 20 * e), -20 - e * 60 + Math.sin(a) * 6, 1.8, 1.8, n % 2 ? '#ffe08c' : '#fff6d8');
+        }
+      } else if (fx.kind === 'dodge') {
+        c.globalAlpha = (1 - t) * .5;
+        c.strokeStyle = fx.color; c.lineWidth = 2.4 * (1 - t);
+        for (let n = 0; n < 3; n++) {
+          const off = (n - 1) * 7;
+          c.beginPath();
+          c.moveTo(-14 - 20 * e, off - 10);
+          c.lineTo(6 + 8 * e, off - 14);
+          c.stroke();
+        }
+        c.globalAlpha = (1 - t) * .35;
+        ell(c, -6, 2, 22 * e, 6 * e, fx.color);
+      } else if (fx.kind === 'pickup' || fx.kind === 'heal') {
+        c.globalAlpha = (1 - t) * .85;
+        for (let n = 0; n < 5; n++) {
+          const a = n * 1.6 + fx.start * .001;
+          const y = -e * (16 + n * 6);
+          P(c, Math.cos(a) * 8 - 1.5, y, 3, 3, n % 2 ? fx.color : fx.color2);
+        }
+        c.globalAlpha = (1 - t) * .5;
+        c.strokeStyle = fx.color; c.lineWidth = 1.4;
+        c.beginPath(); c.ellipse(0, 1, 10 + 10 * e, 4 + 3 * e, 0, 0, TAU); c.stroke();
+      }
+      c.restore();
+    }
+  }
+
+  /* Punchier melee arcs: three tapered layers plus a white leading edge. */
   function drawSlashFx(c, sw, now) {
     const started = sw.started || now;
-    const dur = sw.action === 'cast' ? 520 : 330;
+    const dur = sw.action === 'cast' ? 520 : 340;
     const t = (now - started) / dur;
     if (t < 0 || t > 1) return;
     const a = easeOut(t);
+    const charge = clamp(Number(sw.charge) || 0, 0, 1);
+    const heavy = sw.weapon_kind === 'melee' && (charge > .55 || /axe|maul|greatsword|halberd|scythe/.test(sw.weapon || ''));
     const ang = Math.atan2(sw.aim_y, sw.aim_x);
-    const half = .62 + (Number(sw.charge) || 0) * .28;
-    const R = 40 + (Number(sw.charge) || 0) * 26;
+    const half = .62 + charge * .34;
+    const R = 42 + charge * 30;
     const colors = { warrior: '#ffe6a3', ranger: '#c9ef9a', mage: '#a6e8ff' }[sw.class] || '#ffe6a3';
     c.save(); c.globalCompositeOperation = 'lighter';
     c.translate(sw.x, sw.y - 10);
-    for (let i = 0; i < 3; i++) {
-      const trail = Math.max(0, a - i * .17);
+    // soft bloom behind the arc
+    c.globalAlpha = (1 - t) * (heavy ? .1 : .06);
+    glow(c, Math.cos(ang) * R * .64, Math.sin(ang) * R * .44, R * .8, colors, (1 - t) * (heavy ? .12 : .07));
+    // tapered trails
+    for (let i = 0; i < 4; i++) {
+      const trail = Math.max(0, a - i * .13);
       if (trail <= 0) continue;
       const a0 = ang - half, a1 = ang - half + 2 * half * trail;
-      c.globalAlpha = .5 * (1 - t) * (1 - i * .24);
+      const fade = 1 - t;
+      c.globalAlpha = fade * (heavy ? .62 : .5) * (1 - i * .21);
       c.strokeStyle = i === 0 ? '#ffffff' : colors;
-      c.lineWidth = i === 0 ? 1.6 : 6 - i * 1.6;
-      c.beginPath(); c.arc(0, 0, R + i * 4, a0, a1); c.stroke();
+      c.lineWidth = (i === 0 ? 2.1 : 9 - i * 2.1) * (1 + charge * .5);
+      c.lineCap = 'round';
+      c.beginPath(); c.arc(0, 0, R + i * 3.5, a0, a1); c.stroke();
     }
-    // leading edge spark burst
+    // leading edge spark burst + ground dust at the strike point
     const tipA = ang - half + 2 * half * a;
     const tx = Math.cos(tipA) * R, ty = Math.sin(tipA) * R;
-    c.globalAlpha = (1 - t) * .9;
-    glow(c, tx, ty, 14, colors, .55);
-    for (let i = 0; i < 6; i++) {
-      const sa = tipA + (i - 2.5) * .16, sr = R + 2 + ((now / 9 + i * 13) % 12);
-      ell(c, Math.cos(sa) * sr, Math.sin(sa) * sr, 1.5, 1.5, i % 2 ? '#ffffff' : colors);
+    c.globalAlpha = (1 - t) * .95;
+    glow(c, tx, ty, 16 + charge * 10, colors, .6);
+    for (let i = 0; i < 8; i++) {
+      const sa = tipA + (i - 3.5) * .14, sr = R + 2 + ((now / 8 + i * 13) % (12 + charge * 10));
+      ell(c, Math.cos(sa) * sr, Math.sin(sa) * sr, 1.6 + charge, 1.6 + charge, i % 2 ? '#ffffff' : colors);
+    }
+    if (heavy && t < .6) {
+      c.globalAlpha = (1 - t / .6) * .35;
+      c.strokeStyle = '#fff6d8'; c.lineWidth = 1.4;
+      c.beginPath(); c.arc(0, 2, R * .72, ang - half * .8, ang + half * .5); c.stroke();
     }
     c.restore();
   }
@@ -1476,6 +1631,13 @@
     const speed = Math.hypot(a.vx || 0, a.vy || 0);
     c.save(); c.translate(a.x, a.y); c.rotate(ang);
     if (a.kind === 'arrow') {
+      // fading motion trail behind the shaft
+      c.globalAlpha = .3;
+      c.strokeStyle = '#eef4e0'; c.lineWidth = 2.6;
+      c.beginPath(); c.moveTo(-15, 0); c.lineTo(-42, 0); c.stroke();
+      c.globalAlpha = .16;
+      c.beginPath(); c.moveTo(-40, 0); c.lineTo(-66, 0); c.stroke();
+      c.globalAlpha = 1;
       c.strokeStyle = '#e8dcc0'; c.lineWidth = 1.6;
       c.beginPath(); c.moveTo(-14, 0); c.lineTo(8, 0); c.stroke();
       poly(c, [[8, 0], [2, -3], [2, 3]], '#cfd8d2', '#eef5ef', .6);
@@ -1881,6 +2043,12 @@
     const rect = canvas.getBoundingClientRect();
     const w = rect.width, h = rect.height;
     if (!w || !h) return;
+    // frame timing drives hit-stop (freeze) and the punch-zoom kick
+    const dtMs = Math.max(0, Math.min(64, now - (VIEW.lastFrame || now)));
+    VIEW.lastFrame = now;
+    if (VIEW.punch > 0) VIEW.punch = Math.max(0, VIEW.punch - dtMs * .00022);
+    if (VIEW.freeze > 0) VIEW.freeze = Math.max(0, VIEW.freeze - dtMs);
+    now -= VIEW.freeze;
     const p = me();
     // camera zoom eases gently so travel and resizes never snap.
     VIEW.targetZoom = desiredZoom(w, h);
@@ -1901,6 +2069,8 @@
     const { WS, Z, halfW, up, down } = extendCameraBounds(w, h);
     cam.x = clamp(cam.x, halfW, Math.max(halfW, WS.w - halfW));
     cam.y = clamp(cam.y, up, Math.max(up, WS.h - down));
+    // punch kick: a short outward zoom pulse that decays inside ~40 frames
+    const Zp = Z * (1 + VIEW.punch);
 
     if (screenShake > .1) {
       screenShakeX = (Math.random() - .5) * screenShake;
@@ -1913,9 +2083,9 @@
     ctx.clearRect(0, 0, w, h);
     ctx.imageSmoothingEnabled = false;
     ctx.save();
-    ctx.setTransform(deviceScale * Z, 0, 0, deviceScale * Z,
-      deviceScale * (w / 2 - cam.x * Z + screenShakeX),
-      deviceScale * (h / 2 + VIEW.lookY - cam.y * Z + screenShakeY));
+    ctx.setTransform(deviceScale * Zp, 0, 0, deviceScale * Zp,
+      deviceScale * (w / 2 - cam.x * Zp + screenShakeX),
+      deviceScale * (h / 2 + VIEW.lookY - cam.y * Zp + screenShakeY));
 
     const r = snap?.region;
     if (!r) { ctx.restore(); return; }
@@ -1969,6 +2139,7 @@
       } else drawDamageNumber(ctx, fx, now);
     }
     for (const fx of spellFx || []) drawImpactRunes(ctx, fx, now);
+    drawWorldFx(ctx, now);
 
     // shared particle pool (world coordinates)
     if (typeof updateAndDrawParticles === 'function') updateAndDrawParticles(ctx, 0, 0);
@@ -2122,6 +2293,23 @@
       c.restore();
     };
     window.LesEchoView = { VIEW, screenToWorld, drawMobModel, drawHeroModel, drawObstacle, renderFrame, renderMap };
+    // ── FX bus: game.js feeds combat moments, the renderer turns them into
+    //    shockwaves, runes, level columns and camera kicks. All cosmetic.
+    window.LesEchoFx = {
+      spawn: spawnWorldFx,
+      hit(x, y, crit, color) {
+        spawnWorldFx(crit ? 'crit' : 'hit', x, y, { power: crit ? 1.32 : 1, radius: crit ? 34 : 24, color: color || '#ffd9a0', color2: '#fff6dc' });
+        punch(crit ? .05 : .028);
+        freeze(crit ? 110 : 64);
+      },
+      cast(x, y, color) { spawnWorldFx('cast', x, y - 6, { color: color || '#a6e8ff', radius: 54 }); },
+      level(x, y) { spawnWorldFx('level', x, y, {}); punch(.055); freeze(140); },
+      dodge(x, y) { spawnWorldFx('dodge', x, y, { color: '#cfe4ff' }); },
+      pickup(x, y, color) { spawnWorldFx('pickup', x, y, { color: color || '#ffe08c' }); },
+      heal(x, y) { spawnWorldFx('heal', x, y, { color: '#b9f0a8' }); },
+      punch, freeze,
+      list: worldFx,
+    };
   }
 
   // The game loop still calls the global drawWorld; install() swaps it. A tiny
@@ -2130,6 +2318,6 @@
   if (typeof document !== 'undefined') install();
 
   if (typeof module === 'object' && module.exports) {
-    module.exports = { drawMobModel, drawHeroModel, drawObstacle, drawSlashFx, VIEW, screenToWorld, seedOf };
+    module.exports = { drawMobModel, drawHeroModel, drawObstacle, drawSlashFx, VIEW, screenToWorld, seedOf, spawnWorldFx, spawn: spawnWorldFx, drawWorldFx, punch, freeze, list: worldFx, EFFECTS: FX_LIFE };
   }
 })();
