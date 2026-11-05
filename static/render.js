@@ -815,7 +815,13 @@
     const swing = clamp(o.swing || 0, 0, 1);
     const cls = q.class || o.class || '';
     const weaponId = q.weapon || o.weapon || 'sword';
-    const weaponKind = o.weaponKind || (/bow|longbow/.test(weaponId) ? 'bow' : /staff/.test(weaponId) ? 'staff' : 'melee');
+    const weaponMeta = customWeaponMeta(weaponId, q.id || (local && typeof myId !== 'undefined' ? myId : ''));
+    const weaponKind = o.weaponKind || weaponMeta.kind
+      || (/bow|longbow/.test(weaponId) ? 'bow' : /staff/.test(weaponId) ? 'staff' : 'melee');
+    const weaponPaint = {
+      core: o.weaponColor || weaponMeta.color || '',
+      shape: weaponMeta.shape || '',
+    };
     const gatherKind = o.gatherKind || '';
     const run = !!o.run && moving;
     const sneak = !!o.sneak;
@@ -990,7 +996,8 @@
       c.save();
       c.globalAlpha = weaponAlpha;
       drawHeldWeapon(c, weaponId, weaponKind, trim, swing, local, t, hand.x, hand.y,
-        { aim, cast, gather, charge, tool, shoot, swap });
+        { aim, cast, gather, charge, tool, shoot, swap,
+          core: weaponPaint.core, shape: weaponPaint.shape });
       c.restore();
     }
     // off arm
@@ -1058,6 +1065,38 @@
   }
 
   /* ── weapons ─────────────────────────────────────────────────────────── */
+
+  /* Authored weapons (`cw_*`) live only in the owning player's save, so the
+     renderer resolves their archetype kind, core colour and silhouette from the
+     synced snapshot instead of a static catalogue. */
+  const CUSTOM_ARCHETYPE_SHAPES = {
+    sword: 'sword', greatsword: 'greatsword', daggers: 'dagger', spear: 'spear',
+    bow: 'bow', staff: 'staff',
+  };
+  function customWeaponMeta(id, ownerId) {
+    const empty = { kind: '', color: '', shape: '' };
+    if (!id || !/^cw_/.test(String(id))) return empty;
+    const pools = [];
+    if (typeof snap !== 'undefined' && snap && Array.isArray(snap.players)) pools.push(...snap.players);
+    if (typeof me === 'function') {
+      const own = me();
+      if (own) pools.push(own);
+    }
+    for (const row of pools) {
+      if (!row) continue;
+      if (ownerId && row.id && row.id !== ownerId) continue;
+      const spec = row.custom_weapons?.[id] || row.weapon_catalog?.[id];
+      if (!spec) continue;
+      const archetype = spec.archetype || '';
+      return {
+        kind: spec.kind || (archetype === 'bow' ? 'bow' : archetype === 'staff' ? 'staff' : 'melee'),
+        color: spec.color || '',
+        shape: CUSTOM_ARCHETYPE_SHAPES[archetype] || (spec.kind === 'bow' ? 'bow' : spec.kind === 'staff' ? 'staff' : 'sword'),
+      };
+    }
+    return empty;
+  }
+
     /* ── harvesting tool: the hand works the node, the blade stays sheathed ── */
   function drawGatherTool(c, kind, t, handX, handY, reach) {
     const pull = clamp(reach == null ? .5 : reach, 0, 1);
@@ -1091,7 +1130,9 @@
 
   function drawHeldWeapon(c, id, kind, trim, swing, local, t, handX, handY, pose) {
     const ps = pose || {};
-    const glowCol = /frost|ice/.test(id) ? '#a8ecff' : /ember|flame/.test(id) ? '#ffb066' : /void|astral/.test(id) ? '#e0b0ff' : /storm/.test(id) ? '#8fe0ff' : local ? '#ffe6a3' : trim;
+    // Authored weapons carry their own core colour, which wins over name heuristics.
+    const coreCol = /^#[0-9a-f]{6}$/i.test(String(ps.core || '')) ? ps.core : '';
+    const glowCol = coreCol || (/frost|ice/.test(id) ? '#a8ecff' : /ember|flame/.test(id) ? '#ffb066' : /void|astral/.test(id) ? '#e0b0ff' : /storm/.test(id) ? '#8fe0ff' : local ? '#ffe6a3' : trim);
     const px = handX === undefined ? 9 : handX;
     const py = handY === undefined ? -13 : handY;
     c.save();
@@ -1142,8 +1183,10 @@
       return;
     }
 
-    const heavy = /greatsword|war_maul|warhammer|obsidian_axe|axe|halberd|glaive|scythe|colossus|spear/.test(id);
-    const blazing = /ember|flamberge|astral|void|frost|moon|storm/.test(id);
+    const shape = ps.shape || '';
+    const heavy = shape === 'greatsword' || shape === 'spear'
+      || /greatsword|war_maul|warhammer|obsidian_axe|axe|halberd|glaive|scythe|colossus|spear/.test(id);
+    const blazing = !!coreCol || /ember|flamberge|astral|void|frost|moon|storm/.test(id);
     const toolSwing = ps.tool;
     const wind = (ps.charge || 0) * .8;
     const base = .34 + wind;
@@ -1158,7 +1201,13 @@
     P(c, -1.4, 7.4, 2.8, 2.6, '#8a6a44');
     const len = heavy ? 24 : 20;
     const bladeGrad = c.createLinearGradient(-3, 0, 3, -len);
-    bladeGrad.addColorStop(0, '#8ba39f'); bladeGrad.addColorStop(.55, '#cddeda'); bladeGrad.addColorStop(1, '#f8fffa');
+    if (coreCol) {
+      bladeGrad.addColorStop(0, shadeColor(coreCol, -52));
+      bladeGrad.addColorStop(.55, coreCol);
+      bladeGrad.addColorStop(1, shadeColor(coreCol, 58));
+    } else {
+      bladeGrad.addColorStop(0, '#8ba39f'); bladeGrad.addColorStop(.55, '#cddeda'); bladeGrad.addColorStop(1, '#f8fffa');
+    }
     c.fillStyle = bladeGrad;
     c.beginPath();
     c.moveTo(-2.6, 0); c.lineTo(-2, -len); c.lineTo(0, -len - 3.4); c.lineTo(2, -len); c.lineTo(2.6, 0);
@@ -1167,6 +1216,14 @@
     if (blazing) { c.shadowColor = glowCol; c.shadowBlur = 9; }
     c.stroke(); c.shadowBlur = 0;
     P(c, -.7, -len + 3, 1.2, len - 6, '#ffffff77');
+    if (shape) {
+      // rune sigil at the base of an authored blade
+      c.save(); c.shadowColor = glowCol; c.shadowBlur = 6; c.fillStyle = glowCol;
+      if (shape === 'spear') c.fillRect(-1.2, -len * .62, 2.4, 6);
+      else if (shape === 'dagger') c.fillRect(-1, -len * .5, 2, 4);
+      else c.fillRect(-1.4, -len * .55, 2.8, 5);
+      c.restore();
+    }
     // sharp glint that runs up the edge as the swing charges
     const charge = ps.charge || 0;
     if (charge > .03) {
@@ -1977,11 +2034,25 @@
       c.restore();
     }
     if (m.slowed) { c.save(); c.globalAlpha = .3; ell(c, mx, feet - s * .35, s * .8, s * .6, '#a8ecff'); c.restore(); }
-    if (m.stunned) {
-      c.save(); c.globalAlpha = .9;
-      for (let i = 0; i < 3; i++) {
-        const a = now / 300 + i * TAU / 3;
-        ell(c, mx + Math.cos(a) * s * .4, feet - s * 1.5 + Math.sin(a) * 4, 1.8, 1.8, '#ffe9a0');
+    if (m.bleeding) {
+      c.save(); c.globalAlpha = .8;
+      for (let i = 0; i < 4; i++) {
+        const ph = (now / 420 + i * .25) % 1;
+        ell(c, mx + Math.sin(i * 2.4 + now / 210) * s * .42, feet - s * .6 + ph * s * .45, 2.1, 3.0, '#e33b4d', .85 * (1 - ph));
+      }
+      c.restore();
+    }
+    if (m.sundered) {
+      c.save(); c.strokeStyle = '#ffae52'; c.lineWidth = 1.4; c.globalAlpha = .72;
+      c.beginPath(); c.ellipse(mx, feet - 2, s * .76, s * .28, 0, 0, TAU); c.stroke();
+      c.restore();
+    }
+    if (m.stunned || m.staggered) {
+      c.save(); c.globalAlpha = .95;
+      const starCol = m.staggered ? '#ffbe45' : '#ffe9a0';
+      for (let i = 0; i < (m.staggered ? 4 : 3); i++) {
+        const a = now / (m.staggered ? 210 : 300) + i * TAU / (m.staggered ? 4 : 3);
+        ell(c, mx + Math.cos(a) * s * .46, feet - s * 1.54 + Math.sin(a) * 4, m.staggered ? 2.4 : 1.8, m.staggered ? 2.4 : 1.8, starCol);
       }
       c.restore();
     }
@@ -2011,6 +2082,12 @@
     const hpFrac = clamp(m.hp / Math.max(1, m.max_hp), 0, 1);
     P(c, -w / 2, 0, w * hpFrac, m.boss ? 5 : 3, m.boss ? '#ff6f5a' : aggro ? '#e0745c' : '#c87e5a');
     P(c, -w / 2, 0, w * hpFrac, 1, '#ffffff44');
+    if ((m.stagger_pct && m.stagger_pct > 0) || m.staggered) {
+      const pf = m.staggered ? 1 : clamp((m.stagger_pct || 0) / 100, 0, 1);
+      const py = m.boss ? 6 : 4;
+      P(c, -w / 2 - 1, py, w + 2, 3, '#0a110c');
+      P(c, -w / 2, py + .5, w * pf, 2, m.staggered ? '#ffd45e' : '#d6a449');
+    }
     if (m.boss || aggro) {
       c.font = `${m.boss ? 'bold 9px' : '9px'} ui-monospace, monospace`; c.textAlign = 'center';
       c.lineWidth = 3; c.strokeStyle = '#0b120e';
@@ -2335,6 +2412,31 @@
       c.save(); c.translate(x, y);
       drawMobModel(c, m.kind, s, now / 1000, seedOf(m.id), {});
       c.restore();
+    };
+    // Reusable pixel artefacts for the forge: custom-weapon preview and item icons.
+    window.drawCustomArtefact = function (canvas, opts) {
+      const o = opts || {};
+      const cv = canvas;
+      if (!cv || typeof cv.getContext !== 'function') return false;
+      const c = cv.getContext('2d');
+      if (!c) return false;
+      const w = cv.width, h = cv.height;
+      c.clearRect(0, 0, w, h);
+      const col = /^#[0-9a-f]{6}$/i.test(String(o.color || '')) ? o.color : '#e0e8ea';
+      const grd = c.createRadialGradient(w / 2, h * .55, 3, w / 2, h * .55, Math.max(w, h) * .62);
+      grd.addColorStop(0, col + '44'); grd.addColorStop(1, '#0d141000');
+      c.fillStyle = grd; c.fillRect(0, 0, w, h);
+      // drawHeldWeapon works in hero-sprite units (~30 px tall), so scale the
+      // artefact up to fill the preview canvas and centre the blade mass.
+      const k = Math.min(w, h) / 46;
+      const shape = o.shape || 'sword';
+      const lift = (shape === 'staff' ? 22 : shape === 'bow' ? 6 : 12) * k;
+      c.save();
+      c.translate(w / 2, h / 2 + lift); c.scale(k, k);
+      drawHeldWeapon(c, 'cw_preview', o.kind === 'bow' ? 'bow' : o.kind === 'staff' ? 'staff' : 'melee',
+        '#e6cf8f', 0, true, 0, 0, 0, { core: col, shape, charge: .55 });
+      c.restore();
+      return true;
     };
     window.LesEchoView = { VIEW, screenToWorld, drawMobModel, drawHeroModel, drawObstacle, renderFrame, renderMap };
     // ── FX bus: game.js feeds combat moments, the renderer turns them into
