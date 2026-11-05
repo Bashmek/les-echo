@@ -272,7 +272,7 @@ function injectWorldUI() {
   ribbon.innerHTML = `<div class="regionChapter" id="regionChapter">I</div><div class="regionText"><b id="regionName">Лагерь Следопытов</b><small id="regionSub">Тихая гавань</small></div><div class="regionMeta"><span id="regionDanger">Безопасно</span><span id="regionOnline">1 в карте</span></div>`;
   game.append(ribbon);
   const tools = document.createElement('div'); tools.id = 'worldTools'; tools.className = 'worldTools';
-  tools.innerHTML = `<button type="button" id="atlasButton" class="worldTool">◈ Атлас <kbd>M</kbd></button><button type="button" id="recallButton" class="worldTool">⌂ В лагерь</button>`;
+  tools.innerHTML = `<button type="button" id="charToolButton" class="worldTool">✦ Герой <kbd>C</kbd><span id="charToolBadge" class="toolPointBadge" hidden></span></button><button type="button" id="atlasButton" class="worldTool">◈ Атлас <kbd>M</kbd></button><button type="button" id="recallButton" class="worldTool">⌂ В лагерь</button>`;
   game.append(tools);
   const prompt = document.createElement('button'); prompt.type = 'button'; prompt.id = 'npcPrompt'; prompt.className = 'npcPrompt panel'; prompt.hidden = true; game.append(prompt);
   const local = document.createElement('div'); local.id = 'localQuestChip'; local.className = 'localQuestChip'; local.hidden = true; game.append(local);
@@ -284,9 +284,10 @@ function injectWorldUI() {
   npc.innerHTML = `<section class="npcCard panel"><button type="button" class="close npcClose" id="closeNpc">✕</button><div class="npcHead"><canvas id="npcPortrait" width="96" height="96"></canvas><div><span class="eyebrow" id="npcTitle"></span><h2 id="npcName"></h2><span class="npcRegion" id="npcRegion"></span></div></div><p class="npcDialogue" id="npcDialogue"></p><div id="npcContent"></div><div class="npcActions" id="npcActions"></div></section>`;
   game.append(npc);
   const shopTools = document.createElement('div'); shopTools.className = 'shopTools';
-  shopTools.innerHTML = `<input id="shopSearch" type="search" placeholder="Поиск по лавке…" aria-label="Поиск товара"><div class="shopFilters" id="shopFilters"><button type="button" data-shop-kind="all" class="active">Всё</button><button type="button" data-shop-kind="weapon">Оружие</button><button type="button" data-shop-kind="gear">Броня</button><button type="button" data-shop-kind="supply">Припасы</button></div>`;
+  shopTools.innerHTML = `<input id="shopSearch" type="search" placeholder="Поиск по лавке…" aria-label="Поиск товара"><div class="shopFilters" id="shopFilters"><button type="button" data-shop-kind="all" class="active">Всё</button><button type="button" data-shop-kind="weapon">Оружие</button><button type="button" data-shop-kind="gear">Броня</button><button type="button" data-shop-kind="accessory">Реликвии</button><button type="button" data-shop-kind="consumable">Расходники</button><button type="button" data-shop-kind="material">Материалы</button></div>`;
   const marketHead = document.querySelector('#marketOverlay .marketHead'); marketHead.insertAdjacentElement('afterend', shopTools);
   const marketSub = document.createElement('div'); marketSub.id = 'marketNpcName'; marketSub.className = 'marketNpcName'; marketHead.querySelector('h2').insertAdjacentElement('afterend', marketSub);
+  $('charToolButton').onclick = () => { if (typeof toggleCharacter === 'function') toggleCharacter(); };
   $('atlasButton').onclick = () => openAtlas();
   $('mapButton').onclick = () => toggleMap(); if ($('mMapButton')) $('mMapButton').onclick = () => toggleMap();
   $('closeAtlas').onclick = closeAtlas;
@@ -309,14 +310,19 @@ function openAtlas(selected) {
 function closeAtlas() { $('atlasOverlay').style.display = 'none'; }
 function renderAtlas() {
   const p = me(); if (!p) return;
+  const freeTravel = !!p.world_travel_unlocked;
   const portal0 = (snap.portals || []).find(v => v.target === atlasSelection);
-  const sig = JSON.stringify([atlasSelection, p.region, p.level, p.visited_regions, p.in_combat, portal0 ? Math.hypot(p.x - portal0.x, p.y - portal0.y) <= 145 : null]);
+  const sig = JSON.stringify([atlasSelection, p.region, p.level, p.visited_regions, p.in_combat, freeTravel, portal0 ? Math.hypot(p.x - portal0.x, p.y - portal0.y) <= 145 : null]);
   if (sig === atlasRenderSignature) return; atlasRenderSignature = sig;
   const visited = new Set(p.visited_regions || []), grid = $('atlasGrid');
-  $('atlasProgress').textContent = `${visited.size} / ${snap.regions.length} открыто`;
+  $('atlasProgress').textContent = freeTravel ? `✦ 9 / 9 · Межмировой переход открыт` : `${visited.size} / ${snap.regions.length} открыто`;
+  const foot = document.querySelector('#atlasOverlay .atlasFoot');
+  if (foot) foot.textContent = freeTravel
+    ? '✦ Победа над Хранителем Первозданного сада открыла свободное перемещение между всеми мирами вне боя!'
+    : 'Переходы — через дорожные камни на краях карт. Победи Хранителя Первозданного сада, чтобы свободно перемещаться между всеми мирами!';
   grid.innerHTML = snap.regions.map(r => {
-    const status = r.id === p.region ? 'current' : visited.has(r.id) ? 'visited' : p.level >= r.min_level ? 'open' : 'locked';
-    const label = status === 'current' ? 'Ты здесь' : status === 'visited' ? 'Открыто' : status === 'open' ? 'Доступно' : `Ур. ${r.min_level}`;
+    const status = r.id === p.region ? 'current' : (freeTravel || visited.has(r.id)) ? 'visited' : p.level >= r.min_level ? 'open' : 'locked';
+    const label = status === 'current' ? 'Ты здесь' : freeTravel ? '✦ Свободный вход' : status === 'visited' ? 'Открыто' : status === 'open' ? 'Доступно' : `Ур. ${r.min_level}`;
     return `<button type="button" class="atlasTile ${status} ${r.id === atlasSelection ? 'selected' : ''}" data-atlas-region="${r.id}" style="--region-accent:${r.accent}"><span class="atlasChapter">${r.chapter}</span><b>${esc(r.name)}</b><small>${esc(r.level)}</small><span class="atlasStatus">${label}</span><span class="atlasShop">⚖ ${esc(r.shop)}</span></button>`;
   }).join('');
   const r = snap.regions.find(z => z.id === atlasSelection) || snap.region;
@@ -325,7 +331,11 @@ function renderAtlas() {
   const levelOk = p.level >= r.min_level;
   let travelHtml = '';
   if (r.id === p.region) travelHtml = `<div class="atlasHere">◆ Ты находишься на этой карте</div>`;
-  else if (portal) {
+  else if (freeTravel) {
+    const disabled = !!p.in_combat;
+    const label = p.in_combat ? 'Межмировой переход недоступен в бою' : `✦ Переместиться в «${esc(r.name)}»`;
+    travelHtml = `<button type="button" class="primary worldTravelBtn" id="atlasWorldTravel" ${disabled ? 'disabled' : ''}>${label}</button>`;
+  } else if (portal) {
     const disabled = !near || !levelOk || p.in_combat;
     const reason = !levelOk ? `Нужен уровень ${r.min_level}` : p.in_combat ? 'Нельзя перейти в бою' : !near ? 'Подойди к дорожному камню' : 'Перейти на карту';
     travelHtml = `<button type="button" class="primary" id="atlasTravel" ${disabled ? 'disabled' : ''}>${reason}</button>${!near && levelOk ? `<button type="button" class="atlasWaypoint" id="atlasWaypoint">Отметить дорожный камень</button>` : ''}`;
@@ -335,6 +345,7 @@ function renderAtlas() {
   }
   const npcs = (r.npcs || []).map(n => `<li><span>${n.role === 'merchant' ? '⚖' : n.role === 'wizard' ? '✦' : n.role === 'forge' ? '⚒' : '❖'}</span><div><b>${esc(n.name)}</b><small>${esc(n.title)}</small></div></li>`).join('');
   $('atlasDetail').innerHTML = `<div class="atlasDetailHero" style="--region-accent:${r.accent}"><span class="eyebrow">ЗЕМЛЯ ${r.chapter}</span><h3>${esc(r.name)}</h3><p>${esc(r.short)}</p></div><p class="atlasDesc">${esc(r.description)}</p><div class="atlasSection"><h4>Местные жители</h4><ul class="atlasNpcs">${npcs || `<li><span>⚖</span><div><b>${esc(r.merchant)}</b><small>${esc(r.shop)}</small></div></li>`}</ul></div><div class="atlasSection"><h4>Лавка</h4><p>${esc(r.stock_note)}</p></div><div class="atlasTravel">${travelHtml}</div>`;
+  const wtb = $('atlasWorldTravel'); if (wtb) wtb.onclick = () => { send({ type: 'world_travel', region: r.id }); closeAtlas(); };
   const tb = $('atlasTravel'); if (tb) tb.onclick = () => { if (portal) send({ type: 'travel', portal_id: portal.id }); };
   const wb = $('atlasWaypoint'); if (wb) wb.onclick = () => { waypoint = { x: portal.x, y: portal.y, name: 'Дорожный камень' }; closeAtlas(); toast('Дорожный камень отмечен на карте.'); };
 }
@@ -428,10 +439,28 @@ function enhanceMarket(p) {
   grid.querySelectorAll('.marketLine').forEach(row => {
     const btn = row.querySelector('[data-market-buy]'); if (!btn) return;
     const id = btn.dataset.marketBuy, o = catalog[id]; if (!o) return;
-    const kind = o.kind === 'weapon' ? 'weapon' : o.kind === 'gear' ? 'gear' : 'supply';
+    const offerKind = String(o.kind || '');
+    const kind = typeof marketOfferKind === 'function' ? marketOfferKind(o)
+      : offerKind === 'weapon' || offerKind === 'gear' || offerKind === 'accessory' ? offerKind
+        : (offerKind === 'crystal' || offerKind === 'shard' || offerKind === 'rune_dust'
+          || offerKind === 'essence' || offerKind === 'mithril') ? 'material' : 'consumable';
     row.dataset.shopKind = kind; row.dataset.shopName = o.name.toLowerCase();
-    if (!row.querySelector('.shopIcon')) { const icon = document.createElement('span'); icon.className = 'shopIcon'; icon.textContent = o.kind === 'weapon' ? (o.name.toLowerCase().includes('лук') ? '➶' : o.name.toLowerCase().includes('посох') ? '✦' : '⚔') : o.kind === 'gear' ? '◆' : '✚'; row.prepend(icon); }
-    const owned = (o.kind === 'weapon' && p.weapons?.includes(id)) || (o.kind === 'gear' && (p.gear === id || p.gear_inventory?.includes(id)));
+    const glyphMap = { weapon: '⚔', gear: '◆', accessory: '💍', consumable: '✚', material: '⛏', supply: '✚' };
+    const glyph = offerKind === 'weapon'
+      ? (o.name.toLowerCase().includes('лук') ? '➶' : o.name.toLowerCase().includes('посох') ? '✦' : '⚔')
+      : glyphMap[kind] || '✚';
+    const icon = row.querySelector('.shopIcon');
+    if (!icon) { const span = document.createElement('span'); span.className = 'shopIcon'; span.textContent = glyph; row.prepend(span); }
+    else icon.textContent = glyph;
+    const acc = p.accessory_catalog?.[id];
+    if (acc) {
+      row.dataset.shopRarity = acc.rarity || 'common';
+      let line = row.querySelector('small');
+      if (line && !line.dataset.withAcc) { line.textContent = `Реликвия · ${acc.description} · ${o.price} монет`; line.dataset.withAcc = '1'; }
+    }
+    const owned = (o.kind === 'weapon' && p.weapons?.includes(id))
+      || (o.kind === 'gear' && (p.gear === id || p.gear_inventory?.includes(id)))
+      || (o.kind === 'accessory' && (p.accessories?.includes(id) || Object.values(p.equipped_accessories || {}).includes(id)));
     if (owned) { btn.disabled = true; btn.textContent = 'Есть'; }
   });
   applyShopFilter();
@@ -447,7 +476,7 @@ function applyShopFilter() {
 
 /* ---------- sync / transitions ---------- */
 function showTravelBanner(r, reason) {
-  $('travelEyebrow').textContent = reason === 'respawn' ? 'ВОЗВРАЩЕНИЕ' : reason === 'recall' ? 'КАМЕНЬ ВОЗВРАЩЕНИЯ' : 'НОВАЯ ЗЕМЛЯ';
+  $('travelEyebrow').textContent = reason === 'respawn' ? 'ВОЗВРАЩЕНИЕ' : reason === 'recall' ? 'КАМЕНЬ ВОЗВРАЩЕНИЯ' : reason === 'world_travel' ? 'МЕЖМИРОВОЙ ПЕРЕХОД' : 'НОВАЯ ЗЕМЛЯ';
   $('travelName').textContent = r.name; $('travelShort').textContent = r.short;
   const el = $('travelBanner'); el.hidden = false; el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
   clearTimeout(el._timer); el._timer = setTimeout(() => { el.hidden = true; el.classList.remove('show'); }, 3200);
@@ -458,6 +487,7 @@ function resetMapViews() {
   for (const k of Object.keys(hitFlashes)) delete hitFlashes[k];
   waypoint = null; closeNpc(); closeAtlas();
   for (const id of ['marketOverlay', 'wizardOverlay', 'forgeOverlay']) { const el = $(id); if (el) el.style.display = 'none'; delete stationNpc[id]; }
+  shopFilter = { text: '', kind: 'all' };
 }
 const WorldUI = {
   sync(p) {
@@ -500,9 +530,13 @@ toast = function (t) { baseToast(t); const el = $('toast'); el.textContent = t; 
 canvas.addEventListener('pointerdown', e => {
   if (e.pointerType !== 'mouse' || e.button !== 0) return;
   const p = me(); if (!p) return;
-  const rect = canvas.getBoundingClientRect(), wx = cam.x + (e.clientX - rect.left - rect.width / 2), wy = cam.y + (e.clientY - rect.top - rect.height / 2);
-  const npc = (snap?.region?.npcs || []).find(n => Math.hypot(n.x - wx, n.y - wy) < 30 && npcDistance(n) <= 125);
-  const portal = (snap?.portals || []).find(v => Math.hypot(v.x - wx, v.y - wy) < 40 && Math.hypot(p.x - v.x, p.y - v.y) <= 145);
+  const rect = canvas.getBoundingClientRect(), sx = e.clientX - rect.left, sy = e.clientY - rect.top;
+  const wp = (window.LesEchoView && typeof window.LesEchoView.screenToWorld === 'function')
+    ? window.LesEchoView.screenToWorld(sx, sy)
+    : { x: cam.x + (sx - rect.width / 2), y: cam.y + (sy - rect.height / 2) };
+  const wx = wp.x, wy = wp.y;
+  const npc = (snap?.region?.npcs || []).find(n => Math.hypot(n.x - wx, n.y - wy) < 34 && npcDistance(n) <= 125);
+  const portal = (snap?.portals || []).find(v => Math.hypot(v.x - wx, v.y - wy) < 44 && Math.hypot(p.x - v.x, p.y - v.y) <= 145);
   if (npc || portal) { e.stopImmediatePropagation(); e.preventDefault(); send({ type: 'interact' }); }
 }, true);
 toggleMap = function () { if ($('atlasOverlay').style.display === 'flex') closeAtlas(); else openAtlas(); };

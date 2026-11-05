@@ -1,8 +1,10 @@
 
 const $=id=>document.getElementById(id), canvas=$('world'),ctx=canvas.getContext('2d'),mini=$('mini'),mctx=mini.getContext('2d'),full=$('fullmap'),fctx=full.getContext('2d');
 const zoneInfo={camp:{name:'Лагерь Следопытов',level:'Безопасная зона',color:'#799457'},forest:{name:'Шепчущий лес',level:'Уровень 1–3',color:'#63834e'},marsh:{name:'Затонувшие топи',level:'Уровень 4–6',color:'#4d766c'},ruins:{name:'Пепельные руины',level:'Уровень 7–10',color:'#77614e'},glacier:{name:'Хребет Синего Пламени',level:'Уровень 11–14',color:'#73949c'},rift:{name:'Разлом Эха',level:'Уровень 15–19',color:'#584e76'},abyss:{name:'Астральная Бездна',level:'Уровень 20–25',color:'#352d51'},obsidian:{name:'Обсидиановый край',level:'Уровень 26–30',color:'#54435f'},garden:{name:'Первозданный сад',level:'Уровень 31–35',color:'#557a4a'}};
-const weaponNames={sword:'Меч дозорного',axe:'Лесной колун',bow:'Тисовый лук',iron_sword:'Клинок из болотной стали',moonblade:'Лунный резец',ember_greatsword:'Клинок последнего зарева',starfall_bow:'Лук звёздного падения',forest_bow:'Лук следопыта',apprentice_staff:'Посох ученика',thorn_staff:'Посох живых терний',stormbrand:'Клинок Грозового кедра',obsidian_axe:'Топор Чёрного стекла',sunfall_bow:'Лук Солнцепада',elder_staff:'Посох Первозданного корня'},gearNames={traveler:'Куртка путника',wolf_cloak:'Плащ туманного волка',moss_guard:'Живой моховой панцирь',marsh_armor:'Болотная броня',moonweave:'Мантия лунного ткача',ash_plate:'Пепельный панцирь',colossus_core:'Сердце Колосса',glacier_mantle:'Мантия Синего Пламени',rift_plate:'Доспех Пустого Эха',obsidian_shell:'Панцирь чёрного стекла',starseer_robe:'Мантия звёздочёта',elder_mantle:'Плащ Первозданного сада'},gearDefense={traveler:2,wolf_cloak:5,moss_guard:6,marsh_armor:8,moonweave:9,ash_plate:12,colossus_core:18,glacier_mantle:21,rift_plate:27,obsidian_shell:30,starseer_robe:32,elder_mantle:36},rarityNames={common:'Обычный',uncommon:'Необычный',rare:'Редкий',epic:'Эпический',legendary:'Легендарный'},resourceNames={wood:'Древесина',herb:'Лунная трава',ore:'Болотная руда',crystal:'Эхо-кристалл',shard:'Осколок разлома',hide:'Шкура',slime:'Слизь',arrows:'Стрелы',potion:'Настойка'};
-const spellNames={fireball:'Огненный шар',lightning:'Молния',heal:'Исцеление',thorns:'Колючие терни',ice_lance:'Ледяное копьё',arcane_burst:'Всплеск маны',meteor:'Метеоритный дождь',frost_nova:'Кольцо инея',shadow_bolt:'Сумрачный снаряд'};
+const weaponNames={sword:'Меч дозорного',axe:'Лесной колун',bow:'Тисовый лук',iron_sword:'Клинок из болотной стали',moonblade:'Лунный резец',ember_greatsword:'Клинок последнего зарева',starfall_bow:'Лук звёздного падения',forest_bow:'Лук следопыта',apprentice_staff:'Посох ученика',thorn_staff:'Посох живых терний',stormbrand:'Клинок Грозового кедра',obsidian_axe:'Топор Чёрного стекла',sunfall_bow:'Лук Солнцепада',elder_staff:'Посох Первозданного корня'},gearNames={traveler:'Куртка путника',wolf_cloak:'Плащ туманного волка',moss_guard:'Живой моховой панцирь',marsh_armor:'Болотная броня',moonweave:'Мантия лунного ткача',ash_plate:'Пепельный панцирь',colossus_core:'Сердце Колосса',glacier_mantle:'Мантия Синего Пламени',rift_plate:'Доспех Пустого Эха',obsidian_shell:'Панцирь чёрного стекла',starseer_robe:'Мантия звёздочёта',elder_mantle:'Плащ Первозданного сада'},gearDefense={traveler:2,wolf_cloak:5,moss_guard:6,marsh_armor:8,moonweave:9,ash_plate:12,colossus_core:18,glacier_mantle:21,rift_plate:27,obsidian_shell:30,starseer_robe:32,elder_mantle:36},rarityNames={common:'Обычный',uncommon:'Необычный',rare:'Редкий',epic:'Эпический',legendary:'Легендарный'},resourceNames={wood:'Древесина',herb:'Лунная трава',ore:'Болотная руда',crystal:'Эхо-кристалл',shard:'Осколок разлома',hide:'Шкура',slime:'Слизь',arrows:'Стрелы',potion:'Настойка',essence:'Стихийная эссенция',rune_dust:'Рунная пыль',mithril:'Мифрил'};
+const spellNames={fireball:'Огненный шар',lightning:'Молния',heal:'Исцеление',thorns:'Колючие терни',ice_lance:'Ледяное копьё',arcane_burst:'Всплеск маны',meteor:'Метеоритный дождь',frost_nova:'Кольцо инея',shadow_bolt:'Сумрачный снаряд',frost_ring:'Кольцо стужи',root_bind:'Оковы корней',mind_chill:'Леденящий разум'};
+const spellShortLabels={fireball:'ОГОНЬ',lightning:'МОЛНИЯ',heal:'ИСЦЕЛ.',thorns:'ТЕРНИ',ice_lance:'ЛЁД',arcane_burst:'ВСПЛЕСК',meteor:'МЕТЕОР',frost_nova:'ИНЕЙ',shadow_bolt:'ТЕНЬ',frost_ring:'СТУЖА',root_bind:'КОРНИ',mind_chill:'РАЗУМ'};
+const spellIconsMap={fireball:'✦',lightning:'ϟ',heal:'✚',thorns:'❖',ice_lance:'❄',arcane_burst:'◉',meteor:'☄',frost_nova:'✧',shadow_bolt:'◈',frost_ring:'❅',root_bind:'🌿',mind_chill:'☾'};
 // --- ENHANCED VFX & PARTICLES SYSTEM ---
 let screenShake = 0, screenShakeDecay = 0.9;
 let screenShakeX = 0, screenShakeY = 0;
@@ -74,13 +76,13 @@ function send(data){if(ws&&ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify
 // The server owns the point pool: a click always sends {type:'upgrade'} and the
 // authoritative answer arrives via stats_updated/player_update. Local copies of
 // skill_points may lag behind, so they only dim the button — never block it.
-const UPGRADE_CAPS={might:50,vitality:50,agility:50,mana_regen:20,magic_damage:20,insight:15,precision:13,fortune:9};
-const LEVEL_STATS=['mana_regen','magic_damage','insight'];
+const UPGRADE_CAPS={might:100,vitality:100,agility:100,mana_regen:50,magic_damage:60,insight:40,precision:30,fortune:25,tenacity:40,ferocity:40};
+const LEVEL_STATS=['mana_regen','magic_damage','insight','tenacity','ferocity'];
 let lastUpgradeSync=0;
-function upgradeLevel(p,stat){const view=p?.upgrades_view||{},entry=view[stat];let raw=Number(entry?.level);if(!Number.isFinite(raw)){const src=(stat==='insight')?(p?.insight_level??0):(LEVEL_STATS.includes(stat)?(p?.[`${stat}_level`]??0):(p?.stats?.[stat]??1));raw=Number(src)}return Number.isFinite(raw)?Math.floor(raw):0}
-function refreshUpgradeButton(button,p){const stat=button.dataset.stat;if(!stat)return;const own=p||me()||{};const points=Math.max(0,Number(own.skill_points)||0),lvl=upgradeLevel(own,stat),atCap=lvl>=UPGRADE_CAPS[stat],effect=own.upgrades_view?.[stat]?.effect;const pending=button.dataset.pending==='1';button.classList.toggle('dim',points<=0&&!pending);if(atCap){button.disabled=true;button.title='Достигнут предел этой характеристики'}else if(pending){button.disabled=false;button.title='Запрос отправлен, ждём ответ сервера…'}else{button.disabled=false;button.title=points>0?`Потратить 1 очко развития · осталось ${points}${effect?` · Сейчас: ${effect}`:''}`:`Сервер проверит очки · сейчас: ${points}${effect?` · ${effect}`:''}`}if(points>0&&!pending&&Date.now()-lastUpgradeSync>1000){lastUpgradeSync=Date.now();send({type:'sync'})}}
-function requestStatUpgrade(button){const stat=button?.dataset.stat;if(!stat||button.disabled)return;const finish=()=>{delete button.dataset.pending;clearTimeout(button._upgradeTimer);refreshUpgradeButton(button,me());if(window.renderCharOverlay)try{renderCharOverlay(me())}catch(err){}};button.dataset.pending='1';button._upgradeTimer=setTimeout(finish,2500);send({type:'upgrade',stat})}
-function renderStatsPanel(p){if(!p)return;const pointsNode=$('points');if(pointsNode){const raw=Number(p.skill_points);const points=Number.isFinite(raw)?Math.max(0,Math.floor(raw)):0;pointsNode.textContent=`Свободно: ${points}`;pointsNode.classList.toggle('hasPoints',points>0)}const view=p.upgrades_view||{},stats=p.stat_values||p.stats||{};const fallback={might:stats.might,vitality:stats.vitality,agility:stats.agility,mana_regen:p.mana_regen_level,magic_damage:p.magic_damage_level,insight:p.insight_level,precision:stats.precision,fortune:stats.fortune};for(const [key,id] of [['might','might'],['vitality','vitality'],['agility','agility'],['mana_regen','manaRegenLevel'],['magic_damage','magicDamageLevel'],['precision','precision'],['fortune','fortune']]){const node=$(id),entry=view[key];if(!node)continue;const raw=entry&&entry.level!==undefined?entry.level:fallback[key];const n=Number(raw);if(Number.isFinite(n)){const value=Math.max(['might','vitality','agility','precision','fortune'].includes(key)?1:0,Math.floor(n));node.textContent=String(value);if(entry?.effect)node.title=entry.effect}}document.querySelectorAll('.upgrade').forEach(button=>refreshUpgradeButton(button,p))}
+function upgradeLevel(p,stat){const view=p?.upgrades_view||{},entry=view[stat];let raw=Number(entry?.level);if(!Number.isFinite(raw)){const src=LEVEL_STATS.includes(stat)?(p?.[`${stat}_level`]??0):(p?.stats?.[stat]??1);raw=Number(src)}return Number.isFinite(raw)?Math.floor(raw):0}
+function refreshUpgradeButton(button,p){const stat=button.dataset.stat;if(!stat)return;const own=p||me()||{};const count=Math.max(1,Number(button.dataset.count||1)),points=Math.max(0,Number(own.skill_points)||0),lvl=upgradeLevel(own,stat),cap=Number(own.upgrades_view?.[stat]?.max||UPGRADE_CAPS[stat]||100),atCap=lvl>=cap,effect=own.upgrades_view?.[stat]?.effect;const pending=button.dataset.pending==='1';button.classList.toggle('dim',(points<count)&&!pending);if(atCap){button.disabled=true;button.title='Достигнут предел этой характеристики'}else if(pending){button.disabled=false;button.title='Запрос отправлен, ждём ответ сервера…'}else{button.disabled=count>1&&points<2;button.title=points>0?`Потратить до ${count} очк. развития · свободно ${points}${effect?` · Сейчас: ${effect}`:''}`:`Нет свободных очков развития (${points})${effect?` · ${effect}`:''}`}if(points>0&&!pending&&Date.now()-lastUpgradeSync>1000){lastUpgradeSync=Date.now();send({type:'sync'})}}
+function requestStatUpgrade(button){const stat=button?.dataset.stat;if(!stat||button.disabled)return;const count=Math.max(1,Number(button.dataset.count||1));const finish=()=>{delete button.dataset.pending;clearTimeout(button._upgradeTimer);refreshUpgradeButton(button,me());if(window.renderCharOverlay)try{renderCharOverlay(me())}catch(err){}};button.dataset.pending='1';button._upgradeTimer=setTimeout(finish,2500);send({type:'upgrade',stat,count})}
+function renderStatsPanel(p){if(!p)return;const pointsNode=$('points');if(pointsNode){const sp=Math.max(0,Math.floor(Number(p.skill_points)||0)),tp=Math.max(0,Math.floor(Number(p.talent_points)||0)),total=sp+tp;pointsNode.textContent=tp>0?`Очки: ${sp} + ${tp}✦`:`Свободно: ${sp}`;pointsNode.classList.toggle('hasPoints',total>0)}const view=p.upgrades_view||{},stats=p.stat_values||p.stats||{};const fallback={might:stats.might,vitality:stats.vitality,agility:stats.agility,mana_regen:p.mana_regen_level,magic_damage:p.magic_damage_level,insight:p.insight_level,tenacity:p.tenacity_level,ferocity:p.ferocity_level,precision:stats.precision,fortune:stats.fortune};for(const [key,id] of [['might','might'],['vitality','vitality'],['agility','agility'],['mana_regen','manaRegenLevel'],['magic_damage','magicDamageLevel'],['precision','precision'],['fortune','fortune']]){const node=$(id),entry=view[key];if(!node)continue;const raw=entry&&entry.level!==undefined?entry.level:fallback[key];const n=Number(raw);if(Number.isFinite(n)){const value=Math.max(['might','vitality','agility','precision','fortune'].includes(key)?1:0,Math.floor(n));node.textContent=String(value);if(entry?.effect)node.title=entry.effect}}document.querySelectorAll('.upgrade').forEach(button=>refreshUpgradeButton(button,p))}
 function me(){return snap?.players.find(p=>p.id===myId)}
 function message(text,type='notice',name=''){let box=$('messages'),row=document.createElement('div');row.className='msg '+type;if(type==='chat'){let b=document.createElement('b');b.textContent=name+': ';row.append(b,document.createTextNode(text))}else row.textContent=text;box.append(row);while(box.children.length>5)box.removeChild(box.firstChild);setTimeout(()=>row.remove(),14000)}function toast(t){message(t,'notice')}
 const ABILITY_DEFAULT_KEYS={roar:'KeyR',lunge:'KeyT',whirlwind:'KeyK',iron_guard:'KeyP',bash:'KeyO',bloodhunt:'KeyN',seismic_slam:'KeyL',arrow_rain:'KeyR',piercing_shot:'KeyT',fire_arrow:'KeyK',ice_arrow:'KeyP',double_shot:'KeyX',poison_arrow:'KeyO',blackout_bolt:'KeyN',eagle_mark:'KeyL',arcane_bolt:'KeyR',frost_lance:'KeyT',chain_lightning:'KeyX',arcane_shield:'KeyN',blink:'KeyO',flame_burst:'KeyP',mana_surge:'KeyK',meteor_fall:'KeyL'};
@@ -134,10 +136,10 @@ function renderClassUi(p){
   strip.textContent='';
   const order=['warrior','ranger','mage'];
   order.forEach(tree=>{
-   const m=p.mastery?.[tree]||{level:1,next:0,xp:0},chip=document.createElement('span');chip.className='masteryChip';
-   chip.title=`${m.name||ABILITY_TREE_NAMES[tree]}: ${m.xp||0}${m.next?' / '+m.next:''} опыта · максимум ${m.max||5}`;
+   const m=p.mastery?.[tree]||{level:1,next:0,xp:0},chip=document.createElement('span');chip.className='masteryChip'+(p.class===tree?' isOwnClass':'');
+   chip.title=`${m.name||ABILITY_TREE_NAMES[tree]}: ${m.xp||0}${m.next?' / '+m.next:''} опыта · максимум ${m.max||20}`;
    const name=document.createElement('span');name.textContent=ABILITY_TREE_NAMES[tree].slice(0,3).toUpperCase();
-   const level=document.createElement('b');level.textContent=`${m.level||1}/${m.max||5}`;
+   const level=document.createElement('b');level.textContent=`${m.level||1}/${m.max||20}`;
    chip.append(name,level);strip.append(chip);
   });
  }
@@ -157,18 +159,20 @@ function renderClassUi(p){
 
 function renderAbilityCards(container,p,tree,compact){
  if(!container)return;
- const list=classAbilityList(p,tree),sig=`${tree}|${p.class||''}|${p.weapon_kind}|${compact?'1':'0'}|${list.map(a=>a.id).join(',')}`;
+ const list=classAbilityList(p,tree),sig=`${tree}|${p.class||''}|${p.weapon_kind}|${compact?'1':'0'}|${list.map(a=>`${a.id}:${a.level||1}:${abilityBindingCode(a)}`).join(',')}`;
  if(container.dataset.renderSig===sig){return}
  container.dataset.renderSig=sig;container.textContent='';
  list.forEach(a=>{
   const b=document.createElement('button');b.type='button';b.className='abilityBtn';b.dataset.ability=a.id;
   const cost=document.createElement('span');cost.className='abilityCost'+(a.resource==='mana'?' isMana':'');cost.textContent=a.arrows?`${a.arrows}➶`:`${a.cost}`;
   const key=document.createElement('span');key.className='abilityKey';key.textContent=keyLabel(abilityBindingCode(a));
+  const rank=document.createElement('span');rank.className='abilityRank'+((a.level||1)>=10?' isAwakened':(a.level||1)>=5?' isEvolved':'');rank.textContent=`ур.${a.level||1}`;
   const icon=document.createElement('span');icon.className='abilityIcon';icon.textContent=a.icon||'✦';
   const name=document.createElement('span');name.className='abilityName';name.textContent=a.name;
+  const cdText=document.createElement('span');cdText.className='slotCdTimer';
   const meta=document.createElement('span');meta.className='abilityMeta';
   const bar=document.createElement('span');bar.className='abilityCooldown';
-  b.append(cost,key,icon,name);
+  b.append(cost,key,rank,icon,name,cdText);
   if(!compact){const desc=document.createElement('span');desc.className='abilityDesc';desc.textContent=a.desc||'';b.append(desc)}
   b.append(meta,bar);container.append(b);
  });
@@ -177,23 +181,31 @@ function refreshAbilityCards(p){
  if(!p)return;
  document.querySelectorAll('[data-ability]').forEach(b=>{
   const a=p.abilities?.[b.dataset.ability];if(!a){b.disabled=true;return}
-  const resKey=a.resource==='mana'?'mana':'stamina',resWord=a.resource==='mana'?'маны':'выносливости',resShort=a.resource==='mana'?'ман':'вын';  const compatible=!!p.class&&p.class===a.tree,remain=Number(a.remaining||0),cd=Math.max(.1,Number(a.cooldown||1)),low=Number(p[resKey]||0)<Number(a.cost||0),needArrows=Number(a.arrows||0),arrows=Number(p.inventory?.arrows||0),noArrows=needArrows>arrows;
+  const resKey=a.resource==='mana'?'mana':'stamina',resWord=a.resource==='mana'?'маны':'выносливости',resShort=a.resource==='mana'?'ман':'вын';
+  const compatible=!!p.class&&p.class===a.tree,remain=Number(a.remaining||0),cd=Math.max(.1,Number(a.cooldown||1)),low=Number(p[resKey]||0)<Number(a.cost||0),needArrows=Number(a.arrows||0),arrows=Number(p.inventory?.arrows||0),noArrows=needArrows>arrows;
   b.disabled=!compatible||!a.unlocked||remain>0||low||noArrows;
   b.classList.toggle('is-locked',!!p.class&&!a.unlocked);
   b.classList.toggle('incompatible',!!p.class&&!compatible);
   b.classList.toggle('is-cooling',remain>0);
+  b.classList.toggle('no-resource',compatible&&a.unlocked&&remain<=0&&(low||noArrows));
   b.style.setProperty('--cd-width',`${Math.max(0,Math.min(1,remain/cd))*100}%`);
+  const rankEl=b.querySelector('.abilityRank');
+  if(rankEl){const rk=a.level||1;rankEl.textContent=`ур.${rk}`;rankEl.className='abilityRank'+(rk>=10?' isAwakened':rk>=5?' isEvolved':'')}
+  const cdTimer=b.querySelector('.slotCdTimer');
+  if(cdTimer)cdTimer.textContent=remain>0?`${remain>=10?Math.ceil(remain):remain.toFixed(1)}с`:'';
+  const costEl=b.querySelector('.abilityCost');
+  if(costEl)costEl.textContent=a.arrows?`${a.arrows}➶`:`${a.cost}`;
   const meta=b.querySelector('.abilityMeta');
   if(meta){
    if(!p.class)meta.textContent='Сначала выбери класс';
    else if(!compatible)meta.textContent=`Только для класса «${ABILITY_TREE_NAMES[a.tree]}»`;
-   else if(!a.unlocked)meta.textContent=`Откроется на ${a.mastery_required} ур. мастерства`;
-   else if(remain>0)meta.textContent=`Перезарядка ${remain.toFixed(1)} с`;
+   else if(!a.unlocked)meta.textContent=`Мастерство ${a.mastery_required} ур.`;
+   else if(remain>0)meta.textContent=`КД ${remain.toFixed(1)} с`;
    else if(low)meta.textContent=`Нужно ${a.cost} ${resWord}`;
    else if(noArrows)meta.textContent=`Нужно стрел: ${needArrows}`;
-   else meta.textContent=`${a.cost} ${resShort} · ${cd.toFixed(1)} с${needArrows?` · ${needArrows}➶`:''}`;
+   else meta.textContent=`${a.cost} ${resShort} · ${cd.toFixed(1)} с${a.power_bonus_pct?` · +${a.power_bonus_pct}%`:''}`;
   }
-  b.title=`${a.name} · ${a.cost} ${resWord}${needArrows?`, стрел: ${needArrows}`:''} · перезарядка ${cd.toFixed(1)} с · открывается на ${a.mastery_required} ур. мастерства «${ABILITY_TREE_NAMES[a.tree]}». ${a.desc||''}`;
+  b.title=`${a.name} (ранг ${a.level||1}/${a.max_level||10}${a.power_bonus_pct?`, усиление +${a.power_bonus_pct}%`:''}) · ${a.cost} ${resWord}${needArrows?`, стрел: ${needArrows}`:''} · перезарядка ${cd.toFixed(1)} с · мастерство ${a.mastery_required} ур. «${ABILITY_TREE_NAMES[a.tree]}». ${a.desc||''}`;
  });
 }
 function renderAbilityBindings(p,tree){
@@ -350,7 +362,7 @@ function drawAbilityFx(now,ox,oy){
  }
 }
 
-function connect(name){let scheme=location.protocol==='https:'?'wss:':'ws:';ws=new WebSocket(`${scheme}//${location.host}/ws?name=${encodeURIComponent(name)}`);ws.onopen=()=>$('connection').style.display='none';ws.onmessage=e=>{let d;try{d=JSON.parse(e.data)}catch{return}if(d.type==='ping'){send({type:'pong',t:d.t});return}if(!MapEvents.accepts(d,me()?.region))return;if(d.type==='npc_dialog'&&d.target===myId){WorldUI.openNpc(d.npc,d.quest);return}if(d.type==='portal_dialog'&&d.target===myId){sfxCall('portal');WorldUI.openPortal(d.portal);return}if(d.type==='region_changed'&&d.target===myId){WorldUI.pendingReason=d.reason;sfxCall('portal');return}if(d.type==='kick'){$('connection').style.display='none';$('login').style.display='flex';$('authError').textContent=d.message||'Соединение закрыто сервером.';setAuthMode('login');return}if(d.type==='state'){snap=d;myId=d.you;updateHud();syncCustomSpellButtons(me());renderCustomSpellBindings(me());renderCustomSpellLibrary(me())}else if(d.type==='stats_updated'){if(d.target===myId){let own=me();if(own){own.stats=d.stats||d.stat_values||own.stats;own.stat_values=d.stat_values||d.stats||own.stat_values;own.skill_points=d.skill_points??own.skill_points;own.xp=d.xp??own.xp;own.level=d.level??own.level;own.mana_regen_level=d.mana_regen_level??own.mana_regen_level;own.magic_damage_level=d.magic_damage_level??own.magic_damage_level;own.upgrades_view=d.upgrades_view??own.upgrades_view;own.insight_level=d.insight_level??own.insight_level;for(const k of ['hp','max_hp','mana','max_mana','stamina','max_stamina','mana_growth','mana_growth_next'])if(d[k]!==undefined)own[k]=d[k];own.stats_revision=d.stats_revision??own.stats_revision;document.querySelectorAll('.upgrade[data-pending]').forEach(b=>{clearTimeout(b._upgradeTimer);delete b.dataset.pending});renderStatsPanel(own);if(typeof renderCharOverlay==='function')renderCharOverlay(own);updateHud()}}}else if(d.type==='player_update'){if(d.target===myId&&d.player&&snap){let i=snap.players.findIndex(q=>q.id===myId);if(i>=0)snap.players[i]=d.player;inventorySignature='';marketSignature='';wizardRenderSignature='';forgeRenderSignature='';updateHud();renderInventory(me());renderMarket(me());if($('charOverlay')?.style.display==='flex'&&typeof renderCharOverlay==='function')renderCharOverlay(me());syncCustomSpellButtons(me());renderCustomSpellBindings(me());renderCustomSpellLibrary(me());if($('wizardOverlay')?.style.display==='flex')renderWizard(me());if($('forgeOverlay')?.style.display==='flex')renderForge(me())}}else if(d.type==='forge_result'){if(d.target===myId){let own=me();if(own){own.gold=d.gold??own.gold;own.inventory=d.inventory||own.inventory;own.upgrades=d.upgrades||own.upgrades;own.weapon=d.weapon||own.weapon;own.gear=d.gear||own.gear;let scene=$('forgeAnvilScene');if(scene){scene.dataset.pending='0';scene.classList.remove('hammering','forge-success','forge-fail');scene.classList.add(d.success?'forge-success':'forge-fail')}renderForge(own);updateHud();if(d.success){toast(`${d.item_name} улучшено до +${d.level_after}: ${d.benefit}`)}else{toast(`Неудача (${d.chance}% шанс). Стоимость попытки списана, уровень не изменился.`)}}}}else if(d.type==='notice'){if(!d.target||d.target===myId){if(/уровня/.test(d.text||'')){sfxCall('level');const own=me();if(own)fxCall('level',own.x,own.y)}let scene=$('forgeAnvilScene');if(scene?.dataset.pending==='1'){scene.dataset.pending='0';scene.classList.remove('hammering');renderForge(me())}message(d.text)}}else if(d.type==='chat')message(d.text,'chat',d.name);else if(d.type==='class_offer'){if(d.target===myId||!d.target){classOfferDismissed=false;if(!snap?.classes&&d.classes)snap={...(snap||{}),classes:d.classes};showClassOffer(true)}}else if(d.type==='class_selected'){if(d.target===myId){classChoicePending=false;classOfferDismissed=true;hideClassOffer();let own=me();if(own&&d.player&&snap){const i=snap.players.findIndex(q=>q.id===myId);if(i>=0)snap.players[i]=d.player}else if(snap){send({type:'sync'})}updateHud();if(typeof renderCharOverlay==='function')renderCharOverlay(me());toast(`Класс выбран: ${d.class_name}. Постоянные бонусы: ${(d.bonus||[]).join(', ')||'нет'}.`)}}else if(d.type==='mastery_update'){if(d.target===myId){let own=me();if(own&&d.mastery){own.mastery=d.mastery;updateHud()}toast(`Мастерство «${ABILITY_TREE_NAMES[d.tree]||d.tree}»: уровень ${d.level}.`)}}else if(d.type==='ability_cast')handleAbilityCast(d);else if(d.type==='ability_impact'||d.type==='ground_pulse'){const col=d.element==='fire'?'#ff9a54':d.element==='ice'?'#8ce9ff':'#cfe99b';spawnParticles(d.x,d.y,col,d.type==='ground_pulse'?12:18,4,4,.55);sfxCall('impact',d.element);fxCall('cast',d.x,d.y,col);triggerScreenShake(d.type==='ground_pulse'?8:5,d.x,d.y)}else if(d.type==='weapon_action'){weaponActions.push({id:d.id,action:d.action,weapon:d.weapon,weapon_kind:d.weapon_kind,x:d.x,y:d.y,aim_x:d.aim_x,aim_y:d.aim_y,charge:d.charge||0,started:performance.now(),until:performance.now()+(d.action==='cast'?460:360)});const heavyMelee=d.weapon_kind==='melee'&&(((d.charge||0)>.55)||/axe|maul|greatsword|halberd|scythe/.test(d.weapon||''));if(d.action==='cast'){sfxCall('cast',d.element);fxCall('cast',d.x,d.y)}else if(d.weapon_kind==='bow'){sfxCall('bowShot')}else{sfxCall('swing',heavyMelee)}}else if(d.type==='hit'){spawnParticles(d.x,d.y,d.critical?'#fff1a6':'#ffda79',d.critical?22:12,d.critical?6:4,d.critical?5:4,d.critical?.72:.5);hitFlashes[d.mob]=performance.now()+240;attackFx.push({x:d.x,y:d.y,until:performance.now()+420,text:d.critical?`КРИТ · -${d.damage}`:`-${d.damage}`,critical:!!d.critical});sfxCall('hit',!!d.critical);fxCall('hit',d.x,d.y,!!d.critical,d.critical?'#ffe08c':'#ffd9a0');triggerScreenShake(d.critical?7.5:4.2,d.x,d.y)}else if(d.type==='spell_fx'){if(d.spell==='meteor'){triggerScreenShake(13,d.x,d.y);sfxCall('impact','fire')}else{sfxCall('impact',d.element)}fxCall('cast',d.x,d.y,(d.palette?.colors||['#bd77ff'])[0]);let pal=d.palette?.colors||['#bd77ff','#6edfff','#fff1c8'];spawnParticles(d.x,d.y,pal[0],24+Math.min(18,(d.mastery||1)*2),6,6,0.8);spellFx.push({spell:d.spell,kind:d.kind||d.spell,name:d.name||d.spell,rarity:d.rarity||1,mastery:d.mastery||1,variant:d.variant||0,palette:d.palette||null,x:d.x,y:d.y,radius:d.radius||100,until:performance.now()+1500})}else if(d.type==='hit_player'&&d.id===myId){sfxCall('hurt');$('flash').style.opacity='.26';setTimeout(()=>$('flash').style.opacity='0',100);toast(`Получен урон: ${d.damage}`)}else if(d.type==='pvp_hit'){if(d.id===myId){sfxCall('hurt');$('flash').style.opacity='.34';setTimeout(()=>$('flash').style.opacity='0',130);toast(`Игрок нанёс ${d.damage} урона`)}else if(d.attacker===myId){attackFx.push({x:d.x,y:d.y,until:performance.now()+420,text:`-${d.damage}`})}}else if(d.type==='error'){ $('connection').textContent=d.message;$('connection').style.display='block';message(d.message)}};ws.onclose=e=>{if(e.reason==='AUTH_REQUIRED'){$('connection').style.display='none';$('login').style.display='flex';$('authError').textContent='Сессия завершена. Войдите снова.';setAuthMode('login');return}$('connection').style.display='block';setTimeout(()=>{if($('login').style.display==='none')connect(name)},1600)}}
+function connect(name){let scheme=location.protocol==='https:'?'wss:':'ws:';ws=new WebSocket(`${scheme}//${location.host}/ws?name=${encodeURIComponent(name)}`);ws.onopen=()=>$('connection').style.display='none';ws.onmessage=e=>{let d;try{d=JSON.parse(e.data)}catch{return}if(d.type==='ping'){send({type:'pong',t:d.t});return}if(!MapEvents.accepts(d,me()?.region))return;if(d.type==='npc_dialog'&&d.target===myId){WorldUI.openNpc(d.npc,d.quest);return}if(d.type==='portal_dialog'&&d.target===myId){sfxCall('portal');WorldUI.openPortal(d.portal);return}if(d.type==='region_changed'&&d.target===myId){WorldUI.pendingReason=d.reason;sfxCall('portal');return}if(d.type==='kick'){$('connection').style.display='none';$('login').style.display='flex';$('authError').textContent=d.message||'Соединение закрыто сервером.';setAuthMode('login');return}if(d.type==='state'){snap=d;myId=d.you;updateHud();syncCustomSpellButtons(me());renderCustomSpellBindings(me());renderCustomSpellLibrary(me())}else if(d.type==='stats_updated'){if(d.target===myId){let own=me();if(own){own.stats=d.stats||d.stat_values||own.stats;own.stat_values=d.stat_values||d.stats||own.stat_values;own.skill_points=d.skill_points??own.skill_points;own.talent_points=d.talent_points??own.talent_points;own.xp=d.xp??own.xp;own.xp_next=d.xp_next??own.xp_next;own.level=d.level??own.level;own.max_level=d.max_level??own.max_level;own.mana_regen_level=d.mana_regen_level??own.mana_regen_level;own.magic_damage_level=d.magic_damage_level??own.magic_damage_level;own.upgrades_view=d.upgrades_view??own.upgrades_view;own.insight_level=d.insight_level??own.insight_level;own.tenacity_level=d.tenacity_level??own.tenacity_level;own.ferocity_level=d.ferocity_level??own.ferocity_level;for(const k of ['hp','max_hp','mana','max_mana','stamina','max_stamina','mana_growth','mana_growth_next'])if(d[k]!==undefined)own[k]=d[k];own.stats_revision=d.stats_revision??own.stats_revision;document.querySelectorAll('.upgrade[data-pending],[data-skill-upgrade][data-pending]').forEach(b=>{clearTimeout(b._upgradeTimer);delete b.dataset.pending});renderStatsPanel(own);if(typeof renderCharOverlay==='function')renderCharOverlay(own);updateHud()}}}else if(d.type==='player_update'){if(d.target===myId&&d.player&&snap){let i=snap.players.findIndex(q=>q.id===myId);if(i>=0)snap.players[i]=d.player;inventorySignature='';marketSignature='';wizardRenderSignature='';forgeRenderSignature='';updateHud();renderInventory(me());renderMarket(me());if($('charOverlay')?.style.display==='flex'&&typeof renderCharOverlay==='function')renderCharOverlay(me());syncCustomSpellButtons(me());renderCustomSpellBindings(me());renderCustomSpellLibrary(me());if($('wizardOverlay')?.style.display==='flex')renderWizard(me());if($('forgeOverlay')?.style.display==='flex')renderForge(me())}}else if(d.type==='reforge_result'){if(d.target===myId){let own=me();if(own){own.gold=d.gold??own.gold;let scene=$('forgeAnvilScene');if(scene){scene.dataset.pending='0';scene.classList.remove('hammering','forge-success','forge-fail');scene.classList.add(d.tier>=0?'forge-success':'forge-fail')}forgeRenderSignature='';renderForge(own);inventorySignature='';updateHud();const tierCol={'-1':'#d96b6b','1':'#9ad69c','2':'#7cc6f2','3':'#cf9eff','4':'#ffcf66'}[String(d.tier)]||'#d8e4dc';if(typeof message==='function')message(`✦ Перековка: ${d.prefix_name} ${d.item_name} — ${d.summary}`);const badge=Number(d.tier)>=4?'Мифическая удача! ':Number(d.tier)<0?'Неудачная ковка: ':'Перековка: ';toast(`${badge}${d.prefix_name} ${d.item_name} · ${d.summary}`);if(typeof sfxCall==='function')sfxCall('impact',Number(d.tier)>=4?'lightning':'metal')}}}else if(d.type==='custom_weapon_created'){if(d.target===myId){let own=me();if(own){own.custom_weapons={...(own.custom_weapons||{}),[d.weapon_id]:d.weapon};own.weapons=[...new Set([...(own.weapons||[]),d.weapon_id])];if(own.weapon_catalog)own.weapon_catalog[d.weapon_id]={...d.weapon};if(own.reforges)own.reforges={...own.reforges,weapon:{...(own.reforges?.weapon||{}),[d.weapon_id]:d.prefix_id}};forgeRenderSignature='';renderForge(own);renderCwPreview(own);inventorySignature='';updateHud();toast(`Выковано: ${d.prefix_name} ${d.weapon?.name||''} · ${d.prefix_summary||''}`);if(typeof sfxCall==='function')sfxCall('level')}}}else if(d.type==='forge_result'){if(d.target===myId){let own=me();if(own){own.gold=d.gold??own.gold;own.inventory=d.inventory||own.inventory;own.upgrades=d.upgrades||own.upgrades;own.weapon=d.weapon||own.weapon;own.gear=d.gear||own.gear;let scene=$('forgeAnvilScene');if(scene){scene.dataset.pending='0';scene.classList.remove('hammering','forge-success','forge-fail');scene.classList.add(d.success?'forge-success':'forge-fail')}renderForge(own);updateHud();if(d.success){toast(`${d.item_name} улучшено до +${d.level_after}: ${d.benefit}`)}else{toast(`Неудача (${d.chance}% шанс). Стоимость попытки списана, уровень не изменился.`)}}}}else if(d.type==='notice'){if(!d.target||d.target===myId){if(/уровня/.test(d.text||'')){sfxCall('level');const own=me();if(own)fxCall('level',own.x,own.y)}let scene=$('forgeAnvilScene');if(scene?.dataset.pending==='1'){scene.dataset.pending='0';scene.classList.remove('hammering');renderForge(me())}message(d.text)}}else if(d.type==='chat')message(d.text,'chat',d.name);else if(d.type==='class_offer'){if(d.target===myId||!d.target){classOfferDismissed=false;if(!snap?.classes&&d.classes)snap={...(snap||{}),classes:d.classes};showClassOffer(true)}}else if(d.type==='class_selected'){if(d.target===myId){classChoicePending=false;classOfferDismissed=true;hideClassOffer();let own=me();if(own&&d.player&&snap){const i=snap.players.findIndex(q=>q.id===myId);if(i>=0)snap.players[i]=d.player}else if(snap){send({type:'sync'})}updateHud();if(typeof renderCharOverlay==='function')renderCharOverlay(me());toast(`Класс выбран: ${d.class_name}. Постоянные бонусы: ${(d.bonus||[]).join(', ')||'нет'}.`)}}else if(d.type==='mastery_update'){if(d.target===myId){let own=me();if(own&&d.mastery){own.mastery=d.mastery;if(d.talent_points!==undefined)own.talent_points=d.talent_points;updateHud()}toast(`Мастерство «${ABILITY_TREE_NAMES[d.tree]||d.tree}»: уровень ${d.level}/20.`)}}else if(d.type==='combat_fx'){const col=d.kind==='perfect_dodge'?'#8bf6ff':d.kind==='stagger'?'#ffb84d':'#ff85e8';spawnParticles(d.x,d.y,col,20,5.2,4.6,.65);if(d.text)attackFx.push({x:d.x,y:d.y-10,until:performance.now()+680,text:d.text,critical:true});if(d.kind==='perfect_dodge'){sfxCall('dodge');fxCall('dodge',d.x,d.y);if(d.id===myId)toast('⚡ Идеальный уклон! Следующая атака усилена на +40%!')}else if(d.kind==='stagger'){sfxCall('hit',true);fxCall('hit',d.x,d.y,true,'#ffb84d');triggerScreenShake(8.5,d.x,d.y)}else if(d.kind==='reaction'){sfxCall('impact','lightning');fxCall('cast',d.x,d.y,col)}}else if(d.type==='ability_cast')handleAbilityCast(d);else if(d.type==='ability_impact'||d.type==='ground_pulse'){const col=d.element==='fire'?'#ff9a54':d.element==='ice'?'#8ce9ff':'#cfe99b';spawnParticles(d.x,d.y,col,d.type==='ground_pulse'?12:18,4,4,.55);sfxCall('impact',d.element);fxCall('cast',d.x,d.y,col);triggerScreenShake(d.type==='ground_pulse'?8:5,d.x,d.y)}else if(d.type==='weapon_action'){weaponActions.push({id:d.id,action:d.action,weapon:d.weapon,weapon_kind:d.weapon_kind,x:d.x,y:d.y,aim_x:d.aim_x,aim_y:d.aim_y,charge:d.charge||0,combo:d.combo||1,finisher:!!d.finisher,started:performance.now(),until:performance.now()+(d.action==='cast'?460:360)});const heavyMelee=d.weapon_kind==='melee'&&(((d.charge||0)>.55)||!!d.finisher||/axe|maul|greatsword|halberd|scythe/.test(d.weapon||''));if(d.action==='cast'){sfxCall('cast',d.element);fxCall('cast',d.x,d.y)}else if(d.weapon_kind==='bow'){sfxCall('bowShot')}else{sfxCall('swing',heavyMelee)}}else if(d.type==='hit'){const big=!!d.critical||!!d.finisher||!!d.reaction;spawnParticles(d.x,d.y,d.reaction?'#ff9df0':d.critical?'#fff1a6':'#ffda79',big?22:12,big?6:4,big?5:4,big?.72:.5);hitFlashes[d.mob]=performance.now()+240;const prefix=[d.reaction,d.finisher?'ФИНАЛ':'',d.critical?'КРИТ':''].filter(Boolean).join(' · ');attackFx.push({x:d.x,y:d.y,until:performance.now()+(big?540:420),text:prefix?`${prefix} · -${d.damage}`:`-${d.damage}`,critical:big});sfxCall('hit',big);fxCall('hit',d.x,d.y,big,d.reaction?'#ff9df0':d.critical?'#ffe08c':'#ffd9a0');triggerScreenShake(big?7.5:4.2,d.x,d.y)}else if(d.type==='spell_fx'){if(d.spell==='meteor'){triggerScreenShake(13,d.x,d.y);sfxCall('impact','fire')}else{sfxCall('impact',d.element)}fxCall('cast',d.x,d.y,(d.palette?.colors||['#bd77ff'])[0]);let pal=d.palette?.colors||['#bd77ff','#6edfff','#fff1c8'];spawnParticles(d.x,d.y,pal[0],24+Math.min(18,(d.mastery||1)*2),6,6,0.8);spellFx.push({spell:d.spell,kind:d.kind||d.spell,name:d.name||d.spell,rarity:d.rarity||1,mastery:d.mastery||1,variant:d.variant||0,palette:d.palette||null,x:d.x,y:d.y,radius:d.radius||100,until:performance.now()+1500})}else if(d.type==='hit_player'&&d.id===myId){sfxCall('hurt');$('flash').style.opacity='.26';setTimeout(()=>$('flash').style.opacity='0',100);toast(`Получен урон: ${d.damage}`)}else if(d.type==='pvp_hit'){if(d.id===myId){sfxCall('hurt');$('flash').style.opacity='.34';setTimeout(()=>$('flash').style.opacity='0',130);toast(`Игрок нанёс ${d.damage} урона`)}else if(d.attacker===myId){attackFx.push({x:d.x,y:d.y,until:performance.now()+420,text:`-${d.damage}`})}}else if(d.type==='error'){ $('connection').textContent=d.message;$('connection').style.display='block';message(d.message)}};ws.onclose=e=>{if(e.reason==='AUTH_REQUIRED'){$('connection').style.display='none';$('login').style.display='flex';$('authError').textContent='Сессия завершена. Войдите снова.';setAuthMode('login');return}$('connection').style.display='block';setTimeout(()=>{if($('login').style.display==='none')connect(name)},1600)}}
 let authMode='register';
 function setAuthMode(mode){authMode=mode;const isRegister=mode==='register';$('registerMode').classList.toggle('active',isRegister);$('loginMode').classList.toggle('active',!isRegister);$('confirmWrap').style.display=isRegister?'block':'none';$('confirmInput').required=isRegister;$('passwordInput').autocomplete=isRegister?'new-password':'current-password';$('authSubmit').textContent=isRegister?'Создать аккаунт':'Войти в мир';$('authError').textContent=''}
 $('registerMode').addEventListener('click',()=>setAuthMode('register'));$('loginMode').addEventListener('click',()=>setAuthMode('login'));
@@ -514,38 +526,351 @@ $('switchForm').addEventListener('submit',async e=>{
 function safeText(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function itemCard(name,detail,rarity='common',button='',count=''){return `<article class="itemCard"><div class="itemMain"><div class="itemName rarity-${rarity}">${safeText(name)}</div><div class="itemDetail">${safeText(detail)}</div></div>${count?`<span class="itemCount">× ${safeText(count)}</span>`:''}${button}</article>`}
 let inventorySignature="";function renderInventory(p){let signature=JSON.stringify([p.gear,p.gear_inventory,p.weapons,p.weapon,p.inventory,p.gear_catalog,p.weapon_catalog,p.enchantments,p.upgrades]);if(signature===inventorySignature)return;inventorySignature=signature;let gearList=$('gearInventoryList'),resList=$('resourceInventoryList');if(!gearList||!resList)return;let wc=p.weapon_catalog||{},gc=p.gear_catalog||{};let weapons=(p.weapons||[]).map(id=>{let w=wc[id]||{},kind=w.kind==='bow'?'Дальний бой':w.kind==='staff'?'Магия':'Ближний бой',up=Number(p.upgrades?.weapon?.[id]||0),dmg=Number(w.damage||0)+Number(w.bonus||0)+((w.kind==='staff')?0:up*6),detail=w.kind==='staff'?`${kind} · урон заклинаний +${up*6} за уровень улучшения · сила чар +${Math.round(Number(w.spell_power||0)*100)}%`:`${kind} · урон ${dmg}${w.kind==='bow'?' · усиление стрел':''}`;return {id,name:w.name||weaponNames[id]||id,rarity:w.rarity||'common',equipped:p.weapon===id,detail}});let armor=[p.gear,...(p.gear_inventory||[])].filter((id,i,a)=>id&&a.indexOf(id)===i).map(id=>({id,name:gc[id]?.name||gearNames[id]||id,rarity:gc[id]?.rarity||'common',equipped:p.gear===id,detail:`Защита ${gc[id]?.defense??gearDefense[id]??0} · ${gc[id]?.lore||'Броня следопыта'}`}));let rows=[...weapons.map(it=>{let action=it.equipped?'Надето':`Надеть`;return itemCard(it.name,it.detail,it.rarity,`<button data-inv-equip-weapon="${safeText(it.id)}" ${it.equipped?'disabled':''}>${action}</button>`,it.equipped?'Экипировано':'') }),...armor.map(it=>itemCard(it.name,it.detail,it.rarity,`<button data-inv-equip-gear="${safeText(it.id)}" ${it.equipped?'disabled':''}>${it.equipped?'Надето':'Надеть'}</button>`,it.equipped?'Экипировано':''))];gearList.innerHTML=rows.length?rows.join(''):'<div class="emptyInventory">Пока нет снаряжения. Ищи трофеи в лесу.</div>';let inv=p.inventory||{},res=Object.keys(resourceNames).filter(k=>Number(inv[k]||0)>0);resList.innerHTML=res.length?res.map(k=>itemCard(resourceNames[k],k==='potion'?'Восстанавливает здоровье':k==='arrows'?'Боеприпас для лука':'Материал для ремесла',k==='crystal'||k==='shard'?'rare':'common','',inv[k])).join(''):'<div class="emptyInventory">Рюкзак пуст. Собирай ресурсы клавишей E.</div>';let used=(p.weapons||[]).length+armor.length+res.reduce((n,k)=>n+(inv[k]>0?1:0),0);$('inventoryMeta').textContent=`${used} типов предметов · ${p.gold||0} монет · предметы сохраняются за персонажем`;}
-let marketSignature="";const resourceSellNames={wood:'Древесина',herb:'Лунная трава',ore:'Болотная руда',hide:'Шкура',slime:'Слизь',crystal:'Эхо-кристалл',shard:'Осколок разлома',potion:'Настойка',arrows:'Стрела'};
-function renderMarket(p){if(!$('marketOverlay'))return;let signature=JSON.stringify([p.gold,p.inventory,p.weapons,p.weapon,p.gear,p.gear_inventory,p.shop_catalog,p.enchantments,p.region]);if(signature===marketSignature)return;marketSignature=signature;let offers=Object.entries(p.shop_catalog||{});$('marketBuyGrid').innerHTML=offers.map(([id,o])=>`<article class="marketLine"><div><strong>${safeText(o.name)}</strong><small>${safeText(o.description)} · ${o.price} монет</small></div><button class="marketBuy" data-market-buy="${safeText(id)}" ${p.gold<o.price?'disabled':''}>Купить</button></article>`).join('')||'<p class="marketNote">Лавка временно закрыта.</p>';let inv=p.inventory||{},sell=[];for(const [id,name] of Object.entries(resourceSellNames)){let n=Number(inv[id]||0);if(n>0)sell.push(`<article class="marketLine"><div><strong>${name} × ${n}</strong><small>${(p.sell_prices||{})[id]||0} монет за штуку</small></div><button class="marketSell" data-market-sell="${safeText(id)}" data-market-type="resource">Продать 1</button><button class="marketSell" data-market-sell="${safeText(id)}" data-market-type="resource" data-market-count="${n}">Продать всё</button></article>`)}const wc=p.weapon_catalog||{},gc=p.gear_catalog||{};for(const id of p.weapons||[]){if(id===p.weapon)continue;sell.push(`<article class="marketLine"><div><strong>${safeText(wc[id]?.name||id)}</strong><small>Оружие · ${p.weapon_sell_prices?.[id]||0} монет</small></div><button class="marketSell" data-market-sell="${safeText(id)}" data-market-type="weapon">Продать</button></article>`)}for(const id of p.gear_inventory||[]){sell.push(`<article class="marketLine"><div><strong>${safeText(gc[id]?.name||id)}</strong><small>Броня · ${p.gear_sell_prices?.[id]||0} монет</small></div><button class="marketSell" data-market-sell="${safeText(id)}" data-market-type="gear">Продать</button></article>`)}$('marketSellGrid').innerHTML=sell.join('')||'<p class="marketNote">Пока нечего продавать. Добывай ресурсы или охоться на монстров.</p>';}
+const resourceSellNames={wood:'Древесина',herb:'Лунная трава',ore:'Болотная руда',hide:'Шкура',slime:'Слизь',crystal:'Эхо-кристалл',shard:'Осколок разлома',potion:'Настойка',arrows:'Стрела'};
+let marketSignature="";
+/* The shop's own search/filter bar lives in world.js (`shopFilter`); this only
+   maps an offer to the filter category it should answer to. */
+const MARKET_FILTER_KIND={weapon:'weapon',gear:'gear',accessory:'accessory',potion:'consumable',arrows:'consumable',crystal:'material',shard:'material',rune_dust:'material',essence:'material',mithril:'material',throwing_knife:'consumable'};
+function marketOfferKind(o){
+ const kind=String(o?.kind||'');
+ if(MARKET_FILTER_KIND[kind])return MARKET_FILTER_KIND[kind];
+ if(serverConsumableKinds.has(kind))return 'consumable';
+ return 'supply';
+}
+const serverConsumableKinds=new Set(['bandage','elixir','mana_potion','stamina_potion','rage_potion','ironskin_potion','haste_potion','arcane_tonic']);
+function renderMarket(p){if(!$('marketOverlay'))return;
+ let signature=JSON.stringify([p.gold,p.inventory,p.weapons,p.weapon,p.gear,p.gear_inventory,p.shop_catalog,p.enchantments,p.region,p.accessories,p.equipped_accessories,p.custom_weapons,p.weapon_sell_prices,p.gear_sell_prices,p.accessory_sell_prices,p.sell_prices]);
+ if(signature===marketSignature)return;marketSignature=signature;
+ let offers=Object.entries(p.shop_catalog||{});
+ $('marketBuyGrid').innerHTML=offers.map(([id,o])=>{
+   const kind=marketOfferKind(o),tag=kind==='accessory'?'Реликвия':kind==='gear'?'Снаряжение':kind==='material'?'Материал':'Расходник';
+   const acc=p.accessory_catalog?.[id];
+   const owned=acc&&((p.accessories||[]).includes(id)||Object.values(p.equipped_accessories||{}).includes(id));
+   const detail=acc?`${tag} · ${acc.description} · ${o.price} монет`:`${tag} · ${safeText(o.description||'')} · ${o.price} монет`;
+   return `<article class="marketLine rarity-${acc?.rarity||'common'}"><div><strong>${safeText(o.name)}</strong><small>${detail}</small></div>`
+    +`<button class="marketBuy" data-market-buy="${safeText(id)}" ${p.gold<o.price||owned?'disabled':''}>${owned?'Есть':'Купить'}</button></article>`}).join('')
+  ||'<p class="marketNote">В этой категории товара нет.</p>';
+ let inv=p.inventory||{},sell=[];
+ for(const [id,name] of Object.entries(resourceSellNames)){let n=Number(inv[id]||0);if(n>0)sell.push(`<article class="marketLine"><div><strong>${name} × ${n}</strong><small>${(p.sell_prices||{})[id]||0} монет за штуку</small></div><button class="marketSell" data-market-sell="${safeText(id)}" data-market-type="resource">Продать 1</button><button class="marketSell" data-market-sell="${safeText(id)}" data-market-type="resource" data-market-count="${n}">Продать всё</button></article>`)}
+ for(const [id,meta] of Object.entries(CONSUMABLE_META)){const n=Number(inv[id]||0);if(n>0&&!resourceSellNames[id])sell.push(`<article class="marketLine"><div><strong>${safeText(meta.name)} × ${n}</strong><small>${safeText(meta.desc||'Расходник')}</small></div><button class="marketSell" data-market-sell="${safeText(id)}" data-market-type="resource">Продать всё</button></article>`)}
+ const wc=p.weapon_catalog||{},gc=p.gear_catalog||{},ac=p.accessory_catalog||{};
+ for(const id of p.weapons||[]){if(id===p.weapon)continue;
+  const spec=wc[id]||{},ref=p.reforges?.weapon?.[id]?p.reforge_prefixes?.[p.reforges.weapon[id]]:null,up=Number(p.upgrades?.weapon?.[id]||0);
+  sell.push(`<article class="marketLine"><div><strong>${safeText(wc[id]?.name||id)}${up?` +${up}`:''}</strong><small>${spec.custom?'Авторское оружие':'Оружие'}${ref?` · ${safeText(ref.name)}`:''} · ${p.weapon_sell_prices?.[id]||0} монет</small></div><button class="marketSell" data-market-sell="${safeText(id)}" data-market-type="weapon">Продать</button></article>`)}
+ for(const id of p.gear_inventory||[]){sell.push(`<article class="marketLine"><div><strong>${safeText(gc[id]?.name||id)}</strong><small>Броня · ${p.gear_sell_prices?.[id]||0} монет</small></div><button class="marketSell" data-market-sell="${safeText(id)}" data-market-type="gear">Продать</button></article>`)}
+ for(const id of p.accessories||[]){
+  const equippedTo=Object.entries(p.equipped_accessories||{}).find(([,v])=>v===id)?.[0];
+  sell.push(`<article class="marketLine"><div><strong>${safeText(ac[id]?.name||id)}</strong><small>Реликвия · ${equippedTo?'надето, сними в сумке':'можно продать'} · ${p.accessory_sell_prices?.[id]??''} монет</small></div><button class="marketSell" data-market-sell="${safeText(id)}" data-market-type="accessory" ${equippedTo?'disabled':''}>Продать</button></article>`)}
+ $('marketSellGrid').innerHTML=sell.join('')||'<p class="marketNote">Пока нечего продавать. Добывай ресурсы или охоться на монстров.</p>';
+}
 function stationLine(title,detail,button,disabled=false){return `<article class="stationLine"><div><strong>${safeText(title)}</strong><small>${safeText(detail)}</small></div>${button?`<button ${disabled?'disabled':''}>${button}</button>`:''}</article>`}
 let wizardRenderSignature="",forgeRenderSignature="";
-function renderWizard(p){if(!p)return;const signature=JSON.stringify([p.gold,p.inventory,p.weapons,p.weapon,p.gear,p.gear_inventory,p.enchantments,p.enchant_catalog,p.spells_unlocked,p.magic_mana_spent,p.mana_growth,p.mana_growth_next]);if(signature===wizardRenderSignature)return;wizardRenderSignature=signature;let spent=Number(p.magic_mana_spent||0),unlocked=new Set(p.spells_unlocked||[]);$('wizardProgress').textContent=`Потрачено маны: ${spent}. Навсегда добавлено к максимуму: +${Number(p.mana_growth||0)}. Следующий +1 — при суммарном расходе ${p.mana_growth_next?`${p.mana_growth_next} маны`:'достигнут предел'}.`;
+function renderWizard(p){if(!p)return;const signature=JSON.stringify([p.gold,p.inventory,p.weapons,p.weapon,p.gear,p.gear_inventory,p.enchantments,p.enchant_catalog,p.spells_unlocked,p.magic_mana_spent,p.mana_growth,p.mana_growth_next,p.custom_weapons,p.accessories,p.equipped_accessories]);if(signature===wizardRenderSignature)return;wizardRenderSignature=signature;let spent=Number(p.magic_mana_spent||0),unlocked=new Set(p.spells_unlocked||[]);$('wizardProgress').textContent=`Потрачено маны: ${spent}. Навсегда добавлено к максимуму: +${Number(p.mana_growth||0)}. Следующий +1 — при суммарном расходе ${p.mana_growth_next?`${p.mana_growth_next} маны`:'достигнут предел'}.`;
 let owns=(p.weapons||[]).includes('apprentice_staff'),price=p.shop_catalog?.apprentice_staff?.price||185;
 $('wizardStaff').innerHTML=stationLine('Посох ученика',owns?'Уже куплен · экипируй в рюкзаке · сила заклинаний +12%':`Первый посох · ${price} монет · сила заклинаний +12%`,'Купить посох',owns||p.gold<price).replace('<button ','<button data-wizard-staff="1" ');
-const oldW=$('wizardWeaponSelect')?.value||p.weapon,oldG=$('wizardGearSelect')?.value||p.gear;const weaponIds=[...new Set(p.weapons||[])],gearIds=[...new Set([p.gear,...(p.gear_inventory||[])].filter(Boolean))];const makeOptions=(ids,selected,catalog)=>ids.map(id=>`<option value="${safeText(id)}" ${id===selected?'selected':''}>${safeText(catalog[id]?.name||id)}${id===(p.weapon||p.gear)?' · надето':''}</option>`).join('');
-$('wizardEnchantGrid').innerHTML=`<div class="stationLine"><div><strong>Предмет для зачарования</strong><small>Можно выбрать оружие или броню из рюкзака</small></div><div class="enchantTargetSelects"><select id="wizardWeaponSelect" aria-label="Оружие для зачарования">${makeOptions(weaponIds,weaponIds.includes(oldW)?oldW:p.weapon,p.weapon_catalog||{})}</select><select id="wizardGearSelect" aria-label="Броня для зачарования">${makeOptions(gearIds,gearIds.includes(oldG)?oldG:p.gear,p.gear_catalog||{})}</select></div></div>`+Object.entries(p.enchant_catalog||{}).map(([id,e])=>{let target=e.target==='weapon'?'weapon':'gear',item=target==='weapon'?($('wizardWeaponSelect')?.value||p.weapon):($('wizardGearSelect')?.value||p.gear),lvl=Number(p.enchantments?.[target]?.[item]?.[id]||0),cost=70+lvl*85,crystals=1+lvl,enough=p.gold>=cost&&Number(p.inventory?.crystal||0)>=crystals;return stationLine(`${e.name} · ${e.target==='weapon'?(p.weapon_catalog?.[item]?.name||item):(p.gear_catalog?.[item]?.name||item)}`,`${e.description} · уровень ${lvl}/3 · ${cost} монет и ${crystals} эхо-кристалл(а)`, 'Наложить',lvl>=3||!enough).replace('<button ','<button data-wizard-enchant="'+safeText(id)+'" data-enchant-target="'+target+'" ')}).join('');let spells=p.spell_catalog||{},locked=Object.entries(spells).filter(([id])=>!unlocked.has(id));$('wizardSpellGrid').innerHTML=locked.length?locked.map(([id,sp])=>stationLine(sp.name,`Уровень ${sp.unlock_level} и расход маны ${sp.unlock_spent} · стоимость ${sp.mana} маны`,'',true)).join(''):'<p class="stationNote">Все доступные заклинания уже открыты.</p>'}
-function renderForge(p){if(!p)return;const signature=JSON.stringify([p.gold,p.inventory,p.weapons,p.weapon,p.gear,p.gear_inventory,p.upgrades,$("forgeAnvilScene")?.dataset.pending]);if(signature===forgeRenderSignature)return;forgeRenderSignature=signature;let inv=p.inventory||{},owns=id=>(p.weapons||[]).includes(id),recipes=[['forest_bow','Лук следопыта','8 дерева · 3 шкуры · 2 руды'],['thorn_staff','Посох живых терний','6 дерева · 5 эхо-кристаллов · 4 травы'],['stormbrand','Клинок Грозового кедра','8 руды · 4 кристалла · 3 осколка'],['obsidian_axe','Топор Чёрного стекла','14 руды · 10 кристаллов · 12 осколков · 4 шкуры'],['elder_staff','Посох Первозданного корня','16 дерева · 12 кристаллов · 8 осколков · 6 травы']];$('forgeCraftGrid').innerHTML=recipes.map(([id,name,cost])=>{let enough=id==='forest_bow'?inv.wood>=8&&inv.hide>=3&&inv.ore>=2:id==='thorn_staff'?inv.wood>=6&&inv.crystal>=5&&inv.herb>=4:id==='stormbrand'?inv.ore>=8&&inv.crystal>=4&&inv.shard>=3:id==='obsidian_axe'?inv.ore>=14&&inv.crystal>=10&&inv.shard>=12&&inv.hide>=4:inv.wood>=16&&inv.crystal>=12&&inv.shard>=8&&inv.herb>=6;return stationLine(name,cost,owns(id)?'Изготовлено':'Сковать',owns(id)||!enough).replace('<button ','<button data-forge-craft="'+id+'" ')}).join('');
-const oldW=$('forgeWeaponSelect')?.value||p.weapon,oldG=$('forgeGearSelect')?.value||p.gear,weaponIds=[...new Set(p.weapons||[])],gearIds=[...new Set([p.gear,...(p.gear_inventory||[])].filter(Boolean))];const makeOptions=(ids,selected,catalog)=>ids.map(id=>`<option value="${safeText(id)}" ${id===selected?'selected':''}>${safeText(catalog[id]?.name||id)}${id===(p.weapon||p.gear)?' · надето':''}</option>`).join('');const selects=`<div class="stationLine"><div><strong>Выбери предмет</strong><small>Можно улучшать предметы из рюкзака, не только надетые</small></div><div class="enchantTargetSelects"><select id="forgeWeaponSelect" aria-label="Оружие для улучшения">${makeOptions(weaponIds,weaponIds.includes(oldW)?oldW:p.weapon,p.weapon_catalog||{})}</select><select id="forgeGearSelect" aria-label="Броня для улучшения">${makeOptions(gearIds,gearIds.includes(oldG)?oldG:p.gear,p.gear_catalog||{})}</select></div></div>`;
-const wlItem=weaponIds.includes(oldW)?oldW:p.weapon,glItem=gearIds.includes(oldG)?oldG:p.gear,wl=Number(p.upgrades?.weapon?.[wlItem]||0),gl=Number(p.upgrades?.gear?.[glItem]||0),wc=75+wl*55,gc=65+gl*50,wo=2+wl,go=2+gl,wcst=wl<2?0:1+Math.floor(wl/2),gcst=gl<2?0:1+Math.floor(gl/2),chances=[100,90,80,70,60],wchance=chances[Math.min(4,wl)],gchance=chances[Math.min(4,gl)],pending=$('forgeAnvilScene')?.dataset.pending==='1',weaponKind=p.weapon_catalog?.[wlItem]?.kind,weaponBenefit=weaponKind==='staff'?'+6 к урону заклинаний при успехе':weaponKind==='bow'?'+6 к урону стрел при успехе':'+6 к урону ближней атаки при успехе';$('forgeUpgradeGrid').innerHTML=selects+stationLine(`Оружие · ${p.weapon_catalog?.[wlItem]?.name||wlItem} · +${wl}/5`,`${weaponBenefit} · шанс ${wchance}% · стоимость: ${wc} монет, ${wo} руды, ${wcst} кристаллов. Стоимость списывается при каждой попытке.`,`Улучшить оружие · ${wchance}%`,pending||wl>=5||p.gold<wc||inv.ore<wo||inv.crystal<wcst).replace('<button ','<button data-forge-upgrade="weapon" data-upgrade-target="weapon" ')+stationLine(`Броня · ${p.gear_catalog?.[glItem]?.name||glItem} · +${gl}/5`,`+3 к защите при успехе · шанс ${gchance}% · стоимость: ${gc} монет, ${go} руды, ${gcst} кристаллов. Стоимость списывается при каждой попытке.`,`Улучшить броню · ${gchance}%`,pending||gl>=5||p.gold<gc||inv.ore<go||inv.crystal<gcst).replace('<button ','<button data-forge-upgrade="armor" data-upgrade-target="gear" ')}
+const oldW=$('wizardWeaponSelect')?.value||p.weapon,oldG=$('wizardGearSelect')?.value||p.gear;const weaponIds=[...new Set(p.weapons||[])],gearIds=[...new Set([p.gear,...(p.gear_inventory||[])].filter(Boolean))];const makeOptions=(ids,selected,catalog,equipped)=>ids.map(id=>`<option value="${safeText(id)}" ${id===selected?'selected':''}>${safeText(catalog?.[id]?.name||id)}${id===equipped?' · надето':''}</option>`).join('');
+// Авторские посохи тоже можно зачаровывать, поэтому список оружия берётся из каталога.
+const weaponCatalog=p.weapon_catalog||{},gearCatalog=p.gear_catalog||{};
+$('wizardEnchantGrid').innerHTML=`<div class="stationLine"><div><strong>Предмет для зачарования</strong><small>Можно выбрать оружие (включая авторское) или броню из рюкзака</small></div><div class="enchantTargetSelects"><select id="wizardWeaponSelect" aria-label="Оружие для зачарования">${makeOptions(weaponIds,weaponIds.includes(oldW)?oldW:p.weapon,weaponCatalog,p.weapon)}</select><select id="wizardGearSelect" aria-label="Броня для зачарования">${makeOptions(gearIds,gearIds.includes(oldG)?oldG:p.gear,gearCatalog,p.gear)}</select></div></div>`+Object.entries(p.enchant_catalog||{}).map(([id,e])=>{let target=e.target==='weapon'?'weapon':'gear',item=target==='weapon'?($('wizardWeaponSelect')?.value||p.weapon):($('wizardGearSelect')?.value||p.gear),lvl=Number(p.enchantments?.[target]?.[item]?.[id]||0),maxLvl=Number(e.max_level||5),cost=70+lvl*85,crystals=1+lvl,enough=p.gold>=cost&&Number(p.inventory?.crystal||0)>=crystals;return stationLine(`${e.name} · ${weaponCatalog[item]?.name||gearCatalog[item]?.name||item}`,`${e.description} · уровень ${lvl}/${maxLvl} · ${cost} монет и ${crystals} эхо-кристалл(а)`, 'Наложить',lvl>=maxLvl||!enough).replace('<button ','<button data-wizard-enchant="'+safeText(id)+'" data-enchant-target="'+target+'" ')}).join('');
+let spells=p.spell_catalog||{},locked=Object.entries(spells).filter(([id])=>!unlocked.has(id));$('wizardSpellGrid').innerHTML=locked.length?locked.map(([id,sp])=>stationLine(sp.name,`Уровень ${sp.unlock_level} и расход маны ${sp.unlock_spent} · стоимость ${sp.mana} маны`,'',true)).join(''):'<p class="stationNote">Все доступные заклинания уже открыты.</p>'}
 
-function openWizard(){let p=me();if(!p)return;$('wizardOverlay').style.display='flex';wizardRenderSignature='';renderWizard(p);$('closeWizard').focus()}
-function openForge(){let p=me();if(!p)return;$('forgeOverlay').style.display='flex';forgeRenderSignature='';renderForge(p);$('closeForge').focus()}
+/* ════════════════ КУЗНИЦА ════════════════ */
+const FORGE_TABS=['blueprints','temper','reforge','custom'];
+const FORGE_CATEGORY_LABEL={weapon:'Оружие',gear:'Броня',accessory:'Реликвии',consumable:'Расходники',material:'Материалы'};
+let forgeTab='blueprints',forgeCraftFilter='all',forgeReforgeTarget='weapon';
+const REFORGE_TIER_LABEL={'-1':'Сломанный','1':'Обычный','2':'Хороший','3':'Отличный','4':'Мифический'};
+const REFORGE_TIER_COLOR={'-1':'#d96b6b','1':'#9ad69c','2':'#7cc6f2','3':'#cf9eff','4':'#ffcf66'};
+const CUSTOM_ARCHETYPE_GLYPH={sword:'⚔',greatsword:'🪓',daggers:'🗡',spear:'🔱',bow:'➶',staff:'✦'};
+
+function setForgeTab(tab){if(!FORGE_TABS.includes(tab))tab='blueprints';forgeTab=tab;
+ document.querySelectorAll('[data-forge-tab]').forEach(b=>b.classList.toggle('active',b.dataset.forgeTab===tab));
+ document.querySelectorAll('[data-forge-pane]').forEach(pane=>pane.classList.toggle('active',pane.dataset.forgePane===tab));
+ forgeRenderSignature='';renderForge(me())}
+function setForgeCraftFilter(cat){forgeCraftFilter=cat;document.querySelectorAll('[data-forge-filter]').forEach(b=>b.classList.toggle('active',b.dataset.forgeFilter===cat));forgeRenderSignature='';renderForge(me())}
+function setReforgeTarget(target){if(!['weapon','gear','accessory'].includes(target))target='weapon';forgeReforgeTarget=target;document.querySelectorAll('[data-reforge-target]').forEach(b=>b.classList.toggle('active',b.dataset.reforgeTarget===target));forgeRenderSignature='';renderForge(me())}
+
+/* Сколько стоит следующая закалка: цена повторяет серверную формулу. */
+function temperCostFor(target,level){const gold=(target==='weapon'?75:target==='gear'?65:85)+level*(target==='weapon'?55:50);return{gold,ore:2+level,crystal:level<2?0:1+Math.floor(level/2),mithril:level<10?0:1+Math.floor((level-10)/2)}}
+const FORGE_TEMPER_CHANCES=[1,.94,.88,.82,.75,.68,.6,.53,.47,.42,.37,.32,.28,.24,.2];
+function temperChance(level,catalysed){const base=FORGE_TEMPER_CHANCES[Math.min(FORGE_TEMPER_CHANCES.length-1,Math.max(0,level))];return Math.min(1,base+(catalysed?.2:0))}
+function temperBenefitLabel(p,target,itemId){if(target==='accessory')return '+8% к характеристикам реликвии';const kind=target==='weapon'?p.weapon_catalog?.[itemId]?.kind:'melee';return kind==='staff'?'+6 к урону заклинаний':kind==='bow'?'+6 к урону стрел':'+6 к урону ближней атаки'}
+function reforgeCostFor(p,target,itemId){const base={common:45,uncommon:75,rare:120,epic:185,legendary:270};
+ const spec=target==='weapon'?(p.weapon_catalog?.[itemId]||{}):target==='gear'?(p.gear_catalog?.[itemId]||{}):(p.accessory_catalog?.[itemId]||{});
+ const up=Number(p.upgrades?.[target]?.[itemId]||0);let cost=(base[spec.rarity]||90)+up*15;
+ const cur=p.reforges?.[target]?.[itemId],curSpec=cur?p.reforge_prefixes?.[cur]:null;
+ if(curSpec&&Number(curSpec.tier)<0)cost=Math.max(20,Math.round(cost*.65));
+ return cost}
+function reforgeSpec(p,target,itemId){const pid=p.reforges?.[target]?.[itemId];return pid?p.reforge_prefixes?.[pid]||null:null}
+function itemDisplayName(p,target,itemId){const spec=target==='weapon'?p.weapon_catalog?.[itemId]:target==='gear'?p.gear_catalog?.[itemId]:p.accessory_catalog?.[itemId];return spec?.name||itemId}
+
+/* Собираем все предметы, которые можно перековать, по трём группам. */
+function reforgeCandidates(p,target){
+ if(target==='weapon')return [...new Set(p.weapons||[])].map(id=>({id,target,name:itemDisplayName(p,'weapon',id),equipped:p.weapon===id,level:Number(p.upgrades?.weapon?.[id]||0)}));
+ if(target==='gear')return [...new Set([p.gear,...(p.gear_inventory||[])].filter(Boolean))].map(id=>({id,target,name:itemDisplayName(p,'gear',id),equipped:p.gear===id,level:Number(p.upgrades?.gear?.[id]||0)}));
+ const bag=[...new Set([...(p.accessories||[]),...Object.values(p.equipped_accessories||{})].filter(Boolean))];
+ return bag.map(id=>({id,target,name:itemDisplayName(p,'accessory',id),equipped:Object.values(p.equipped_accessories||{}).includes(id),level:Number(p.upgrades?.accessory?.[id]||0)}))}
+
+function renderForge(p){if(!p)return;
+ const pending=$('forgeAnvilScene')?.dataset.pending==='1';
+ const signature=JSON.stringify([p.gold,p.inventory,p.weapons,p.weapon,p.gear,p.gear_inventory,p.upgrades,p.reforges,p.accessories,p.equipped_accessories,p.custom_weapons,p.weapon_catalog,p.gear_catalog,p.accessory_catalog,p.reforge_prefixes,forgeTab,forgeCraftFilter,forgeReforgeTarget,pending,$('temperCatalyst')?.checked,$('reforgeCatalyst')?.checked]);
+ if(signature===forgeRenderSignature)return;forgeRenderSignature=signature;
+ const inv=p.inventory||{},pref=p.reforge_prefixes||{};
+ if($('forgeWallet'))$('forgeWallet').innerHTML=`<span>◉ ${p.gold||0} монет</span><span>⛏ ${inv.ore||0} руды</span><span>💎 ${inv.crystal||0} кристаллов</span><span>✨ ${inv.rune_dust||0} рунной пыли</span><span>🔩 ${inv.mithril||0} мифрила</span>`;
+ renderForgeBlueprints(p);
+ renderForgeTemper(p,pending);
+ renderForgeReforge(p);
+ renderForgeCustom(p);
+}
+function renderForgeBlueprints(p){
+ const host=$('forgeCraftGrid');if(!host)return;
+ const inv=p.inventory||{},blueprints=p.forge_blueprints||{},ownedWeapon=new Set(p.weapons||[]),ownedGear=new Set([p.gear,...(p.gear_inventory||[])]),ownedAcc=new Set([...(p.accessories||[]),...Object.values(p.equipped_accessories||{})]);
+ const entries=Object.entries(blueprints);
+ const filtered=entries.filter(([id,bp])=>forgeCraftFilter==='all'||bp.category===forgeCraftFilter);
+ host.innerHTML=filtered.map(([id,bp])=>{
+  const cost=bp.cost||{};
+  const enough=Object.entries(cost).every(([k,v])=>Number(inv[k]||0)>=Number(v));
+  const already=bp.category==='weapon'?ownedWeapon.has(id):bp.category==='gear'?ownedGear.has(id):ownedAcc.has(id);
+  const costText=Object.entries(cost).map(([k,v])=>`${v} ${resourceNames[k]||k}`).join(' · ');
+  const detail=`${FORGE_CATEGORY_LABEL[bp.category]||'Чертаж'} · ${costText}`;
+  return stationLine(bp.name,detail,already?'Изготовлено':'Сковать',already||!enough).replace('<button ','<button data-forge-craft="'+safeText(id)+'" ');
+ }).join('')||'<p class="stationNote">В этой категории чертежей пока нет.</p>';
+}
+function renderForgeTemper(p,pending){
+ const host=$('forgeUpgradeGrid');if(!host)return;
+ const inv=p.inventory||{},catalysed=!!$('temperCatalyst')?.checked;
+ const rows=[];
+ for(const target of ['weapon','gear','accessory']){
+  const list=reforgeCandidates(p,target);
+  if(!list.length)continue;
+  const equippedId=target==='weapon'?p.weapon:target==='gear'?p.gear:Object.values(p.equipped_accessories||{})[0];
+  const picked=list.find(x=>x.id===equippedId)||list[0];
+  const id=$(`forgeTemperSelect_${target}`)?.value||equippedId||picked.id;
+  const item=list.find(x=>x.id===id)||picked;
+  const maxUp=target==='accessory'?Number(p.max_accessory_upgrade||10):Number(p.max_item_upgrade||15);
+  const level=Number(p.upgrades?.[target]?.[item.id]||0);
+  const cost=temperCostFor(target,level);
+  const chance=temperChance(level,catalysed);
+  const catalystMissing=catalysed&&(Number(inv.rune_dust||0)<1||Number(inv.shard||0)<1);
+  const enough=p.gold>=cost.gold&&Number(inv.ore||0)>=cost.ore&&Number(inv.crystal||0)>=cost.crystal&&Number(inv.mithril||0)>=cost.mithril&&!catalystMissing;
+  const atMax=level>=maxUp;
+  const costText=[`${cost.gold} монет`,`${cost.ore} руды`,cost.crystal?`${cost.crystal} кристаллов`:'',cost.mithril?`${cost.mithril} мифрила`:'',catalysed?'1 рунной пыли и 1 осколка':''].filter(Boolean).join(', ');
+  const detail=`${temperBenefitLabel(p,target,item.id)} · шанс ${Math.round(chance*100)}% · ${costText}. Стоимость списывается при каждой попытке.`;
+  const title=`${FORGE_CATEGORY_LABEL[target==='accessory'?'accessory':target]} · ${item.name} · +${level}/${maxUp}`;
+  const options=list.map(x=>`<option value="${safeText(x.id)}" ${x.id===item.id?'selected':''}>${safeText(x.name)} · +${x.level}/${maxUp}</option>`).join('');
+  rows.push(`<div class="forgeTemperBlock"><label class="forgeSelectLabel">Предмет<select id="forgeTemperSelect_${target}" data-temper-target="${target}">${options}</select></label>`
+   +stationLine(title,detail,atMax?`Предел +${maxUp}`:`Закалить · ${Math.round(chance*100)}%`,pending||atMax||!enough).replace('<button ','<button data-forge-upgrade="'+(target==='gear'?'armor':target)+'" data-upgrade-target="'+target+'" data-upgrade-item="'+safeText(item.id)+'" ')+'</div>');
+ }
+ host.innerHTML=rows.join('')||'<p class="stationNote">Нечего закалять — добудь снаряжение.</p>';
+}
+function renderForgeReforge(p){
+ const host=$('forgeReforgeGrid'),card=$('forgeReforgeCard'),table=$('forgePrefixTable');
+ if(!host)return;
+ const list=reforgeCandidates(p,forgeReforgeTarget);
+ const gold=Number(p.gold||0),catalysed=!!$('reforgeCatalyst')?.checked,runeDust=Number(p.inventory?.rune_dust||0);
+ if(card){
+  const pickedId=$('forgeReforgeSelect')?.value||list.find(x=>x.equipped)?.id||list[0]?.id;
+  const item=list.find(x=>x.id===pickedId)||list[0];
+  if(!item){card.innerHTML='<p class="stationNote">В этой группе пока нет предметов для перековки.</p>'}
+  else{
+   const spec=reforgeSpec(p,forgeReforgeTarget,item.id);
+   const cost=reforgeCostFor(p,forgeReforgeTarget,item.id);
+   const tier=spec?String(spec.tier):'';
+   const color=REFORGE_TIER_COLOR[tier]||'#d8e4dc';
+   const broken=spec&&Number(spec.tier)<0;
+   const canReforge=gold>=cost&&(!catalysed||runeDust>=1);
+   card.innerHTML=`<div class="reforgeAnvilCard${broken?' isBroken':tier==='4'?' isMythic':''}" style="--reforge:${color}">`
+    +`<div class="reforgeItemHead"><strong>${safeText(item.name)}</strong><span class="mcUpgradeBadge">+${item.level}</span>`
+    +`<span class="mcReforgePill" style="color:${color}">${spec?`✦ ${safeText(spec.name)}: ${safeText(spec.summary)}`:'✦ без модификатора'}</span></div>`
+    +`<p class="reforgeHint">${broken?'⚠ Сломанный предмет перековывается дешевле на 35% — как у Гоблина-изобретателя.':'Новый префикс выбирается случайно: от «Сломанного» до «Мифического».'}`
+    +`${catalysed?`<br>Рунный катализатор: 1 рунная пыль (есть ${runeDust}) — негативные префиксы исключены.`:''}</p>`
+    +`<div class="reforgeActions"><span class="reforgeCost">${cost} монет${catalysed?' · 1 рунная пыль':''}</span>`
+    +`<button type="button" data-forge-reforge="1" ${canReforge?'':'disabled'}>Перековать · ${cost} ◉</button></div></div>`;
+  }
+ }
+ host.innerHTML=list.length?`<label class="forgeSelectLabel">Предмет для перековки<select id="forgeReforgeSelect">${selectOptions}</select></label>`+
+  list.map(x=>{const spec=reforgeSpec(p,forgeReforgeTarget,x.id);const cost=reforgeCostFor(p,forgeReforgeTarget,x.id);const tier=spec?String(spec.tier):'';
+   const color=REFORGE_TIER_COLOR[tier]||'#d8e4dc';
+   return `<article class="reforgeRow"><div><strong>${safeText(x.name)}${x.equipped?' · надето':''}</strong><small><span style="color:${color}">${spec?`${safeText(spec.name)} · ${safeText(spec.summary)}`:'без модификатора'}</span> · ${cost} монет</small></div>`
+   +`<button type="button" class="marketSell" data-forge-reforge="${safeText(x.id)}" ${gold>=cost?'':'disabled'}>Перековать</button></article>`}).join('')
+ :'<p class="stationNote">Нет предметов в этой категории.</p>';
+ if(table){
+  const groups={weapon:'Оружие',gear:'Броня',accessory:'Реликвии'};
+  table.innerHTML=Object.entries(groups).map(([group,label])=>{const list2=Object.entries(p.reforge_prefixes||{}).filter(([,v])=>v.group===group)
+   .sort((a,b)=>Number(a[1].tier)-Number(b[1].tier));
+   return `<div class="prefixColumn"><h4>${label}</h4>${list2.map(([id,v])=>`<div class="prefixRow"><span style="color:${REFORGE_TIER_COLOR[String(v.tier)]||'#d8e4dc'}">${safeText(v.name)}</span><small>${safeText(v.summary)}</small></div>`).join('')}</div>`}).join('');
+ }
+}
+function renderForgeCustom(p){
+ const host=$('customWeaponList');if(!host)return;
+ const customs=Object.entries(p.custom_weapons||{});
+ host.innerHTML=customs.length?customs.map(([id,w])=>{
+  const spec=reforgeSpec(p,'weapon',id);const up=Number(p.upgrades?.weapon?.[id]||0);
+  const arch=p.custom_weapon_archetypes?.[w.archetype]?.label||w.archetype||'';
+  const core=p.custom_weapon_cores?.[w.core]?.label||w.core||'';
+  const tier=p.custom_weapon_tiers?.[String(w.tier)]?.label||`Ступень ${w.tier}`;
+  return `<article class="customWeaponCard" style="--cw:${w.color||'#e0e8ea'}"><div class="cwTop"><strong style="color:${w.color||'#e0e8ea'}">${spec?`${safeText(spec.name)} `:''}${safeText(w.name)}${up?` +${up}`:''}</strong><span class="cwTierTag">${safeText(tier)}</span></div>`
+   +`<small>${safeText(arch)} · ${safeText(core)} · урон ${w.damage}+${w.bonus||0}</small>`
+   +`<small class="cwLore">${safeText(w.lore||'')}</small>`
+   +`<div class="cwActions"><button type="button" data-cw-equip="${safeText(id)}" ${p.weapon===id?'disabled':''}>${p.weapon===id?'В руке':'Взять в руку'}</button>`
+   +`<button type="button" data-cw-reforge="${safeText(id)}">Перековать</button></div></article>`}).join(''):'<p class="stationNote">Пока ни одного авторского клинка. Заполни форму выше и выкуй первый.</p>';
+}
+function openForge(){let p=me();if(!p)return;bindForgeEvents();$('forgeOverlay').style.display='flex';forgeRenderSignature='';renderForge(p);renderCwPreview(p);$('closeForge').focus()}
 function closeStation(id){if($(id))$(id).style.display='none'}
-$('wizardButton').onclick=openWizard;$('forgeButton').onclick=openForge;$('closeWizard').onclick=()=>closeStation('wizardOverlay');$('closeForge').onclick=()=>closeStation('forgeOverlay');
+$('wizardButton').onclick=openWizard;$('forgeButton').onclick=openForge;$('closeWizard').onclick=()=>closeStation('wizardOverlay');$('closeForge').onclick=()=>closeStation('forgeOverlay');bindForgeEvents();
 $('wizardOverlay').addEventListener('click',e=>{if(e.target===$('wizardOverlay'))closeStation('wizardOverlay');if(e.target.closest('[data-wizard-staff]')){send({type:'wizard_action',action:'buy_staff'});toast('Запрос волшебнику отправлен')};let b=e.target.closest('[data-wizard-enchant]');if(b&&!b.disabled){let target=b.dataset.enchantTarget,item=target==='weapon'?$('wizardWeaponSelect')?.value:$('wizardGearSelect')?.value;send({type:'wizard_action',action:'enchant',id:b.dataset.wizardEnchant,item_id:item});toast('Запрос на зачарование отправлен')}});
-$('forgeOverlay').addEventListener('click',e=>{if(e.target===$('forgeOverlay'))closeStation('forgeOverlay');let c=e.target.closest('[data-forge-craft]'),u=e.target.closest('[data-forge-upgrade]');if(c&&!c.disabled){send({type:'forge_action',action:'craft',id:c.dataset.forgeCraft});toast('Запрос кузнецу отправлен')}if(u&&!u.disabled){let scene=$('forgeAnvilScene');if(scene){scene.dataset.pending='1';scene.classList.remove('forge-success','forge-fail','hammering');void scene.offsetWidth;scene.classList.add('hammering');setTimeout(()=>{if(scene.dataset.pending==='1'){scene.dataset.pending='0';scene.classList.remove('hammering');renderForge(me())}},2200)}u.disabled=true;let target=u.dataset.upgradeTarget,item=target==='weapon'?$('forgeWeaponSelect')?.value:$('forgeGearSelect')?.value;send({type:'forge_action',action:'upgrade_'+u.dataset.forgeUpgrade,item_id:item});toast('Запрос отправлен в кузницу')}});
 $('wizardOverlay').addEventListener('change',e=>{if(e.target.matches('#wizardWeaponSelect,#wizardGearSelect')){wizardRenderSignature='';renderWizard(me())}});
-$('forgeOverlay').addEventListener('change',e=>{if(e.target.matches('#forgeWeaponSelect,#forgeGearSelect')){forgeRenderSignature='';renderForge(me())}});
+
+/* ════════════════ АВТОРСКОЕ ОРУЖИЕ: РАСЧЁТ, ПРЕДПРОСМОТР, КОВКА ════════════════ */
+const CW_POWER_ROOTS=['плам','огн','мороз','лед','гром','шторм','буря','звезд','звёзд','тень','кров','дракон','вечн','пустот','солнц','лун','эхо','титан','рассвет'];
+function cwResonance(name){const words=(String(name||'').toLowerCase().match(/[а-яёa-z]+/g)||[]);const hits=words.filter(w=>CW_POWER_ROOTS.some(r=>w.includes(r))).length;return Math.min(.12,words.length*.02+hits*.03)}
+function cwPreviewStats(p){const arch=p?.custom_weapon_archetypes?.[$('cwArchetype')?.value]||{};const core=p?.custom_weapon_cores?.[$('cwCore')?.value]||{};
+ const tier=p?.custom_weapon_tiers?.[String($('cwTier')?.value||1)]||{scale:1,cost:{},rarity:'rare'};
+ const name=$('cwName')?.value||'',res=cwResonance(name),scale=Number(tier.scale||1)*Number(core.dmg_mult||1)*(1+res),speed=Number(core.speed_mult||1);
+ return{arch,core,tier,name,res,
+  damage:Math.max(10,Math.round(Number(arch.damage||20)*scale)),
+  bonus:Math.max(10,Math.round(Number(arch.bonus||20)*scale)),
+  charge:Math.round(Math.max(.28,Number(arch.charge||.6)*speed)*100)/100,
+  cooldown:Math.round(Math.max(.11,Number(arch.cooldown||.3)*speed)*100)/100,
+  spellPower:arch.kind==='staff'?Math.round((Number(arch.spell_power||0)*(1+(Number($('cwTier')?.value||1)-1)*.35)+Number(core.spell_bonus||0))*100)/100:0}}
+function cwCostText(cost){return Object.entries(cost||{}).map(([k,v])=>k==='gold'?`${v} монет`:`${v} ${resourceNames[k]||k}`).join(' · ')}
+function renderCwPreview(p){
+ const info=$('cwPreview');if(!info||!p)return;
+ const archSel=$('cwArchetype'),coreSel=$('cwCore'),tierSel=$('cwTier');
+ if(archSel&&!archSel.options.length){
+  archSel.innerHTML=Object.entries(p.custom_weapon_archetypes||{}).map(([id,a])=>`<option value="${safeText(id)}">${safeText(a.label||id)}</option>`).join('');
+  coreSel.innerHTML=Object.entries(p.custom_weapon_cores||{}).map(([id,c])=>`<option value="${safeText(id)}">${safeText(c.label||id)}</option>`).join('');
+  tierSel.innerHTML=Object.entries(p.custom_weapon_tiers||{}).map(([k,t])=>`<option value="${safeText(k)}">${safeText(t.label||k)}</option>`).join('');
+ }
+ const s=cwPreviewStats(p);
+ const color=s.core.color||'#e0e8ea';
+ const name=(s.name||'').trim();
+ const kindLabel=s.arch.kind==='bow'?'Лук':s.arch.kind==='staff'?'Посох':'Ближний бой';
+ const resPct=Math.round(s.res*100);
+ info.innerHTML=`<div class="cwPreviewName" style="color:${color}">${name?safeText(name):'Безымянный клинок'}</div>`
+  +`<div class="cwPreviewMeta">${safeText(s.arch.label||'—')} · ${safeText(s.core.label||'—')} · ${safeText(s.tier.label||'—')}</div>`
+  +`<div class="cwPreviewStats"><span>Тип: <b>${kindLabel}</b></span><span>Урон: <b>${s.damage}</b></span><span>Бонус: <b>+${s.bonus}</b></span>`
+  +`<span>Замах: <b>${s.charge.toFixed(2)} с</b></span><span>Перезарядка: <b>${s.cooldown.toFixed(2)} с</b></span>`
+  +(s.spellPower?`<span>Сила чар: <b>+${Math.round(s.spellPower*100)}%</b></span>`:'')
+  +`<span>Резонанс имени: <b>+${resPct}%</b></span></div>`
+  +`<div class="cwPreviewCost">Стоимость: ${safeText(cwCostText(s.tier.cost))}</div>`
+  +`<div class="cwPreviewLore">${safeText(s.core.desc||'')}</div>`;
+ drawCwIcon(p,color,s.arch.kind);
+}
+function drawCwIcon(p,color,kind){
+ const cv=$('cwPreviewCanvas');if(!cv)return;
+ // The hero renderer draws the very same sprite the world will show.
+ if(window.drawCustomArtefact&&window.drawCustomArtefact(cv,{color,kind,shape:$('cwArchetype')?.value}))return;
+ const c=cv.getContext('2d'),w=cv.width,h=cv.height;
+ c.clearRect(0,0,w,h);
+ const grd=c.createRadialGradient(w/2,h*.55,4,w/2,h*.55,w*.62);
+ grd.addColorStop(0,color+'33');grd.addColorStop(1,'#0d141022');
+ c.fillStyle=grd;c.fillRect(0,0,w,h);
+ c.save();c.translate(w/2,h/2);c.imageSmoothingEnabled=false;
+ c.shadowColor=color;c.shadowBlur=14;
+ if(kind==='bow'){
+  c.strokeStyle=color;c.lineWidth=6;c.beginPath();c.arc(-14,0,34,-1.15,1.15);c.stroke();
+  c.strokeStyle='#efe8cf';c.lineWidth=2;c.beginPath();c.moveTo(0,-32);c.lineTo(0,32);c.stroke();
+  c.fillStyle=color;c.fillRect(-2,-6,30,4);
+ }else if(kind==='staff'){
+  c.fillStyle='#7a5836';c.fillRect(-4,-8,8,54);
+  c.fillStyle=color;c.beginPath();c.arc(0,-24,13,0,Math.PI*2);c.fill();
+  c.fillStyle='#ffffffcc';c.beginPath();c.arc(-4,-28,4,0,Math.PI*2);c.fill();
+ }else{
+  const long=kind==='greatsword';
+  const len=long?74:58;
+  const grd2=c.createLinearGradient(-8,0,8,-len);
+  grd2.addColorStop(0,color+'88');grd2.addColorStop(.6,color);grd2.addColorStop(1,'#ffffff');
+  c.fillStyle=grd2;c.beginPath();
+  c.moveTo(-7,6);c.lineTo(-6,-len+8);c.lineTo(0,-len);c.lineTo(6,-len+8);c.lineTo(7,6);c.closePath();c.fill();
+  c.fillStyle='#b79a5e';c.fillRect(-20,4,40,7);
+  c.fillStyle='#6b4d2f';c.fillRect(-4,10,8,22);
+ }
+ c.restore();
+}
+function bindForgeEvents(){
+ const overlay=$('forgeOverlay');if(!overlay||overlay.dataset.bound==='1')return;overlay.dataset.bound='1';
+ overlay.addEventListener('click',e=>{
+  if(e.target===overlay){closeStation('forgeOverlay');return}
+  const tab=e.target.closest('[data-forge-tab]');if(tab){setForgeTab(tab.dataset.forgeTab);return}
+  const filter=e.target.closest('[data-forge-filter]');if(filter){setForgeCraftFilter(filter.dataset.forgeFilter);return}
+  const rt=e.target.closest('[data-reforge-target]');if(rt){setReforgeTarget(rt.dataset.reforgeTarget);return}
+  const craft=e.target.closest('[data-forge-craft]');
+  if(craft&&!craft.disabled){send({type:'forge_action',action:'craft',id:craft.dataset.forgeCraft});toast('Запрос кузнецу отправлен');return}
+  const up=e.target.closest('[data-forge-upgrade]');
+  if(up&&!up.disabled){
+   const scene=$('forgeAnvilScene'),target=up.dataset.upgradeTarget,item=up.dataset.upgradeItem||$('forgeTemperSelect_'+target)?.value;
+   if(scene){scene.dataset.pending='1';scene.classList.remove('forge-success','forge-fail','hammering');void scene.offsetWidth;scene.classList.add('hammering');
+    setTimeout(()=>{if(scene.dataset.pending==='1'){scene.dataset.pending='0';scene.classList.remove('hammering');forgeRenderSignature='';renderForge(me())}},2600)}
+   up.disabled=true;
+   send({type:'forge_action',action:'upgrade_'+up.dataset.forgeUpgrade,item_id:item,use_catalyst:!!$('temperCatalyst')?.checked});
+   toast('Запрос отправлен в кузницу');return;
+  }
+  const rf=e.target.closest('[data-forge-reforge]');
+  if(rf&&!rf.disabled){
+   const itemId=rf.dataset.forgeReforge==='1'?($('forgeReforgeSelect')?.value||''):rf.dataset.forgeReforge;
+   const scene=$('forgeAnvilScene');
+   if(scene){scene.dataset.pending='1';scene.classList.remove('forge-success','forge-fail','hammering');void scene.offsetWidth;scene.classList.add('hammering');
+    setTimeout(()=>{if(scene.dataset.pending==='1'){scene.dataset.pending='0';scene.classList.remove('hammering');forgeRenderSignature='';renderForge(me())}},2600)}
+   send({type:'forge_action',action:'reforge',reforge_target:forgeReforgeTarget,item_id:itemId,use_catalyst:!!$('reforgeCatalyst')?.checked});
+   return;
+  }
+  const eq=e.target.closest('[data-cw-equip]');
+  if(eq&&!eq.disabled){send({type:'weapon',id:eq.dataset.cwEquip});toast('Оружие экипировано');return}
+  const cwr=e.target.closest('[data-cw-reforge]');
+  if(cwr){send({type:'forge_action',action:'reforge',reforge_target:'weapon',item_id:cwr.dataset.cwReforge,use_catalyst:!!$('reforgeCatalyst')?.checked});return}
+ });
+ overlay.addEventListener('change',e=>{
+  if(e.target.matches('#forgeTemperSelect_weapon,#forgeTemperSelect_gear,#forgeTemperSelect_accessory,#forgeReforgeSelect,#temperCatalyst,#reforgeCatalyst,#cwArchetype,#cwCore,#cwTier')){
+   forgeRenderSignature='';renderForge(me());
+  }
+ });
+ const nameInput=$('cwName');
+ if(nameInput)nameInput.addEventListener('input',()=>renderCwPreview(me()));
+ const create=$('cwCreate');
+ if(create)create.addEventListener('click',()=>{
+  const p=me();if(!p)return;
+  const name=($('cwName')?.value||'').trim();
+  if(name.length<3){toast('Дай оружию имя от 3 до 28 символов.');return}
+  send({type:'forge_action',action:'craft_custom_weapon',name,archetype:$('cwArchetype')?.value,core:$('cwCore')?.value,tier:Number($('cwTier')?.value||1)});
+  toast('Кузнец начал ковку авторского оружия…');
+ });
+}
+
 function openMarket(){let el=$('marketOverlay');if(!el)return;el.style.display='flex';marketSignature='';let p=me();if(p)renderMarket(p);setMarketTab('buy');$('closeMarket').focus()}function closeMarket(){if($('marketOverlay'))$('marketOverlay').style.display='none'}function setMarketTab(tab){document.querySelectorAll('[data-market-tab]').forEach(b=>b.classList.toggle('active',b.dataset.marketTab===tab));document.querySelectorAll('[data-market-pane]').forEach(p=>p.classList.toggle('active',p.dataset.marketPane===tab))}$('marketButton').onclick=openMarket;$('closeMarket').onclick=closeMarket;$('marketOverlay').addEventListener('click',e=>{if(e.target===$('marketOverlay'))closeMarket();let buy=e.target.closest('[data-market-buy]'),sell=e.target.closest('[data-market-sell]'),ench=e.target.closest('[data-enchant]');if(buy)send({type:'shop_action',action:'buy',id:buy.dataset.marketBuy});if(sell)send({type:'shop_action',action:'sell',id:sell.dataset.marketSell,item_type:sell.dataset.marketType,count:Number(sell.dataset.marketCount||1)});if(ench)send({type:'shop_action',action:'enchant',id:ench.dataset.enchant})});document.querySelectorAll('[data-market-tab]').forEach(b=>b.addEventListener('click',()=>setMarketTab(b.dataset.marketTab)));
 const spellIds=['fireball','lightning','heal','thorns','ice_lance','arcane_burst','meteor','frost_nova','shadow_bolt'];
+const extraSpellIds=['frost_ring','root_bind','mind_chill'];
+const extraSpellCodes=['Digit0','Minus','Equal'];
+const allBaseSpellIds=[...spellIds,...extraSpellIds];
 const spellKeyStore='echo-spell-keys-v2';
 const defaultSpellCodes=['Digit1','Digit2','Digit3','Digit4','Digit5','Digit6','Digit7','Digit8','Digit9'];
 let spellKeyCodes=(()=>{try{let saved=JSON.parse(localStorage.getItem(spellKeyStore)||'null');return Array.isArray(saved)&&saved.length===spellIds.length?saved:defaultSpellCodes.slice()}catch{return defaultSpellCodes.slice()}})();
-let spellKeyCodeToId={}; let customSpellKeys={},customSpellSignature="";
-function keyLabel(code){return code?.startsWith('Digit')?code.slice(5):code?.startsWith('Numpad')?code.slice(6):code?.replace('Key','')||'?'}
+let spellKeyCodeToId={},extraSpellCodeToId={}; let customSpellKeys={},customSpellSignature="";
+function keyLabel(code){return code==='Minus'?'-':code==='Equal'?'=':code?.startsWith('Digit')?code.slice(5):code?.startsWith('Numpad')?code.slice(6):code?.replace('Key','')||'?'}
 /* Base spells sit on Shift + digits: plain 1–9 feed the inventory hotbar. */
 function spellKeyLabel(code){return `⇧${keyLabel(code)}`}
-function syncSpellKeys(){spellKeyCodeToId={};spellIds.forEach((id,i)=>{spellKeyCodeToId[spellKeyCodes[i]]=id;let b=document.querySelector(`[data-spell="${id}"]`);if(b){let base=b.dataset.label||id;b.innerHTML=`<span class="spellKey">${spellKeyLabel(spellKeyCodes[i])}</span><span class="spellIcon">${b.dataset.icon||'✦'}</span><span class="spellTitle">${base}</span><span class="spellMeta">ур. 1 · готово</span><i class="spellCooldown"></i>`}})}
-function syncCustomSpellButtons(p){if(!p)return;let bar=$('spellBar');if(!bar)return;let customs=p.custom_spells||[],signature=JSON.stringify(customs.map(x=>[x.id,x.name,x.key]));if(signature===customSpellSignature)return;customSpellSignature=signature;bar.querySelectorAll('[data-custom-spell]').forEach(b=>b.remove());customSpellKeys={};customs.forEach(sp=>{let id=sp.id||sp.spell_id||sp.custom_id;if(!id)return;let key=sp.key||'F1';customSpellKeys[id]=key;let b=document.createElement('button');b.type='button';b.className='spellBtn customCrafted';b.dataset.customSpell=id;b.title=`${sp.name} · ${sp.kind||'Аркана'} · ${sp.mana} маны`;b.innerHTML=`<span class="spellKey">${key==='Digit0'?'0':key}</span><span class="spellIcon">✧</span><span class="spellTitle"></span><span class="spellMeta"></span><i class="spellCooldown"></i>`;b.querySelector('.spellTitle').textContent=sp.name;b.dataset.label=sp.name;b.onclick=()=>castSpell(id);bar.appendChild(b)})}
+function spellHotkeyForId(id){
+ const idx=spellIds.indexOf(id);
+ if(idx>=0)return spellKeyLabel(spellKeyCodes[idx]);
+ const eidx=extraSpellIds.indexOf(id);
+ if(eidx>=0)return spellKeyLabel(extraSpellCodes[eidx]);
+ return customSpellKeys[id]?(customSpellKeys[id]==='Digit0'?'0':customSpellKeys[id]):'';
+}
+function syncSpellKeys(){
+ spellKeyCodeToId={};extraSpellCodeToId={};
+ spellIds.forEach((id,i)=>{spellKeyCodeToId[spellKeyCodes[i]]=id;let b=document.querySelector(`#spellBar [data-spell="${id}"]`);if(b){let base=b.dataset.label||id;b.innerHTML=`<span class="spellKey">${spellKeyLabel(spellKeyCodes[i])}</span><span class="spellIcon">${b.dataset.icon||'✦'}</span><span class="spellTitle">${base}</span><span class="spellMeta">ур. 1 · готово</span><i class="spellCooldown"></i>`}});
+ extraSpellIds.forEach((id,i)=>{extraSpellCodeToId[extraSpellCodes[i]]=id;let b=document.querySelector(`#spellBar [data-spell="${id}"]`);if(b){let base=b.dataset.label||spellShortLabels[id]||id;b.innerHTML=`<span class="spellKey">${spellKeyLabel(extraSpellCodes[i])}</span><span class="spellIcon">${b.dataset.icon||spellIconsMap[id]||'✦'}</span><span class="spellTitle">${base}</span><span class="spellMeta">ур. 1 · готово</span><i class="spellCooldown"></i>`}});
+ const hudBar=$('hudSpellBar');if(hudBar)hudBar.dataset.renderSig='';
+}
+function syncCustomSpellButtons(p){
+ if(!p)return;let bar=$('spellBar');if(!bar)return;
+ let customs=p.custom_spells||[],signature=JSON.stringify(customs.map(x=>[x.id,x.name,x.key]));
+ if(signature===customSpellSignature)return;
+ customSpellSignature=signature;
+ bar.querySelectorAll('[data-custom-spell]').forEach(b=>b.remove());
+ customSpellKeys={};
+ customs.forEach(sp=>{let id=sp.id||sp.spell_id||sp.custom_id;if(!id)return;let key=sp.key||'F1';customSpellKeys[id]=key;let b=document.createElement('button');b.type='button';b.className='spellBtn customCrafted';b.dataset.customSpell=id;b.title=`${sp.name} · ${sp.kind||'Аркана'} · ${sp.mana} маны`;b.innerHTML=`<span class="spellKey">${key==='Digit0'?'0':key}</span><span class="spellIcon">✧</span><span class="spellTitle"></span><span class="spellMeta"></span><i class="spellCooldown"></i>`;b.querySelector('.spellTitle').textContent=sp.name;b.dataset.label=sp.name;b.onclick=()=>castSpell(id);bar.appendChild(b)});
+ const hudBar=$('hudSpellBar');if(hudBar)hudBar.dataset.renderSig='';
+}
 let customSpellBindingSignature="",customSpellLibrarySignature="",pendingSpellBinding="";
 function displaySpellKey(key){return key==='Digit0'?'0':key||'—'}
 function renderCustomSpellBindings(p){const host=$('customSpellKeyList');if(!host||!p)return;const spells=p.custom_spells||[],signature=JSON.stringify([spells.map(x=>[x.id||x.spell_id,x.name,x.key]),pendingSpellBinding]);if(signature===customSpellBindingSignature)return;customSpellBindingSignature=signature;host.replaceChildren();if(!spells.length){const empty=document.createElement('span');empty.className='bindingEmpty';empty.textContent='Созданные заклинания появятся здесь.';host.appendChild(empty);return}for(const sp of spells){const id=sp.id||sp.spell_id||sp.custom_id;if(!id)continue;const row=document.createElement('div');row.className='customSpellKeyRow';const name=document.createElement('span');name.className='customSpellKeyName';name.textContent=sp.name||'Заклинание';const button=document.createElement('button');button.type='button';button.className='customSpellKeyButton'+(pendingSpellBinding===id?' is-binding':'');button.dataset.bindCustomSpell=id;button.textContent=pendingSpellBinding===id?'Нажмите клавишу':displaySpellKey(sp.key);button.setAttribute('aria-label',`Назначить клавишу для ${sp.name||'заклинания'}`);button.addEventListener('click',()=>{pendingSpellBinding=id;$('customSpellBindingHint').textContent='Нажми F1–F12 или 0. Esc отменяет назначение.';customSpellBindingSignature='';renderCustomSpellBindings(me())});row.append(name,button);host.appendChild(row)}}
@@ -571,7 +896,79 @@ function refreshCustomSpellForge(){const p=me();if(!p)return;const cat=p.spell_c
 function updateSpellPreview(){const p=me(),a=$('spellPartA')?.value,b=$('spellPartB')?.value,name=$('customSpellName')?.value.trim()||'';const out=$('spellRecipePreview'),btn=$('createSpellButton');if(!p||!out)return;let cat=p.spell_catalog||{},sa=cat[a],sb=cat[b];if(!sa||!sb){out.textContent='Пока не хватает двух изученных заклинаний.';if(btn)btn.disabled=true;return}let words=name.toLowerCase().match(/[а-яёa-z]+/g)||[],lex={огонь:['Огонь',3],пламя:['Огонь',4],жар:['Огонь',2],лед:['Лёд',3],лёд:['Лёд',3],иней:['Лёд',3],мороз:['Лёд',4],молния:['Молния',4],гром:['Молния',3],шторм:['Молния',3],тень:['Тень',3],мрак:['Тень',4],ночь:['Тень',2],пустота:['Тень',4],исцеление:['Исцеление',4],лечение:['Исцеление',4],свет:['Исцеление',2],терн:['Терни',3],шип:['Терни',3],взрыв:['Всплеск',4],звезда:['Звёзды',3],метеор:['Звёзды',4],яд:['Яд',3],кислота:['Яд',3],эхо:['Эхо',2]};let scores={};words.forEach(w=>Object.entries(lex).forEach(([stem,v])=>{if(w===stem||(stem.length>=4&&w.startsWith(stem.slice(0,Math.max(4,stem.length-2)))))scores[v[0]]=(scores[v[0]]||0)+v[1]}));let kind=Object.keys(scores).sort((x,y)=>scores[y]-scores[x])[0]||'Аркана',rarity=Math.min(5,Math.max(1,words.length+(name.length>=12?1:0))),power=Object.values(scores).reduce((x,y)=>x+y,0);let dmg=Math.max(12,Math.min(180,Math.round(((sa.damage||sa.heal||22)+(sb.damage||sb.heal||22))*.42*(.78+rarity*.12+Math.min(power,8)*.025)))),radius=Math.max(52,Math.min(230,Math.round(((sa.radius||90)+(sb.radius||90))*.36*(.82+rarity*.09+Math.min(power,8)*.025)))),mana=Math.max(12,Math.min(100,Math.round(((sa.mana||20)+(sb.mana||20))*.32*(.85+rarity*.14))));out.innerHTML='';let lines=[['Тип: ',kind,' · редкость имени: ',rarity,'/5'],['Сила: ',dmg,' · область: ',radius,' · мана: ',mana]];lines.forEach(parts=>{let div=document.createElement('div');parts.forEach(part=>{if(typeof part==='number')div.append(document.createTextNode(String(part)));else if(part===kind){let b=document.createElement('b');b.textContent=part;div.appendChild(b)}else div.append(document.createTextNode(part))});out.appendChild(div)});if(btn)btn.disabled=!(name.length>=3&&name.length<=28&&a!==b)}
 function openSpellForge(){refreshCustomSpellForge();$('customSpellOverlay').style.display='flex'}$('openSpellForge').onclick=openSpellForge;$('closeSpellForge').onclick=()=>$('customSpellOverlay').style.display='none';$('customSpellOverlay').addEventListener('click',e=>{if(e.target===$('customSpellOverlay'))$('customSpellOverlay').style.display='none'});$('spellPartA').addEventListener('change',updateSpellPreview);$('spellPartB').addEventListener('change',updateSpellPreview);$('customSpellName').addEventListener('input',updateSpellPreview);$('createSpellButton').onclick=()=>{let a=$('spellPartA').value,b=$('spellPartB').value,name=$('customSpellName').value.trim();if(!a||!b||!name)return;send({type:'create_spell',a,b,name,key:$('customSpellKey').value});$('customSpellOverlay').style.display='none';$('customSpellName').value=''};
 function remapSpellKeys(){let used=new Set(),i=0;for(;i<spellIds.length;i++){let accepted=false;while(!accepted){let raw=prompt(`Заклинание ${i+1} из ${spellIds.length}. Введите цифру 0–9 — в бою она нажимается с Shift.`,keyLabel(spellKeyCodes[i]));if(raw===null)break;let n=raw.trim();if(!/^[0-9]$/.test(n)){toast('Для заклинаний доступны цифры 0–9 (в бою — с Shift)');continue}let code='Digit'+n;if(used.has(code)){toast('Эта клавиша уже назначена другому заклинанию');continue}used.add(code);spellKeyCodes[i]=code;accepted=true}if(!accepted)break}for(let j=i;j<spellIds.length;j++){let old=spellKeyCodes[j];if(!used.has(old)){used.add(old);continue}let free=Array.from({length:10},(_,n)=>'Digit'+n).find(code=>!used.has(code));if(free){spellKeyCodes[j]=free;used.add(free)}}localStorage.setItem(spellKeyStore,JSON.stringify(spellKeyCodes));syncSpellKeys();toast('Клавиши заклинаний сохранены')}
-function updateSpellBar(p){if(!p)return;const unlocked=new Set(p.spells_unlocked||[]),levels=p.spell_levels||{},uses=p.spell_uses||{},cooldowns=p.spell_cooldowns||{},catalog=p.spell_catalog||{},spellAllowed=!p.class||(p.class==='mage'&&p.weapon_kind==='staff');for(const b of document.querySelectorAll('#spellBar [data-spell],#spellBar [data-custom-spell]')){const id=b.dataset.spell||b.dataset.customSpell,spec=catalog[id]||{},isUnlocked=unlocked.has(id),level=levels[id]||1,used=Number(uses[id]||0),cd=cooldowns[id]||{},remain=Number(cd.remaining||0),total=Number(cd.total||spec.cooldown||0),mana=Number(spec.mana||0),low=(p.mana||0)<mana;b.disabled=!spellAllowed||!isUnlocked||remain>0||low;b.classList.toggle('is-locked',!isUnlocked);b.classList.toggle('is-cooling',remain>0);b.classList.toggle('no-mana',low);b.classList.toggle('incompatible-spell',!spellAllowed);b.style.setProperty('--cd-width',`${total>0?Math.max(0,Math.min(1,remain/total))*100:0}%`);const meta=b.querySelector('.spellMeta');if(meta)meta.textContent=!spellAllowed?(p.class==='mage'?'Нужен посох':'Только класс «Маг»'):!isUnlocked?`Нужно: уровень ${spec.unlock_level||1}`:remain>0?`Перезарядка ${remain.toFixed(1)} с · ур. ${level}`:low?`Не хватает ${mana} маны`: `Уровень ${level} · применено ${used}`;b.title=`${spec.name||id} · ${mana} маны · перезарядка ${Number(spec.cooldown||0).toFixed(1)} с · личный уровень ${level}${!spellAllowed?' · недоступно: '+(p.class==='mage'?'нужен посох':'класс не Маг'):''}`}}
+function renderHudSpellBar(p){
+ const hud=$('hudSpellBar');if(!hud||!p)return;
+ const show=p.class==='mage'||(!p.class&&p.weapon_kind==='staff'&&(p.spells_unlocked||[]).length>0);
+ hud.hidden=!show;
+ hud.style.display=show?'flex':'none';
+ const abBar=$('abilityBar');
+ if(abBar)abBar.classList.toggle('withHudSpells',show);
+ if(!show)return;
+ const customs=p.custom_spells||[];
+ const sig=JSON.stringify([allBaseSpellIds,spellKeyCodes,customs.map(c=>[c.id||c.spell_id,c.name,c.key]),p.spells_unlocked||[]]);
+ if(hud.dataset.renderSig===sig)return;
+ hud.dataset.renderSig=sig;
+ hud.replaceChildren();
+ const tag=document.createElement('span');
+ tag.className='hudSpellBarTag';
+ tag.innerHTML='✦ ЧАРЫ<small>⇧+цифра</small>';
+ tag.title='Заклинания мага: применяй через Shift + цифра или кликом по ячейке';
+ hud.appendChild(tag);
+ const makeSlot=(id,label,icon,keyText,isCustom)=>{
+  const b=document.createElement('button');
+  b.type='button';
+  b.className='hudSpellSlot'+(isCustom?' isCustom':'');
+  b.dataset.hudSpell=id;
+  b.innerHTML=`<span class="hsKey">${safeText(keyText)}</span><span class="hsRank">ур.1</span><span class="hsIcon">${safeText(icon)}</span><span class="hsName">${safeText(label)}</span><span class="hsCost">0💧</span><span class="slotCdTimer"></span><i class="spellCooldown"></i>`;
+  b.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();if(!b.disabled)castSpell(id)});
+  return b;
+ };
+ for(const id of allBaseSpellIds){
+  hud.appendChild(makeSlot(id,spellShortLabels[id]||spellNames[id]||id,spellIconsMap[id]||'✦',spellHotkeyForId(id),false));
+ }
+ for(const sp of customs){
+  const cid=sp.id||sp.spell_id||sp.custom_id;if(!cid)continue;
+  const k=sp.key==='Digit0'?'0':(sp.key||'F1');
+  hud.appendChild(makeSlot(cid,(sp.name||'Чары').slice(0,8).toUpperCase(),'✧',k,true));
+ }
+ const forgeBtn=document.createElement('button');
+ forgeBtn.type='button';
+ forgeBtn.className='hudSpellForgeBtn';
+ forgeBtn.title='Мастерская сплетения собственных заклинаний';
+ forgeBtn.innerHTML='<span>+</span><small>СПЛЕСТИ</small>';
+ forgeBtn.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();openSpellForge()});
+ hud.appendChild(forgeBtn);
+}
+function updateSpellBar(p){
+ if(!p)return;
+ renderHudSpellBar(p);
+ const unlocked=new Set(p.spells_unlocked||[]),levels=p.spell_levels||{},uses=p.spell_uses||{},cooldowns=p.spell_cooldowns||{},catalog=p.spell_catalog||{},view=p.spells||{},spellAllowed=!p.class||(p.class==='mage'&&p.weapon_kind==='staff');
+ for(const b of document.querySelectorAll('#spellBar [data-spell],#spellBar [data-custom-spell]')){
+  const id=b.dataset.spell||b.dataset.customSpell,spec=catalog[id]||{},sv=view[id]||{},isUnlocked=unlocked.has(id)||!!sv.unlocked,level=sv.level||levels[id]||1,used=Number(uses[id]||0),cd=cooldowns[id]||{},remain=Number(sv.remaining??cd.remaining??0),total=Number(sv.cooldown??cd.total??spec.cooldown??0),mana=Number(sv.cost??spec.mana??0),low=(p.mana||0)<mana;
+  b.disabled=!spellAllowed||!isUnlocked||remain>0||low;
+  b.classList.toggle('is-locked',!isUnlocked);
+  b.classList.toggle('is-cooling',remain>0);
+  b.classList.toggle('no-mana',isUnlocked&&remain<=0&&low);
+  b.classList.toggle('incompatible-spell',!spellAllowed);
+  b.style.setProperty('--cd-width',`${total>0?Math.max(0,Math.min(1,remain/total))*100:0}%`);
+  const meta=b.querySelector('.spellMeta');
+  if(meta)meta.textContent=!spellAllowed?(p.class==='mage'?'Нужен посох':'Только класс «Маг»'):!isUnlocked?`Ур. ${spec.unlock_level||1} · ${spec.unlock_spent||0} маны`:remain>0?`КД ${remain.toFixed(1)} с · ур. ${level}`:low?`Мана: ${mana}`:`Ур. ${level}/${sv.max_level||12} · ×${used}`;
+  b.title=`${spec.name||id} (ур. ${level}/${sv.max_level||12}) · ${mana} маны · перезарядка ${Number(total||spec.cooldown||0).toFixed(1)} с${!spellAllowed?' · недоступно: '+(p.class==='mage'?'нужен посох':'класс не Маг'):!isUnlocked?` · откроется на ${spec.unlock_level||1} ур. после расхода ${spec.unlock_spent||0} маны`:''}`;
+ }
+ for(const b of document.querySelectorAll('#hudSpellBar [data-hud-spell]')){
+  const id=b.dataset.hudSpell,spec=catalog[id]||{},sv=view[id]||{},isUnlocked=unlocked.has(id)||!!sv.unlocked,level=sv.level||levels[id]||1,cd=cooldowns[id]||{},remain=Number(sv.remaining??cd.remaining??0),total=Math.max(.1,Number(sv.cooldown??cd.total??spec.cooldown??1)),mana=Number(sv.cost??spec.mana??0),low=(p.mana||0)<mana;
+  b.disabled=!spellAllowed||!isUnlocked||remain>0||low;
+  b.classList.toggle('is-locked',!isUnlocked);
+  b.classList.toggle('is-cooling',remain>0);
+  b.classList.toggle('no-mana',spellAllowed&&isUnlocked&&remain<=0&&low);
+  b.classList.toggle('incompatible-spell',!spellAllowed);
+  b.style.setProperty('--cd-width',`${Math.max(0,Math.min(1,remain/total))*100}%`);
+  const rk=b.querySelector('.hsRank');if(rk){rk.textContent=isUnlocked?`ур.${level}`:`🔒${spec.unlock_level||1}`;rk.classList.toggle('isHigh',isUnlocked&&level>=6)}
+  const costEl=b.querySelector('.hsCost');if(costEl)costEl.textContent=isUnlocked?`${mana}💧`:`${spec.unlock_spent||0}✦`;
+  const timer=b.querySelector('.slotCdTimer');if(timer)timer.textContent=remain>0?`${remain>=10?Math.ceil(remain):remain.toFixed(1)}с`:'';
+  b.title=`${spec.name||spellNames[id]||id} [${spellHotkeyForId(id)}] · ур. ${level}/${sv.max_level||12}${sv.power_bonus_pct?` (+${sv.power_bonus_pct}%)`:''}\nМана: ${mana} · Перезарядка: ${total.toFixed(1)} с${remain>0?` (осталось ${remain.toFixed(1)} с)`:''}\n${!spellAllowed?(p.class==='mage'?'Экипируй посох для применения чар':'Заклинания доступны классу «Маг»'):!isUnlocked?`Откроется на ${spec.unlock_level||1} ур. героя после расхода ${spec.unlock_spent||0} маны (сейчас: ${p.magic_mana_spent||0})`:sv.desc||''}`;
+ }
+}
 
 
 function toggleControls(open){const el=$('controlsOverlay');el.style.display=(open??el.style.display!=='flex')?'flex':'none';if(el.style.display==='flex')$('closeControls').focus()}$('controlsButton').onclick=()=>toggleControls(true);$('spellLibraryButton').onclick=()=>{toggleControls(true);requestAnimationFrame(()=>$('customSpellLibraryList').scrollIntoView({behavior:'smooth',block:'center'}))};$('closeControls').onclick=()=>toggleControls(false);$('controlsOverlay').addEventListener('click',e=>{if(e.target===$('controlsOverlay'))toggleControls(false)});document.querySelectorAll('.controlActions:not(.controlExtraActions) .actionBtn,[data-spell]').forEach(b=>b.addEventListener('click',()=>setTimeout(()=>toggleControls(false),80)));document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('controlsOverlay').style.display==='flex')toggleControls(false)});
@@ -684,19 +1081,58 @@ if($('questOverlay'))$('questOverlay').addEventListener('click',e=>{
  button.closest('.qjCard')?.classList.add('isTracked');
  toast('Поручение закреплено в трекере');
 });
-function updateHud(){let p=me();if(!p)return;$('heroName').textContent=`${p.name} · ур. ${p.level}`;$('gold').textContent=`${p.gold} монет`;const hpPct=Math.max(0,Math.min(100,100*p.hp/Math.max(1,p.max_hp))),stamPct=Math.max(0,Math.min(100,100*p.stamina/Math.max(1,p.max_stamina))),manaPct=Math.max(0,Math.min(100,100*(p.mana||0)/Math.max(1,p.max_mana||1)));$('hpShort').textContent=Math.ceil(p.hp);$('stamShort').textContent=Math.floor(p.stamina);$('manaShort').textContent=Math.floor(p.mana||0);$('hpOrb').title=`Здоровье: ${p.hp} / ${p.max_hp}`;$('manaOrb').title=`Мана: ${Math.floor(p.mana||0)} / ${p.max_mana||0}`;$('stamOrb').title=`Выносливость: ${Math.floor(p.stamina)} / ${p.max_stamina}`;$('hpOrb').style.setProperty('--value',hpPct+'%');$('stamOrb').style.setProperty('--value',stamPct+'%');$('manaOrb').style.setProperty('--value',manaPct+'%');let need=p.level*120;$('xpText').textContent=`${p.xp} / ${need} XP`;$('xpFill').style.width=`${Math.max(0,Math.min(100,100*p.xp/need))}%`;updateSpellBar(p);updateActionPanels(p);
+function updateCombatIndicator(p){
+ const el=$('combatIndicator');if(!el||!p)return;
+ const cs=p.combat_state||{};
+ const combo=Number(cs.combo_step||0),streak=Number(cs.streak||0),counter=Number(cs.counter_remaining||0);
+ if(!combo&&streak<2&&counter<=0){el.hidden=true;return}
+ el.hidden=false;
+ const parts=[];
+ if(counter>0)parts.push(`<span class="ciChip ciCounter">⚡ КОНТРАТАКА +40% · ${counter.toFixed(1)}с</span>`);
+ if(combo>0){
+  const roman=['I','II','III · ФИНАЛ'][Math.min(2,combo-1)];
+  parts.push(`<span class="ciChip ciCombo${combo>=3?' isFinisher':''}">⚔ КОМБО ${roman}</span>`);
+ }
+ if(streak>=2)parts.push(`<span class="ciChip ciStreak">🔥 СЕРИЯ ×${streak}${cs.streak_bonus_pct?` (+${cs.streak_bonus_pct}%)`:''}</span>`);
+ const html=parts.join('');
+ if(el.dataset.lastHtml!==html){el.dataset.lastHtml=html;el.innerHTML=html}
+}
+function updateHud(){let p=me();if(!p)return;const maxLv=Number(p.max_level||100);$('heroName').textContent=`${p.name} · ур. ${p.level}${p.level>=maxLv?' (МАКС)':''}`;$('gold').textContent=`${p.gold} монет`;const hpPct=Math.max(0,Math.min(100,100*p.hp/Math.max(1,p.max_hp))),stamPct=Math.max(0,Math.min(100,100*p.stamina/Math.max(1,p.max_stamina))),manaPct=Math.max(0,Math.min(100,100*(p.mana||0)/Math.max(1,p.max_mana||1)));$('hpShort').textContent=Math.ceil(p.hp);$('stamShort').textContent=Math.floor(p.stamina);$('manaShort').textContent=Math.floor(p.mana||0);$('hpOrb').title=`Здоровье: ${p.hp} / ${p.max_hp}`;$('manaOrb').title=`Мана: ${Math.floor(p.mana||0)} / ${p.max_mana||0}`;$('stamOrb').title=`Выносливость: ${Math.floor(p.stamina)} / ${p.max_stamina}`;$('hpOrb').style.setProperty('--value',hpPct+'%');$('stamOrb').style.setProperty('--value',stamPct+'%');$('manaOrb').style.setProperty('--value',manaPct+'%');let need=Number(p.xp_next||(p.level*120));if(p.level>=maxLv||need<=0){$('xpText').textContent=`УР. ${maxLv} · МАКСИМУМ`;$('xpFill').style.width='100%'}else{$('xpText').textContent=`${p.xp} / ${need} XP`;$('xpFill').style.width=`${Math.max(0,Math.min(100,100*p.xp/need))}%`}updateSpellBar(p);updateActionPanels(p);updateCombatIndicator(p);
 const z=zoneInfo[p.zone]||zoneInfo.camp;$('zoneLabel').textContent=`${z.name} · ${z.level}`;
 updateQuestTracker(p);if($('questOverlay')&&$('questOverlay').style.display==='flex')renderQuestJournal(p);;
-const inv=p.inventory;for(let k of ['wood','herb','ore','crystal','hide','slime','shard','arrows','potion']){let e=$(k);if(e)e.textContent=inv[k]||0;}$('weaponName').textContent=weaponNames[p.weapon]||p.weapon;$('gearName').textContent=gearNames[p.gear]||'Нет';$('defenseLabel').textContent=`· броня ${gearDefense[p.gear]||0}`;
+const inv=p.inventory;for(let k of ['wood','herb','ore','crystal','hide','slime','shard','arrows','potion']){let e=$(k);if(e)e.textContent=inv[k]||0;}$('weaponName').textContent=weaponNames[p.weapon]||p.weapon;$('gearName').textContent=gearNames[p.gear]||'Нет';$('defenseLabel').textContent=`· броня ${p.defense??gearDefense[p.gear]??0}`;
 
-try{renderInventory(p)}catch(err){console.warn('renderInventory',err)}if($('wizardOverlay').style.display==='flex')renderWizard(p);if($('forgeOverlay').style.display==='flex')renderForge(p);const kind=p.weapon_catalog?.[p.weapon]?.kind||'melee';try{updateCharacterPanel(p)}catch(err){console.warn('updateCharacterPanel',err)}if($('manaBadge'))$('manaBadge').textContent=`${Math.floor(p.mana||0)} / ${p.max_mana||0} маны`;$('marketBalance').textContent=`${p.gold||0} монет`;renderMarket(p);document.querySelectorAll('[data-spell]').forEach(b=>{let costs={fireball:18,lightning:26,heal:24,thorns:23,ice_lance:30,arcane_burst:38,meteor:58},unlocked=new Set(p.spells_unlocked||[]);b.disabled=!unlocked.has(b.dataset.spell)||(p.mana||0)<(costs[b.dataset.spell]||999)});
+try{renderInventory(p)}catch(err){console.warn('renderInventory',err)}if($('wizardOverlay').style.display==='flex')renderWizard(p);if($('forgeOverlay').style.display==='flex')renderForge(p);const kind=p.weapon_catalog?.[p.weapon]?.kind||'melee';try{updateCharacterPanel(p)}catch(err){console.warn('updateCharacterPanel',err)}if($('manaBadge'))$('manaBadge').textContent=`${Math.floor(p.mana||0)} / ${p.max_mana||0} маны`;$('marketBalance').textContent=`${p.gold||0} монет`;renderMarket(p);try{renderCraftPanel(p)}catch(err){console.warn('renderCraftPanel',err)}
 renderStatsPanel(p);if(window.renderCharOverlay)try{window.renderCharOverlay(me())}catch(err){}
-document.querySelectorAll('[data-craft]').forEach(b=>{let r=b.dataset.craft;b.disabled=r==='arrows'?inv.wood<2||inv.ore<1:r==='potion'?inv.herb<3||inv.slime<1:r==='iron_sword'?inv.ore<6||inv.wood<4||p.weapons.includes('iron_sword'):inv.hide<4||inv.ore<3||(p.gear==='marsh_armor'||p.gear_inventory.includes('marsh_armor'))});
+/* ════════════════ РЕМЕСЛО В РЮКЗАКЕ: КАТЕГОРИИ CRAFT_RECIPES ════════════════ */
+let craftTab='supplies';
+function craftRecipeList(p){const recipes=p?.craft_recipes||{};return Object.entries(recipes).map(([id,r])=>({id,name:r.name,cost:r.cost||{},category:r.category||'supplies'}))}
+function craftAlreadyOwned(p,r){
+ if(r.category==='weapon')return (p.weapons||[]).includes(r.id);
+ if(r.category==='gear')return p.gear===r.id||(p.gear_inventory||[]).includes(r.id);
+ if(r.category==='accessory')return (p.accessories||[]).includes(r.id)||Object.values(p.equipped_accessories||{}).includes(r.id);
+ return false}
+function craftAffordable(inv,cost){return Object.entries(cost||{}).every(([k,v])=>Number(inv[k]||0)>=Number(v))}
+function renderCraftPanel(p){
+ const host=$('craftGrid')||document.getElementById('craftGrid');if(!host||!p)return;
+ const inv=p.inventory||{};
+ const list=craftRecipeList(p).filter(r=>r.category===craftTab);
+ host.innerHTML=list.map(r=>{
+  const costText=Object.entries(r.cost).map(([k,v])=>`${v} ${resourceNames[k]||k}`).join(' · ');
+  const owned=craftAlreadyOwned(p,r);
+  const enough=craftAffordable(inv,r.cost);
+  return `<button type="button" data-craft="${safeText(r.id)}" data-craft-group="1" ${owned||!enough?'disabled':''} title="${owned?'Уже изготовлено':costText}">${safeText(r.name)} · ${safeText(costText)}${owned?' · есть':''}</button>`;
+ }).join('')||'<p class="stationNote">В этой категории пока нет рецептов.</p>';
+ host.querySelectorAll('[data-craft]').forEach(b=>b.addEventListener('click',()=>{if(b.disabled)return;send({type:'craft',recipe:b.dataset.craft});toast('Запрос ремесла отправлен')}));
+}
+function setCraftTab(tab){craftTab=tab;document.querySelectorAll('[data-craft-tab]').forEach(b=>b.classList.toggle('active',b.dataset.craftTab===tab));renderCraftPanel(me())}
+window.renderCraftPanel=renderCraftPanel;window.setCraftTab=setCraftTab;
+document.querySelectorAll('[data-craft-tab]').forEach(b=>b.addEventListener('click',()=>setCraftTab(b.dataset.craftTab)));
 let keeper=Math.hypot(p.x-330,p.y-1100)<110,node=snap.nodes.some(n=>n.active&&Math.hypot(n.x-p.x,n.y-p.y)<68);$('interactButton').textContent=keeper?`${actionKeyLabel('interact')} · ХРАНИТЕЛЬ`:node?`${actionKeyLabel('gather')} · СБОР`:`${actionKeyLabel('gather')} · РЕСУРС`;$('progress').style.display=p.gathering?'block':'none';if(p.gathering){let g=snap.nodes.find(n=>n.active&&Math.hypot(n.x-p.x,n.y-p.y)<75);$('progressText').textContent=`Сбор: ${nodeNames[g?.kind]||'ресурс'}`;$('progressFill').style.width=`${Math.min(100,(p.gather_progress||0)*100)}%`}$('dodgeButton').disabled=!p.dodge_ready||p.stamina<24;if($('mDodgeButton'))$('mDodgeButton').disabled=$('dodgeButton').disabled;if($('mInteractButton'))$('mInteractButton').textContent=keeper?'ХРАНИТЕЛЬ':node?'СБОР':'РЕСУРС';
 }
 const questStages=[['slime',4,'herb',3,'Очистить опушку'],['wolf',3,'ore',4,'Следы в топи'],['boar',3,'crystal',3,'Свет под водой'],['colossus',1,'',0,'Пепельный колосс'],['frost_wyrm',4,'crystal',6,'Синий хребет'],['echo_dragon',1,'shard',8,'Разлом Эха'],['rift_knight',4,'shard',6,'Стражи разлома'],['echo_dragon',2,'crystal',12,'Сердце пустоты'],['void_wraith',5,'shard',12,'Угольный след'],['obsidian_sentinel',5,'ore',18,'Ключ из чёрного стекла'],['starseer',4,'crystal',20,'Охота на звёздочёта'],['starseer',5,'herb',22,'Корни под звёздами'],['ancient_warden',1,'shard',30,'Страж Первозданного сада']];function questDone(q){let t=questStages[Math.min(q.stage,questStages.length-1)];return(q.kills[t[0]]||0)>=t[1]&&(!t[2]||(q.gather[t[2]]||0)>=t[3])}
 // weapon selection is handled by the weapon wheel; summary panel is display-only.
-document.querySelectorAll('[data-craft]').forEach(b=>b.addEventListener('click',()=>send({type:'craft',recipe:b.dataset.craft})));$('potionButton').onclick=()=>send({type:'use_potion'});$('interactButton').onclick=()=>send({type:'interact'});$('chatForm').addEventListener('submit',e=>{e.preventDefault();let text=$('chatInput').value.trim();if(text)send({type:'chat',text});$('chatInput').value='';$('chatInput').blur()});
+$('potionButton').onclick=()=>send({type:'use_potion'});$('interactButton').onclick=()=>send({type:'interact'});$('chatForm').addEventListener('submit',e=>{e.preventDefault();let text=$('chatInput').value.trim();if(text)send({type:'chat',text});$('chatInput').value='';$('chatInput').blur()});
 function attackChargeDuration(p){return Math.max(.25,Number(p?.weapon_catalog?.[p.weapon]?.charge)||.65)}function vectorAim(){return aim}function beginAttack(e){e.preventDefault();chargeLocal=true;chargeStart=performance.now();$('chargePercent').textContent='0%';$('chargeTier').textContent='НАБОР';$('attackButton').classList.add('charging');send({type:'attack_start',aim_x:aim.x,aim_y:aim.y})}function releaseAttack(e){if(!chargeLocal)return;e.preventDefault();const p=me(),charge=p?Math.min(1,(performance.now()-chargeStart)/(attackChargeDuration(p)*1000)):0;chargeLocal=false;$('attackButton').classList.remove('charging');$('chargeTier').textContent=charge>=.8?'ПОЛНЫЙ':'УДАР';send({type:'attack_release',aim_x:aim.x,aim_y:aim.y});if(p){let w=p.weapon,spec=p.weapon_catalog?.[w]||{};if(spec.kind==='bow'){sfxCall('bowShot')}else{const heavy=charge>.75||/axe|maul|greatsword|halberd|scythe/.test(w||'');sfxCall('swing',heavy);fxCall('punch',heavy?.012:.008)}if(spec.kind!=='bow'){let range=Number(spec.range||44)+12*charge;attackFx.push({x:p.x,y:p.y,fx:true,ax:aim.x,ay:aim.y,weapon:w,range,arcCos:Number(spec.arc??.28),charge,until:performance.now()+340})}}}
 $('attackButton').addEventListener('pointerdown',beginAttack);$('attackButton').addEventListener('pointerup',releaseAttack);$('attackButton').addEventListener('pointercancel',releaseAttack);$('attackButton').addEventListener('contextmenu',e=>e.preventDefault());
 canvas.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse'&&e.button===0&&!e.target.closest('button')){e.preventDefault();setAimFromPointer();beginAttack(e);try{canvas.setPointerCapture(e.pointerId)}catch{}}});
@@ -708,8 +1144,8 @@ function closeTopGameMenu(){const order=['npcOverlay','atlasOverlay','classOverl
 // Capture keyboard events before global gameplay bindings: visible menus never leak hotkeys.
 document.addEventListener('keydown',e=>{if(!activeGameMenu())return;if(e.key==='Escape'){closeTopGameMenu();e.preventDefault()}if(!(e.key==='Enter'&&e.target===$('chatInput')))e.stopPropagation()},true);
 document.addEventListener('keyup',e=>{if(activeGameMenu()){keys.clear();touchDirs.clear();e.stopPropagation()}},true);
-addEventListener('keydown',e=>{if(e.repeat)return;const target=e.target;if(target&&(target.matches('input,textarea,select')||target.isContentEditable))return;const code=e.code;if(activeGameMenu()){if(code==='Escape'){closeTopGameMenu();e.preventDefault()}return;}let k=movementCodes[code]||e.key.toLowerCase();if(code==='Space'||code.startsWith('Arrow'))e.preventDefault();if(code==='Escape'){if(closeTopGameMenu())return;toggleGameMenu(true);return}if(document.activeElement===$('chatInput')||['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName))return;if(code==='ShiftLeft'||code==='ShiftRight'){runHeld=true;lastInput=0;return}if(code==='ControlLeft'||code==='ControlRight'){sneakHeld=true;lastInput=0;return}if(movementCodes[code]){keys.add(k);return}const act=actionByCode(code);if(act){if(applyActionToGame(act,e))return}if(abilityKeyCodeToId[code]){useAbility(abilityKeyCodeToId[code]);e.preventDefault();return}if(e.shiftKey&&spellKeyCodeToId[code])castSpell(spellKeyCodeToId[code]);if(code.startsWith('F')&&/^F(?:[1-9]|1[0-2])$/.test(code))e.preventDefault();castCustomSpellByKey(code)});addEventListener('keyup',e=>{if(e.code==='ShiftLeft'||e.code==='ShiftRight'){runHeld=false;lastInput=0}if(e.code==='ControlLeft'||e.code==='ControlRight'){sneakHeld=false;lastInput=0}const k=movementCodes[e.code];if(k)keys.delete(k);const upAct=actionByCode(e.code);if(upAct==='gather')send({type:'gather_stop'});if(upAct==='attack')releaseAttack(e)});addEventListener('blur',()=>{keys.clear();touchDirs.clear();runHeld=false;sneakHeld=false;lastInput=0});
-let mouse={x:0,y:0};canvas.addEventListener('pointermove',e=>{let r=canvas.getBoundingClientRect();mouse.x=e.clientX-r.left;mouse.y=e.clientY-r.top;setAimFromPointer()});function setAimFromPointer(){let p=me();if(!p)return;let r=canvas.getBoundingClientRect(),wx=cam.x+(mouse.x-r.width/2),wy=cam.y+(mouse.y-r.height/2),dx=wx-p.x,dy=wy-p.y,l=Math.hypot(dx,dy);if(l>.1){aim={x:dx/l,y:dy/l};hasPointerAim=true}}
+addEventListener('keydown',e=>{if(e.repeat)return;const target=e.target;if(target&&(target.matches('input,textarea,select')||target.isContentEditable))return;const code=e.code;if(activeGameMenu()){if(code==='Escape'){closeTopGameMenu();e.preventDefault()}return;}let k=movementCodes[code]||e.key.toLowerCase();if(code==='Space'||code.startsWith('Arrow'))e.preventDefault();if(code==='Escape'){if(closeTopGameMenu())return;toggleGameMenu(true);return}if(document.activeElement===$('chatInput')||['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName))return;if(code==='ShiftLeft'||code==='ShiftRight'){runHeld=true;lastInput=0;return}if(code==='ControlLeft'||code==='ControlRight'){sneakHeld=true;lastInput=0;return}if(movementCodes[code]){keys.add(k);return}const act=actionByCode(code);if(act){if(applyActionToGame(act,e))return}if(abilityKeyCodeToId[code]){useAbility(abilityKeyCodeToId[code]);e.preventDefault();return}if(e.shiftKey&&spellKeyCodeToId[code])castSpell(spellKeyCodeToId[code]);else if(e.shiftKey&&extraSpellCodeToId[code]){castSpell(extraSpellCodeToId[code]);e.preventDefault()}if(code.startsWith('F')&&/^F(?:[1-9]|1[0-2])$/.test(code))e.preventDefault();if(!e.shiftKey)castCustomSpellByKey(code)});addEventListener('keyup',e=>{if(e.code==='ShiftLeft'||e.code==='ShiftRight'){runHeld=false;lastInput=0}if(e.code==='ControlLeft'||e.code==='ControlRight'){sneakHeld=false;lastInput=0}const k=movementCodes[e.code];if(k)keys.delete(k);const upAct=actionByCode(e.code);if(upAct==='gather')send({type:'gather_stop'});if(upAct==='attack')releaseAttack(e)});addEventListener('blur',()=>{keys.clear();touchDirs.clear();runHeld=false;sneakHeld=false;lastInput=0});
+let mouse={x:0,y:0};canvas.addEventListener('pointermove',e=>{let r=canvas.getBoundingClientRect();mouse.x=e.clientX-r.left;mouse.y=e.clientY-r.top;setAimFromPointer()});function setAimFromPointer(){let p=me();if(!p)return;let wp=pointerWorld(),dx=wp.x-p.x,dy=wp.y-p.y,l=Math.hypot(dx,dy);if(l>.1){aim={x:dx/l,y:dy/l};hasPointerAim=true}}
 document.querySelectorAll('.pad').forEach(b=>{let dir=b.dataset.dir;b.addEventListener('pointerdown',e=>{e.preventDefault();b.setPointerCapture(e.pointerId);touchDirs.add(dir)});['pointerup','pointercancel','lostpointercapture'].forEach(ev=>b.addEventListener(ev,()=>touchDirs.delete(dir))) });
 /* ─── МОБИЛЬНОЕ УПРАВЛЕНИЕ: джойстик-стик для ходьбы + панель кнопок ─── */
 const isMobileUI=('ontouchstart' in window)||navigator.maxTouchPoints>0;
@@ -967,9 +1403,25 @@ function drawMap(c,context,large=false){
 }
 function frame(now){inputFrame();if(window.echoMoving&&!chargeLocal){sfxCall('step',!!window.echoRun)}{const mo=activeGameMenu();if(window.__echoMenuWas===undefined)window.__echoMenuWas=mo;else if(mo!==window.__echoMenuWas){window.__echoMenuWas=mo;sfxCall(mo?'open':'close')}}if(chargeLocal){let p=me(),pct=p?Math.min(1,(now-chargeStart)/(attackChargeDuration(p)*1000)):0;$('chargeFill').style.width=`${pct*100}%`;if($('mChargeFill'))$('mChargeFill').style.width=`${pct*100}%`;$('chargePercent').textContent=`${Math.round(pct*100)}%`;$('chargeTier').textContent=pct<.35?'НАБОР':pct<.8?'СИЛЬНЕЕ':'ПОЛНЫЙ УДАР';$('attackButton').style.setProperty('--charge',pct)}else{$('attackButton').style.setProperty('--charge',0);if($('mChargeFill'))$('mChargeFill').style.width='0'}drawWorld(now);drawMap(mini,mctx,false);requestAnimationFrame(frame)}requestAnimationFrame(frame);
 /* ==== МЕНЮ ПЕРСОНАЖА: характеристики + экипировка с всплывающими подсказками ==== */
-const CHAR_STAT_META={might:['⚔','Сила','Урон ближнего боя и выстрелов'],vitality:['♥','Живучесть','Запас здоровья'],agility:['➶','Ловкость','Скорость бега и рывка'],mana_regen:['✧','Восстановление маны','Регенерация маны и её запас'],magic_damage:['☄','Урон магии','Сила всех заклинаний'],insight:['✵','Прозорливость','Больше опыта от побед и монет из-за удачи'],precision:['◎','Точность','Шанс критического удара'],fortune:['♣','Удача','Шанс редкой добычи']};
+const CHAR_STAT_META={might:['⚔','Сила','Урон ближнего боя и выстрелов'],vitality:['♥','Живучесть','Запас здоровья'],agility:['➶','Ловкость','Скорость бега и рывка'],mana_regen:['✧','Восстановление маны','Регенерация маны и её запас'],magic_damage:['☄','Урон магии','Сила всех заклинаний'],insight:['✵','Прозорливость','Больше опыта от побед и монет из-за удачи'],tenacity:['🛡','Стойкость','Больше здоровья и меньше входящего урона'],ferocity:['🔥','Свирепость','Больше урона и критического урона'],precision:['◎','Точность','Шанс критического удара'],fortune:['♣','Удача','Шанс редкой добычи']};
 function weaponKindLabel(kind){return kind==='bow'?'Дальний бой':kind==='staff'?'Магический посох':'Ближний бой'}
 function weaponIconGlyph(kind){return kind==='bow'?'➶':kind==='staff'?'✦':'⚔'}
+const EQ_BONUS_LABEL=[['hp_flat','Здоровье','+'],['mana_flat','Мана','+'],['stamina_flat','Выносливость','+'],['defense_flat','Защита','+'],['damage_pct','Урон','pct'],['melee_pct','Ближний бой','pct'],['bow_pct','Стрельба','pct'],['spell_power_pct','Сила чар','pct'],['crit_pct','Крит','pct'],['crit_mult_bonus','Крит. урон','pct'],['attack_speed_pct','Ск. атаки','pct'],['move_speed_pct','Ск. бега','pct'],['cdr_pct','Перезарядка','pct'],['mana_cost_pct','Расход маны','pct'],['stamina_cost_pct','Расход выносливости','pct'],['vampirism_pct','Похищение жизни','pct'],['hp_regen','Реген HP','num'],['mana_regen','Реген маны','num'],['gold_pct','Золото','pct'],['xp_pct','Опыт','pct'],['luck_pct','Удача','pct'],['stagger_pct','Ошеломление','pct'],['reaction_pct','Реакции','pct'],['damage_reduction_pct','Снижение урона','pct'],['thorns_pct','Шипы','pct'],['ammo_save_pct','Экономия стрел','pct'],['cc_resist_pct','Сопр. контролю','pct'],['reach_pct','Радиус удара','pct'],['dodge_window_bonus','Окно рывка','num']];
+/* Human-readable rows for the aggregate equipment bonus block. Percentages are
+   styled like the server: positive = buff, negative = penalty. */
+function equipmentBonusRows(bonuses){
+ const src=bonuses||{},rows=[];
+ for(const [key,label,mode] of EQ_BONUS_LABEL){
+  const raw=Number(src[key]||0);
+  if(!raw)continue;
+  let text;
+  if(mode==='pct')text=`${raw>0?'+':''}${Math.round(raw*100)}%`;
+  else text=`${raw>0?'+':''}${Math.round(raw*10)/10}`;
+  rows.push([label,text]);
+  if(rows.length>=12)break;
+ }
+ return rows;
+}
 function tipRow(label,value){return `<span class="tipLine"><span>${label}</span><b>${value}</b></span>`}
 function buildWeaponTip(p){const id=p.weapon,w=(p.weapon_catalog||{})[id]||{},up=Number(p.upgrades?.weapon?.[id]||0);
  const ench=Object.entries(p.enchantments?.weapon?.[id]||{}).filter(([,lv])=>Number(lv)>0);
@@ -1000,55 +1452,210 @@ function updateCharacterPanel(p){if(!p)return;
  const wn=$('weaponName');if(wn)wn.textContent=p.weapon_catalog?.[p.weapon]?.name||weaponNames[p.weapon]||p.weapon;
  const gi=$('gearIcon');if(gi)gi.textContent='◆';
  const gn=$('gearName');if(gn)gn.textContent=p.gear_catalog?.[p.gear]?.name||gearNames[p.gear]||'Нет';
-
- const dl=$('defenseLabel');if(dl)dl.textContent=`броня ${p.gear_catalog?.[p.gear]?.defense??gearDefense[p.gear]??0}${Number(p.upgrades?.gear?.[p.gear]||0)?` (+${Number(p.upgrades?.gear?.[p.gear]||0)*3})`:''}`;
- const clm=$('charLevelMini');if(clm)clm.textContent=`ур. ${p.level}`;
+ const dl=$('defenseLabel');if(dl)dl.textContent=`броня ${p.defense??(p.gear_catalog?.[p.gear]?.defense??gearDefense[p.gear]??0)}`;
+ const clm=$('charLevelMini');if(clm)clm.textContent=`ур. ${p.level}/${p.max_level||100}`;
+ const badge=$('charToolBadge');
+ if(badge){const tot=(Number(p.skill_points)||0)+(Number(p.talent_points)||0);badge.hidden=tot<=0;badge.textContent=tot>0?String(tot):''}
  renderCharOverlay(p)}
-function renderCharOverlay(p){const el=$('charOverlay');if(!el||getComputedStyle(el).display==='none'||!p)return;
- const meta=$('charMeta');if(meta)meta.textContent=`${p.name} · ${p.class_name||'Путник'} · ур. ${p.level}`;
- const pts=Math.max(0,Number(p.skill_points)||0),cp=$('charPoints');
- if(cp){cp.textContent=`Очки развития: ${pts}`;cp.classList.toggle('hasPoints',pts>0)}
+
+let activeCharTab='stats',charSkillsSig='',charPerksSig='';
+function setCharTab(tab){
+ activeCharTab=tab||'stats';
+ document.querySelectorAll('#charTabs [data-char-tab]').forEach(b=>b.classList.toggle('active',b.dataset.charTab===activeCharTab));
+ document.querySelectorAll('#charOverlay [data-char-pane]').forEach(sec=>sec.classList.toggle('active',sec.dataset.charPane===activeCharTab));
+ const p=me();if(p)renderCharOverlay(p);
+}
+document.querySelectorAll('#charTabs [data-char-tab]').forEach(b=>b.addEventListener('click',()=>setCharTab(b.dataset.charTab)));
+
+function skillGoldCostClient(rank){return [90+rank*55,1+Math.floor(rank/3)]}
+function renderCharOverlay(p){
+ const el=$('charOverlay');if(!el||getComputedStyle(el).display==='none'||!p)return;
+ const pts=Math.max(0,Number(p.skill_points)||0),tpts=Math.max(0,Number(p.talent_points)||0),maxLv=Number(p.max_level||100);
+ const cp=$('charPointsBadge');if(cp){cp.textContent=`Очки развития: ${pts}`;cp.classList.toggle('hasPoints',pts>0)}
+ const tp=$('charTalentBadge');if(tp){tp.textContent=`Очки навыков: ${tpts}`;tp.classList.toggle('hasPoints',tpts>0)}
+ const sum=$('charSummary');
+ if(sum){
+  const wName=p.weapon_catalog?.[p.weapon]?.name||weaponNames[p.weapon]||p.weapon;
+  const gName=p.gear_catalog?.[p.gear]?.name||gearNames[p.gear]||'Нет';
+  const wUp=Number(p.upgrades?.weapon?.[p.weapon]||0),gUp=Number(p.upgrades?.gear?.[p.gear]||0);
+  const travelBadge=p.world_travel_unlocked?'<span class="charTravelBadge unlocked">✦ Свободный межмировой переход открыт (M)</span>':'<span class="charTravelBadge">Победи Хранителя Первозданного сада — откроется переход между всеми мирами</span>';
+  const sumSig=JSON.stringify([p.name,p.level,maxLv,p.class,p.class_name,p.xp,p.xp_next,wName,wUp,gName,gUp,p.world_travel_unlocked,(p.bosses_defeated||[]).length]);
+  if(sum.dataset.sig!==sumSig){
+   sum.dataset.sig=sumSig;
+   sum.innerHTML=`<div class="charHeroIdentity"><div><strong>${safeText(p.name)}</strong> · <span class="charClassTag">${safeText(p.class_name||'Путник')}</span> · <b>Уровень ${p.level} / ${maxLv}</b></div>${travelBadge}</div><div class="charEquipBar"><span class="charEquipChip" data-char-equip="weapon">⚔ ${safeText(wName)}${wUp?` +${wUp}`:''}</span><span class="charEquipChip" data-char-equip="gear">🛡 ${safeText(gName)}${gUp?` +${gUp}`:''}</span><span class="charEquipChip">👑 Боссов повержено: ${(p.bosses_defeated||[]).length}/6</span></div>`;
+  }
+ }
+ const vit=$('charVitalsGrid');
+ if(vit){
+  const critPct=p.crit_chance??Math.round(Math.min(55,((p.stats?.precision||1)-1)*2.5));
+  const def=p.defense??(gearDefense[p.gear]||0);
+  const wPower=Math.round((p.weapon_catalog?.[p.weapon]?.damage||12)+((p.stats?.might||1)-1)*2.2);
+  const magBonus=(Number(p.magic_damage_level||0)*8)+Math.round(Number(p.weapon_catalog?.[p.weapon]?.spell_power||0)*100);
+  const vitSig=JSON.stringify([p.hp,p.max_hp,Math.floor(p.mana||0),p.max_mana,Math.floor(p.stamina||0),p.max_stamina,def,critPct,wPower,magBonus]);
+  if(vit.dataset.sig!==vitSig){
+   vit.dataset.sig=vitSig;
+   vit.innerHTML=`<div class="vitalBox"><span>Здоровье</span><b>${Math.ceil(p.hp)} / ${p.max_hp}</b></div><div class="vitalBox"><span>Мана</span><b>${Math.floor(p.mana||0)} / ${p.max_mana||0}</b></div><div class="vitalBox"><span>Выносливость</span><b>${Math.floor(p.stamina||0)} / ${p.max_stamina}</b></div><div class="vitalBox"><span>Защита</span><b>${def} ед.</b></div><div class="vitalBox"><span>Шанс крита</span><b>${critPct}%</b></div><div class="vitalBox"><span>Боевая мощь</span><b>⚔ ${wPower} · ✦ +${magBonus}%</b></div>`;
+  }
+ }
+ const bonusHost=$('charBonusSummary');
+ if(bonusHost){
+  const eqB=p.equipment_bonuses||{};
+  const bonusRows=equipmentBonusRows(eqB);
+  const eqAcc=p.equipped_accessories||{};
+  const accChips=[['ring','Кольцо'],['amulet','Ожерелье'],['artifact_1','Артефакт I'],['artifact_2','Артефакт II']]
+   .map(([slot,label])=>{const id=eqAcc[slot];const name=id?(p.accessory_catalog?.[id]?.name||id):'—';return `<span class="charEquipChip${id?'':' isEmpty'}">${label}: ${safeText(name)}</span>`}).join('');
+  const bSig=JSON.stringify([eqB,eqAcc]);
+  if(bonusHost.dataset.sig!==bSig){
+   bonusHost.dataset.sig=bSig;
+   bonusHost.innerHTML=`<div class="charEquipBar">${accChips}</div>`+(bonusRows.length
+    ?`<div class="charBonusGrid">${bonusRows.map(([label,value])=>`<span class="charBonusCell"><span>${label}</span><b>${value}</b></span>`).join('')}</div>`
+    :'<p class="charPaneNote">Надень реликвии — и их бонусы появятся здесь.</p>');
+  }
+ }
  const host=$('charStatsList');
- if(host){const view=p.upgrades_view||{};
-  // Rows and their "+" buttons are built once and only patched in place when
-  // the server keeps refreshing the snapshot. Rebuilding the DOM on every tick
-  // destroyed the button mid-click, so upgrading a skill required hitting the
-  // narrow gap between two state updates.
+ if(host){
+  const view=p.upgrades_view||{};
   if(!host.dataset.built){
-   host.replaceChildren(...Object.keys(CHAR_STAT_META).map(key=>{const [icon,name]=CHAR_STAT_META[key],row=document.createElement('div');
+   host.replaceChildren(...Object.keys(CHAR_STAT_META).map(key=>{
+    const [icon,name]=CHAR_STAT_META[key],row=document.createElement('div');
     row.className='statRow';row.dataset.statRow=key;
-    row.innerHTML=`<span class="sIcon">${icon}</span><span class="sName"><b>${name}</b><small></small></span><b class="sVal"></b>`;
-    const btn=document.createElement('button');btn.type='button';btn.className='upgrade';btn.dataset.stat=key;btn.textContent='+';
-    row.appendChild(btn);return row}));
-   host.dataset.built='1'}
-  for(const key of Object.keys(CHAR_STAT_META)){const row=host.querySelector(`[data-stat-row="${key}"]`);if(!row)continue;
+    row.innerHTML=`<span class="sIcon">${icon}</span><span class="sName"><b>${name}</b><small></small><span class="sProgress"><i class="sProgressFill"></i></span></span><b class="sVal"></b><div class="sBtnGroup"></div>`;
+    const grp=row.querySelector('.sBtnGroup');
+    const b1=document.createElement('button');b1.type='button';b1.className='upgrade';b1.dataset.stat=key;b1.dataset.count='1';b1.textContent='+1';
+    const b5=document.createElement('button');b5.type='button';b5.className='upgrade upgradeMulti';b5.dataset.stat=key;b5.dataset.count='5';b5.textContent='+5';
+    grp.append(b1,b5);return row;
+   }));
+   host.dataset.built='1';
+  }
+  for(const key of Object.keys(CHAR_STAT_META)){
+   const row=host.querySelector(`[data-stat-row="${key}"]`);if(!row)continue;
    const effect=view[key]?.effect||CHAR_STAT_META[key][2];
-   row.title=effect;
-   row.querySelector('.sName small').textContent=effect;
+   const cap=Number(view[key]?.max||UPGRADE_CAPS[key]||100);
    const lvl=upgradeLevel(p,key);
-   row.querySelector('.sVal').textContent=`${lvl}${LEVEL_STATS.includes(key)?' ур.':''}`;
-   refreshUpgradeButton(row.querySelector('.upgrade'),p)}}
- const sw=$('slotWeapon'),sa=$('slotArmor');
- if(sw){const w=p.weapon_catalog?.[p.weapon]||{};sw.className=`gearSlot rarity-${w.rarity||'common'}`;sw.tabIndex=0;
-  $('slotWeaponIcon').textContent=weaponIconGlyph(w.kind||'melee');$('slotWeaponName').textContent=w.name||weaponNames[p.weapon]||p.weapon;$('slotWeaponTip').innerHTML=buildWeaponTip(p)}
- if(sa){const g=p.gear_catalog?.[p.gear]||{};sa.className=`gearSlot rarity-${g.rarity||'common'}`;sa.tabIndex=0;
-  $('slotArmorName').textContent=g.name||gearNames[p.gear]||'Нет';$('slotArmorTip').innerHTML=buildGearTip(p)}}
+   row.title=`${CHAR_STAT_META[key][1]}: ${lvl} / ${cap} · ${effect}`;
+   row.querySelector('.sName small').textContent=effect;
+   row.querySelector('.sVal').textContent=`${lvl} / ${cap}`;
+   const fill=row.querySelector('.sProgressFill');
+   if(fill)fill.style.width=`${Math.max(0,Math.min(100,Math.round(lvl/Math.max(1,cap)*100)))}%`;
+   row.querySelectorAll('.upgrade').forEach(btn=>refreshUpgradeButton(btn,p));
+  }
+ }
+ // Tab 2: Skills & Spells Upgrade
+ const skillsHost=$('charSkillsList');
+ if(skillsHost&&activeCharTab==='skills'){
+  const tree=p.class||p.action_tree||'warrior';
+  const abList=classAbilityList(p,tree);
+  const spellsView=p.spells||{};
+  const crystals=Number(p.inventory?.crystal||0),gold=Number(p.gold||0);
+  const sig=JSON.stringify([tree,p.class,tpts,gold,crystals,abList.map(a=>[a.id,a.unlocked,a.level,a.cooldown,a.cost]),p.class==='mage'?Object.values(spellsView).map(s=>[s.id,s.unlocked,s.level,s.cooldown,s.cost]):[]]);
+  if(charSkillsSig!==sig){
+   charSkillsSig=sig;
+   let html='';
+   if(!p.class){
+    html+=`<div class="charEmptyNotice">Выбери класс героя на 5-м уровне (сейчас ур. ${p.level}), чтобы открыть прокачку классовых навыков до X ранга!${p.level>=5?' <button type="button" class="charPickClassBtn" data-open-class-picker="1">Выбрать класс</button>':''}</div>`;
+   }
+   html+=`<h3 class="charSubhead">Боевые навыки «${ABILITY_TREE_NAMES[tree]||tree}» · Макс. ранг X</h3><div class="skillUpgradeGrid">`;
+   for(const a of abList){
+    const rk=Number(a.level||1),maxRk=Number(a.max_level||10),atMax=rk>=maxRk;
+    const [gCost,cCost]=skillGoldCostClient(rk);
+    const canGold=gold>=gCost&&crystals>=cCost;
+    const canUpgrade=!!p.class&&p.class===a.tree&&a.unlocked&&!atMax&&(tpts>0||canGold);
+    const btnLabel=!p.class?'Нужен класс':!a.unlocked?`Мастерство ${a.mastery_required} ур.`:atMax?'МАКС. РАНГ X':tpts>0?'Улучшить · 1✦':`Улучшить · ${gCost}🪙 ${cCost}💎`;
+    const evoInfo=rk>=10?'✦ Пробуждено (X ранг)':rk>=5?'✦ Эволюция V ранга активна · Пробуждение на X':'V ранг: область/пробивание + экономия · X ранг: пробуждение';
+    html+=`<article class="skillUpCard${a.unlocked?'':' isLocked'}${rk>=10?' isAwakened':rk>=5?' isEvolved':''}">
+     <div class="suTop"><span class="suIcon">${safeText(a.icon||'✦')}</span><div class="suTitle"><strong>${safeText(a.name)}</strong><small>[${safeText(keyLabel(abilityBindingCode(a)))}] · КД ${Number(a.cooldown||0).toFixed(1)}с · Расход ${a.cost} ${a.resource==='mana'?'маны':'вын.'}</small></div><span class="suRankBadge">Ранг ${rk}/${maxRk}</span></div>
+     <p class="suDesc">${safeText(a.desc||'')}</p>
+     <div class="suMilestone">Бонус силы: <b>+${a.power_bonus_pct||0}%</b> · ${safeText(evoInfo)}</div>
+     <div class="suActions"><button type="button" class="skillUpgradeBtn" data-skill-upgrade="ability" data-skill-id="${safeText(a.id)}" ${canUpgrade?'':'disabled'}>${safeText(btnLabel)}</button>${a.unlocked&&!atMax&&tpts>0?`<button type="button" class="skillUpgradeBtn altGold" data-skill-upgrade="ability" data-skill-id="${safeText(a.id)}" data-use-gold="1" ${canGold?'':'disabled'} title="Улучшить за золото и кристаллы, сохранив очки навыков">${gCost}🪙+${cCost}💎</button>`:''}</div>
+    </article>`;
+   }
+   html+=`</div>`;
+   if(p.class==='mage'){
+    html+=`<h3 class="charSubhead" style="margin-top:14px">Гримуар заклинаний Мага · Макс. уровень XII</h3><div class="skillUpgradeGrid">`;
+    for(const sv of Object.values(spellsView)){
+     const lv=Number(sv.level||1),maxLvSp=Number(sv.max_level||12),atMax=lv>=maxLvSp;
+     const [gCost,cCost]=skillGoldCostClient(lv);
+     const canGold=gold>=gCost&&crystals>=cCost;
+     const canUp=sv.unlocked&&!atMax&&(tpts>0||canGold);
+     const hk=spellHotkeyForId(sv.id);
+     const btnLabel=!sv.unlocked?`Ур. ${sv.unlock_level||1} и ${sv.unlock_spent||0} маны`:atMax?'МАКС. УР. XII':tpts>0?'Усилить · 1✦':`Усилить · ${gCost}🪙 ${cCost}💎`;
+     html+=`<article class="skillUpCard spellUpCard${sv.unlocked?'':' isLocked'}${lv>=10?' isAwakened':lv>=6?' isEvolved':''}">
+      <div class="suTop"><span class="suIcon">${safeText(sv.icon||'✦')}</span><div class="suTitle"><strong>${safeText(sv.name)}</strong><small>${hk?`[${safeText(hk)}] · `:''}Мана ${sv.cost} · КД ${Number(sv.cooldown||0).toFixed(1)}с</small></div><span class="suRankBadge">Ур. ${lv}/${maxLvSp}</span></div>
+      <p class="suDesc">${safeText(sv.desc||'')}</p>
+      <div class="suMilestone">Усиление: <b>+${sv.power_bonus_pct||0}%</b> · Применений: ${sv.uses||0}</div>
+      <div class="suActions"><button type="button" class="skillUpgradeBtn" data-skill-upgrade="spell" data-skill-id="${safeText(sv.id)}" ${canUp?'':'disabled'}>${safeText(btnLabel)}</button>${sv.unlocked&&!atMax&&tpts>0?`<button type="button" class="skillUpgradeBtn altGold" data-skill-upgrade="spell" data-skill-id="${safeText(sv.id)}" data-use-gold="1" ${canGold?'':'disabled'}>${gCost}🪙+${cCost}💎</button>`:''}</div>
+     </article>`;
+    }
+    html+=`</div>`;
+   }
+   skillsHost.innerHTML=html;
+  }
+ }
+ // Tab 3: Mastery & Class Perks
+ const perksHost=$('charPerksList');
+ if(perksHost&&activeCharTab==='perks'){
+  const sig=JSON.stringify([p.class,p.level,p.mastery,p.class_perks]);
+  if(charPerksSig!==sig){
+   charPerksSig=sig;
+   let html='<div class="masteryTreesGrid">';
+   for(const tree of ['warrior','ranger','mage']){
+    const m=p.mastery?.[tree]||{level:1,xp:0,next:80,max:20};
+    const isOwn=p.class===tree;
+    const pct=m.level>=(m.max||20)?100:Math.max(0,Math.min(100,Math.round((m.xp||0)/Math.max(1,m.next||80)*100)));
+    html+=`<article class="masteryTreeCard${isOwn?' isOwn':''}">
+     <header><strong>${ABILITY_TREE_NAMES[tree]}</strong><span>Уровень ${m.level||1} / ${m.max||20}</span></header>
+     <div class="mtBar"><i style="width:${pct}%"></i></div>
+     <small>${m.level>=(m.max||20)?'Высшее мастерство достигнуто!':`Опыт мастерства: ${m.xp||0} / ${m.next||80} (каждые 3 ур. дают +1 очко навыков)`}</small>
+    </article>`;
+   }
+   html+='</div>';
+   if(!p.class){
+    html+=`<div class="charEmptyNotice" style="margin-top:12px">Пассивные таланты класса (5 / 10 / 15 / 20 ур. мастерства) активируются после выбора класса на 5-м уровне героя.${p.level>=5?' <button type="button" class="charPickClassBtn" data-open-class-picker="1">Выбрать класс сейчас</button>':''}</div>`;
+   }else{
+    const perks=p.class_perks||[];
+    html+=`<h3 class="charSubhead" style="margin-top:14px">Пассивные таланты класса «${safeText(p.class_name)}»</h3><div class="perksListGrid">`;
+    for(const pk of perks){
+     html+=`<article class="perkCard${pk.unlocked?' isUnlocked':' isLocked'}">
+      <div class="perkLvl">УР. ${pk.level}</div>
+      <div class="perkBody"><strong>${safeText(pk.name)}</strong><p>${safeText(pk.desc)}</p></div>
+      <span class="perkState">${pk.unlocked?'АКТИВЕН':'ЗАКРЫТ'}</span>
+     </article>`;
+    }
+    html+=`</div>`;
+   }
+   perksHost.innerHTML=html;
+  }
+ }
+}
+window.renderCharOverlay=renderCharOverlay;
 let lastCharToggle=0;
 const toggleCharacterReal=(open,force)=>{const el=$('charOverlay');if(!el)return;if(!force&&performance.now()-lastCharToggle<260)return;lastCharToggle=performance.now();
  const next=open??(getComputedStyle(el).display==='none');
  if(next){
   for(const other of ['gameMenuOverlay','keybindOverlay','accountOverlay']){const o=$(other);if(o)o.style.display='none'}
-  el.style.display='flex';renderCharOverlay(me());$('closeCharacter').focus()}
+  el.style.display='flex';charSkillsSig='';charPerksSig='';renderCharOverlay(me());$('closeCharacter')?.focus()}
  else el.style.display='none'}
 toggleCharacter=toggleCharacterReal;
+window.toggleCharacter=toggleCharacterReal;
 window.updateCharacterPanel=updateCharacterPanel;
 if($('characterButton'))$('characterButton').onclick=()=>toggleCharacter();
 if($('closeCharacter'))$('closeCharacter').onclick=()=>{lastCharToggle=0;toggleCharacter(false,true)};
 for(const miniId of ['miniWeaponBtn','miniGearBtn']){const b=$(miniId);if(b)b.onclick=()=>toggleCharacter()}
-// One delegated path for every "+" button (the character overlay rebuilds its
-// rows, so per-button listeners would leak and double-handle clicks). The
-// server validates the point pool; we never block the request locally.
-document.addEventListener('click',e=>{const b=e.target.closest('.upgrade');if(!b)return;e.preventDefault();requestStatUpgrade(b)});
+document.addEventListener('click',e=>{
+ const b=e.target.closest('.upgrade');
+ if(b){e.preventDefault();requestStatUpgrade(b);return}
+ const su=e.target.closest('[data-skill-upgrade]');
+ if(su&&!su.disabled){
+  e.preventDefault();
+  su.dataset.pending='1';
+  su.disabled=true;
+  send({type:'upgrade_skill',kind:su.dataset.skillUpgrade,id:su.dataset.skillId,use_gold:su.dataset.useGold==='1'});
+  setTimeout(()=>{delete su.dataset.pending;charSkillsSig='';if(window.renderCharOverlay)renderCharOverlay(me())},1800);
+  return;
+ }
+ const cpBtn=e.target.closest('[data-open-class-picker]');
+ if(cpBtn){e.preventDefault();toggleCharacter(false,true);openClassPicker();return}
+});
 let miniTipEl=null;
 function hideMiniTip(){if(miniTipEl){miniTipEl.remove();miniTipEl=null}}
 function showMiniTip(btn,html){hideMiniTip();const tip=document.createElement('span');tip.className='gearTip is-floating';tip.innerHTML=html;document.body.appendChild(tip);miniTipEl=tip;

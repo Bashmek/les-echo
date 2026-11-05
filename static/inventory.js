@@ -14,14 +14,27 @@
     mana_potion: { name: 'Эссенция синего пламени', desc: '+60 маны', color: '#3f7fd8', color2: '#7fc4ff', kind: 'mana_potion' },
     stamina_potion: { name: 'Отвар живучести', desc: '+55 выносливости', color: '#63a640', color2: '#b6e884', kind: 'stamina_potion' },
     elixir: { name: 'Эликсир первозданной росы', desc: '+90 здоровья, +60 маны, +40 выносливости', color: '#c9a23a', color2: '#ffe79a', kind: 'elixir' },
+    rage_potion: { name: 'Эликсир ярости берсерка', desc: '+18% урона и +8% крита на 45с', color: '#d93848', color2: '#ff7d6b', kind: 'rage_potion' },
+    ironskin_potion: { name: 'Отвар каменной кожи', desc: '+10 защиты и -12% входящего урона на 60с', color: '#7c8a96', color2: '#c5d6e2', kind: 'ironskin_potion' },
+    haste_potion: { name: 'Настой стремительного ветра', desc: '+16% скорости бега и +12% скорости атаки на 50с', color: '#3fbf9f', color2: '#94ffe0', kind: 'haste_potion' },
+    arcane_tonic: { name: 'Звёздный тоник чародея', desc: '+22% силы чар и +5 маны/с на 45с', color: '#8f52e0', color2: '#dfb2ff', kind: 'arcane_tonic' },
     bandage: { name: 'Лубяная повязка', desc: '+24 здоровья', color: '#c8b894', color2: '#f0e6c8', kind: 'bandage' },
     throwing_knife: { name: 'Метательные ножи', desc: 'Метательный боеприпас', color: '#a8b8bd', color2: '#e8f4f8', kind: 'knife' },
   };
-  const RES_ICON = { wood: 'wood', herb: 'herb', ore: 'ore', crystal: 'crystal', shard: 'shard', hide: 'hide', slime: 'slime', arrows: 'arrows', potion: 'potion', mana_potion: 'potion', stamina_potion: 'potion', elixir: 'potion', bandage: 'bandage', throwing_knife: 'knife' };
+  const RES_ICON = {
+    wood: 'wood', herb: 'herb', ore: 'ore', crystal: 'crystal', shard: 'shard', hide: 'hide', slime: 'slime',
+    essence: 'essence', rune_dust: 'rune_dust', mithril: 'mithril',
+    arrows: 'arrows', potion: 'potion', mana_potion: 'potion', stamina_potion: 'potion', elixir: 'potion',
+    rage_potion: 'potion', ironskin_potion: 'potion', haste_potion: 'potion', arcane_tonic: 'potion',
+    bandage: 'bandage', throwing_knife: 'knife',
+  };
   const RARITY_COL = { common: '#b9c0aa', uncommon: '#86cf91', rare: '#79bce2', epic: '#c49be8', legendary: '#f1b75e' };
+  const TIER_COL = { '-1': '#d96b6b', '1': '#9ad69c', '2': '#7cc6f2', '3': '#cf9eff', '4': '#ffcf66' };
 
   let hotbar = loadHotbar();
   let selected = '';
+  let activeFilter = 'all';
+  let searchQuery = '';
   let invOpen = false;
   let hotSig = '', invSig = '';
   let dragState = null;
@@ -46,8 +59,16 @@
     if (CONSUMABLE_META[id]) return CONSUMABLE_META[id].name;
     if (p.weapon_catalog?.[id]) return p.weapon_catalog[id].name;
     if (p.gear_catalog?.[id]) return p.gear_catalog[id].name;
+    if (p.accessory_catalog?.[id]) return p.accessory_catalog[id].name;
     if (resourceNames?.[id]) return resourceNames[id];
     return weaponNames?.[id] || gearNames?.[id] || id;
+  }
+
+  function reforgeInfo(p, target, id) {
+    const pid = p?.reforges?.[target]?.[id];
+    if (!pid) return null;
+    const spec = p?.reforge_prefixes?.[pid];
+    return spec ? { id: pid, ...spec } : null;
   }
 
   /** Resolve one inventory id into a uniform item descriptor. */
@@ -57,42 +78,96 @@
     const consumable = CONSUMABLE_META[id];
     if (consumable) {
       const count = Number(p.inventory?.[id] || 0);
-      return { id, kind: 'consumable', name: consumable.name, desc: consumable.desc, count, rarity: id === 'elixir' ? 'rare' : 'common', color: consumable.color, icon: RES_ICON[id] || 'potion' };
+      const rarePot = id === 'elixir' || id === 'arcane_tonic' || id === 'rage_potion';
+      return { id, kind: 'consumable', name: consumable.name, desc: consumable.desc, count, rarity: rarePot ? 'rare' : 'common', color: consumable.color, icon: RES_ICON[id] || 'potion' };
     }
     const weapon = p.weapon_catalog?.[id];
     if (weapon && (p.weapons || []).includes(id)) {
       const up = Number(p.upgrades?.weapon?.[id] || 0);
+      const ref = reforgeInfo(p, 'weapon', id);
+      const fullName = `${ref ? ref.name + ' ' : ''}${weapon.name}${up ? ` +${up}` : ''}`;
+      const elemLabel = weapon.element ? ` · стихия: ${weapon.element}` : '';
       return {
-        id, kind: 'weapon', name: weapon.name, rarity: weapon.rarity || 'common', count: 1,
-        weaponKind: weapon.kind, desc: `${weapon.kind === 'bow' ? 'Лук' : weapon.kind === 'staff' ? 'Посох' : 'Ближний бой'} · урон ${weapon.damage}${up ? ` (+${up})` : ''}${p.weapon === id ? ' · в руке' : ''}`,
+        id, kind: 'weapon', name: fullName, baseName: weapon.name, rarity: weapon.rarity || 'common', count: 1,
+        upgrade: up, reforge: ref, custom: !!weapon.custom, color: weapon.color,
+        weaponKind: weapon.kind,
+        desc: `${weapon.custom ? 'Авторское · ' : ''}${weapon.kind === 'bow' ? 'Лук' : weapon.kind === 'staff' ? 'Посох' : 'Ближний бой'} · урон ${weapon.damage}+${weapon.bonus || 0}${elemLabel}${p.weapon === id ? ' · в руке' : ''}`,
+        lore: weapon.lore || '',
         icon: weapon.kind === 'bow' ? 'bow' : weapon.kind === 'staff' ? 'staff' : 'sword', equipped: p.weapon === id,
       };
     }
     const gear = p.gear_catalog?.[id];
     if (gear && (p.gear === id || (p.gear_inventory || []).includes(id))) {
-      return { id, kind: 'gear', name: gear.name, rarity: gear.rarity || 'common', count: 1, desc: `Защита ${gear.defense}${p.gear === id ? ' · надето' : ''}`, icon: 'gear', equipped: p.gear === id };
+      const up = Number(p.upgrades?.gear?.[id] || 0);
+      const ref = reforgeInfo(p, 'gear', id);
+      const fullName = `${ref ? ref.name + ' ' : ''}${gear.name}${up ? ` +${up}` : ''}`;
+      const bonusHints = formatGearBonuses(gear.bonuses);
+      return {
+        id, kind: 'gear', name: fullName, baseName: gear.name, rarity: gear.rarity || 'common', count: 1,
+        upgrade: up, reforge: ref,
+        desc: `Защита ${gear.defense + up * 3}${bonusHints ? ' · ' + bonusHints : ''}${p.gear === id ? ' · надето' : ''}`,
+        lore: gear.lore || '',
+        icon: 'gear', equipped: p.gear === id,
+      };
     }
-    if (resourceNames?.[id]) {
-      return { id, kind: id === 'arrows' ? 'ammo' : 'material', name: resourceNames[id], rarity: RES_ICON[id] === 'crystal' ? 'rare' : 'common', count: Number(p.inventory?.[id] || 0), desc: materialDesc(id), icon: RES_ICON[id] || 'material' };
+    const acc = p.accessory_catalog?.[id];
+    const eqMap = p.equipped_accessories || {};
+    const eqSlot = Object.keys(eqMap).find(k => eqMap[k] === id) || '';
+    if (acc && (eqSlot || (p.accessories || []).includes(id))) {
+      const up = Number(p.upgrades?.accessory?.[id] || 0);
+      const ref = reforgeInfo(p, 'accessory', id);
+      const fullName = `${ref ? ref.name + ' ' : ''}${acc.name}${up ? ` +${up}` : ''}`;
+      const slotLabel = acc.slot === 'ring' ? 'Кольцо' : acc.slot === 'amulet' ? 'Ожерелье' : 'Артефакт';
+      return {
+        id, kind: 'accessory', slotType: acc.slot, equippedSlot: eqSlot,
+        name: fullName, baseName: acc.name, rarity: acc.rarity || 'rare', count: 1,
+        upgrade: up, reforge: ref, color: acc.color,
+        desc: `${slotLabel} · ${acc.description}${up ? ` (закалка +${up * 8}%)` : ''}${eqSlot ? ' · надето' : ''}`,
+        lore: acc.lore || '',
+        icon: acc.slot, equipped: !!eqSlot,
+      };
+    }
+    const matName = resourceNames?.[id] || ({ essence: 'Стихийная эссенция', rune_dust: 'Рунная пыль', mithril: 'Мифрил' })[id];
+    if (matName) {
+      const matRarity = id === 'mithril' ? 'epic' : (id === 'essence' || id === 'rune_dust' || id === 'shard' || id === 'crystal') ? 'rare' : 'common';
+      return { id, kind: id === 'arrows' ? 'ammo' : 'material', name: matName, rarity: matRarity, count: Number(p.inventory?.[id] || 0), desc: materialDesc(id), icon: RES_ICON[id] || 'material' };
     }
     return null;
+  }
+
+  function formatGearBonuses(b) {
+    if (!b) return '';
+    const parts = [];
+    if (b.hp_flat) parts.push(`+${b.hp_flat} HP`);
+    if (b.mana_flat) parts.push(`+${b.mana_flat} маны`);
+    if (b.stamina_flat) parts.push(`+${b.stamina_flat} вын.`);
+    if (b.damage_pct) parts.push(`+${Math.round(b.damage_pct * 100)}% урона`);
+    if (b.spell_power_pct) parts.push(`+${Math.round(b.spell_power_pct * 100)}% чар`);
+    if (b.crit_pct) parts.push(`+${Math.round(b.crit_pct * 100)}% крит`);
+    if (b.move_speed_pct) parts.push(`+${Math.round(b.move_speed_pct * 100)}% скор.`);
+    if (b.cdr_pct) parts.push(`-${Math.round(b.cdr_pct * 100)}% КД`);
+    if (b.thorns_pct) parts.push(`${Math.round(b.thorns_pct * 100)}% шипы`);
+    return parts.join(', ');
   }
 
   function materialDesc(id) {
     return ({
       wood: 'Строительный материал и древко для оружия.',
-      herb: 'Лунная трава для настоек и зачарований.',
-      ore: 'Болотная руда для ковки и стрел.',
-      crystal: 'Эхо-кристалл. Нужен мастеру чар.',
-      shard: 'Осколок разлома — редкий reagent.',
-      hide: 'Шкура для брони и отваров.',
-      slime: 'Слизь для настоек.',
-      arrows: 'Боеприпас для лука.',
+      herb: 'Лунная трава для настоек и эликсиров.',
+      ore: 'Болотная руда для ковки, закалки и стрел.',
+      crystal: 'Эхо-кристалл. Нужен мастеру чар и кузнецу.',
+      shard: 'Осколок разлома — редкий реагент межмирья.',
+      essence: 'Стихийная эссенция — сердцевина для артефактов и авторского оружия.',
+      rune_dust: 'Рунная пыль — катализатор перековки и закалки в кузнице.',
+      mithril: 'Благородный мифрил для высшей ковки и закалки +11..+15.',
+      hide: 'Шкура для брони, сапог и отваров.',
+      slime: 'Слизь для целебных настоек.',
+      arrows: 'Боеприпас для луков и арбалетов.',
       potion: 'Восстанавливает здоровье.',
     })[id] || 'Материал для ремесла.';
   }
 
-  /** Every owned item, in a stable order: weapons → armour → potions → materials. */
+  /** Every owned item, in a stable order: weapons → armour → accessories → potions → materials. */
   function inventoryItems(p) {
     if (!p) return [];
     const seen = new Set(), out = [];
@@ -100,8 +175,12 @@
     for (const id of p.weapons || []) push(id);
     push(p.gear);
     for (const id of p.gear_inventory || []) push(id);
+    const eqAcc = p.equipped_accessories || {};
+    for (const k of ['ring', 'amulet', 'artifact_1', 'artifact_2']) if (eqAcc[k]) push(eqAcc[k]);
+    for (const id of p.accessories || []) push(id);
     for (const id of Object.keys(CONSUMABLE_META)) if (Number(p.inventory?.[id] || 0) > 0) push(id);
-    for (const id of Object.keys(resourceNames || {})) if (Number(p.inventory?.[id] || 0) > 0) push(id);
+    const allResKeys = new Set([...Object.keys(resourceNames || {}), 'essence', 'rune_dust', 'mithril']);
+    for (const id of allResKeys) if (Number(p.inventory?.[id] || 0) > 0) push(id);
     return out;
   }
 
@@ -117,21 +196,26 @@
     const poly = (pts, fill, stroke) => { c.beginPath(); c.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) c.lineTo(pts[i][0], pts[i][1]); c.closePath(); c.fillStyle = fill; c.fill(); if (stroke) { c.strokeStyle = stroke; c.lineWidth = .8; c.stroke(); } };
     const name = (item.name || '').toLowerCase();
     if (item.kind === 'weapon') {
-      const blade = item.rarity === 'legendary' ? '#ffd27a' : item.rarity === 'epic' ? '#d9b0ff' : item.rarity === 'rare' ? '#bfe3f5' : '#e6f0ea';
+      const blade = item.color || (item.rarity === 'legendary' ? '#ffd27a' : item.rarity === 'epic' ? '#d9b0ff' : item.rarity === 'rare' ? '#bfe3f5' : '#e6f0ea');
+      if (item.custom) {
+        c.save(); c.shadowColor = blade; c.shadowBlur = 7;
+        c.fillStyle = blade + '33'; c.beginPath(); c.arc(17, 17, 11, 0, Math.PI * 2); c.fill();
+        c.restore();
+      }
       if (item.icon === 'bow') {
-        c.strokeStyle = '#a87c4a'; c.lineWidth = 2.6; c.beginPath(); c.arc(12, 18, 11, -1.15, 1.15); c.stroke();
+        c.strokeStyle = item.custom ? blade : '#a87c4a'; c.lineWidth = 2.6; c.beginPath(); c.arc(12, 18, 11, -1.15, 1.15); c.stroke();
         c.strokeStyle = '#efe8cf'; c.lineWidth = .9; c.beginPath(); c.moveTo(17, 7.5); c.lineTo(17, 28.5); c.stroke();
-        px(16, 4, 2, 7, '#cfd8d2'); px(16, 23, 2, 7, '#cfd8d2');
-        poly([[18, 17], [26, 15], [26, 19]], '#c8d8d0');
+        px(16, 4, 2, 7, blade); px(16, 23, 2, 7, blade);
+        poly([[18, 17], [26, 15], [26, 19]], blade);
       } else if (item.icon === 'staff') {
         px(16, 10, 3, 21, '#7a5836'); px(15, 16, 1, 12, '#a8804a');
-        c.save(); c.shadowColor = '#a8e8ff'; c.shadowBlur = 6; c.fillStyle = '#bff2ff'; c.beginPath(); c.arc(17.5, 9, 4.2, 0, Math.PI * 2); c.fill(); c.restore();
+        c.save(); c.shadowColor = blade; c.shadowBlur = 7; c.fillStyle = blade; c.beginPath(); c.arc(17.5, 9, 4.4, 0, Math.PI * 2); c.fill(); c.restore();
         c.fillStyle = '#ffffffcc'; c.beginPath(); c.arc(16.4, 8, 1.6, 0, Math.PI * 2); c.fill();
-      } else if (/spear|halberd|glaive|scythe|war_maul|axe|warhammer|mace/.test(name) || /halberd|glaive|scythe|war_maul|axe|warhammer|mace|spear/.test(item.id)) {
+      } else if (/spear|halberd|glaive|scythe|war_maul|axe|warhammer|mace|reaper|claymore/.test(name) || /halberd|glaive|scythe|war_maul|axe|warhammer|mace|spear|reaper|claymore/.test(item.id)) {
         c.strokeStyle = '#7a5836'; c.lineWidth = 2.6; c.beginPath(); c.moveTo(9, 29); c.lineTo(23, 7); c.stroke();
         poly([[23, 7], [29, 4], [26, 12], [21, 13]], blade, '#6e7a72');
         px(8, 26, 5, 5, '#c9a25a');
-      } else if (/dagger|claw/.test(item.id)) {
+      } else if (/dagger|claw|twin|fist/.test(item.id)) {
         poly([[9, 27], [14, 22], [20, 10], [23, 12], [16, 23]], blade, '#6e7a72');
         poly([[19, 27], [24, 22], [28, 13], [30, 15], [26, 24]], blade, '#6e7a72');
         px(7, 25, 5, 3, '#b89a5c'); px(17, 25, 5, 3, '#b89a5c');
@@ -139,6 +223,48 @@
         poly([[8, 29], [10, 24], [22, 8], [26, 4], [27, 8], [13, 26]], blade, '#6e7a72');
         px(7, 26, 7, 2.6, '#c9a25a'); px(5.4, 28.6, 3, 4, '#8a6a40');
         c.strokeStyle = '#ffffffaa'; c.lineWidth = .9; c.beginPath(); c.moveTo(22.5, 7.5); c.lineTo(12.5, 22); c.stroke();
+      }
+    } else if (item.kind === 'accessory') {
+      const gem = item.color || (item.rarity === 'legendary' ? '#ffd27a' : item.rarity === 'epic' ? '#d09cff' : '#79d2f2');
+      if (item.slotType === 'ring') {
+        c.save();
+        c.strokeStyle = '#d9b464'; c.lineWidth = 3.2;
+        c.beginPath(); c.arc(17, 19, 7.5, 0, Math.PI * 2); c.stroke();
+        c.strokeStyle = '#fff0b8aa'; c.lineWidth = 1.0;
+        c.beginPath(); c.arc(17, 19, 7.5, -2.3, -0.8); c.stroke();
+        c.shadowColor = gem; c.shadowBlur = 7;
+        poly([[17, 6], [22, 11], [17, 15], [12, 11]], gem, '#ffffffcc');
+        c.restore();
+      } else if (item.slotType === 'amulet') {
+        c.save();
+        c.strokeStyle = '#c9b37e'; c.lineWidth = 1.6;
+        c.beginPath(); c.arc(17, 13, 8.5, -2.7, -0.44); c.stroke();
+        c.beginPath(); c.moveTo(9.5, 11); c.lineTo(17, 18); c.lineTo(24.5, 11); c.stroke();
+        c.shadowColor = gem; c.shadowBlur = 8;
+        poly([[17, 15], [23, 22], [17, 30], [11, 22]], gem, '#fff4cc');
+        px(16, 18, 2, 5, '#ffffffaa');
+        c.restore();
+      } else {
+        c.save();
+        c.shadowColor = gem; c.shadowBlur = 7;
+        if (/boots/.test(item.id)) {
+          poly([[10, 9], [18, 9], [18, 21], [26, 23], [26, 28], [9, 28]], gem, '#2a382c');
+          poly([[19, 12], [25, 9], [23, 15]], '#fff6d0');
+        } else if (/shield/.test(item.id)) {
+          poly([[9, 7], [25, 7], [24, 19], [17, 29], [10, 19]], gem, '#fff2b8');
+          px(16, 11, 2.4, 12, '#3a2c14'); px(12, 15, 10, 2.4, '#3a2c14');
+        } else if (/chalice/.test(item.id)) {
+          poly([[10, 8], [24, 8], [21, 18], [13, 18]], '#e6c167', '#5c441c');
+          px(11.5, 9, 11, 4, gem); px(15.5, 18, 3, 7, '#d4af53'); px(11, 25, 12, 3, '#e6c167');
+        } else if (/hourglass/.test(item.id)) {
+          px(10, 6, 14, 2.5, '#d9b86c'); px(10, 26, 14, 2.5, '#d9b86c');
+          poly([[11, 8.5], [23, 8.5], [17, 17]], gem, '#ffffffaa');
+          poly([[17, 17], [23, 26], [11, 26]], gem, '#ffffffaa');
+        } else {
+          poly([[17, 5], [27, 14], [23, 27], [11, 27], [7, 14]], gem, '#fff4d2');
+          c.fillStyle = '#ffffffaa'; c.beginPath(); c.arc(17, 16, 3.5, 0, Math.PI * 2); c.fill();
+        }
+        c.restore();
       }
     } else if (item.kind === 'gear') {
       const col = item.rarity === 'legendary' ? '#c8a45a' : item.rarity === 'epic' ? '#9a7ab8' : item.rarity === 'rare' ? '#6f94a8' : '#6f8a58';
@@ -202,6 +328,21 @@
       c.fillStyle = '#8ade63'; c.beginPath(); c.ellipse(17, 20, 10, 8, 0, 0, Math.PI * 2); c.fill();
       c.strokeStyle = '#d8ff9a'; c.lineWidth = 1; c.stroke();
       px(13, 18, 3, 4, '#1b2a18'); px(19, 18, 3, 4, '#1b2a18');
+    } else if (item.icon === 'essence') {
+      c.save(); c.shadowColor = '#7cf7df'; c.shadowBlur = 9;
+      c.fillStyle = '#56e3c8'; c.beginPath(); c.arc(17, 17, 8, 0, Math.PI * 2); c.fill();
+      c.fillStyle = '#e6fff9'; c.beginPath(); c.arc(15, 14.5, 3.4, 0, Math.PI * 2); c.fill();
+      c.restore();
+    } else if (item.icon === 'rune_dust') {
+      poly([[10, 13], [24, 13], [26, 27], [8, 27]], '#6b4d8a', '#cfa8ff');
+      px(13, 9, 8, 4, '#d9b468');
+      px(13, 18, 2.5, 2.5, '#ffe89c'); px(18, 21, 2.5, 2.5, '#9df5ff'); px(16, 15, 2, 2, '#f0b8ff');
+    } else if (item.icon === 'mithril') {
+      c.save(); c.shadowColor = '#93dcff'; c.shadowBlur = 6;
+      poly([[7, 22], [12, 12], [27, 12], [23, 22]], '#7ec8eb', '#e4f8ff');
+      poly([[7, 22], [23, 22], [25, 26], [9, 26]], '#4f8eb0');
+      px(13, 14, 10, 2, '#ffffffbb');
+      c.restore();
     } else {
       px(10, 10, 14, 14, '#8a7a5a'); px(13, 13, 8, 8, '#b0a078');
     }
@@ -238,29 +379,68 @@
         <div class="mcBody">
           <aside class="mcSide">
             <div class="mcPaper">
-              <canvas id="mcAvatar" width="150" height="180" aria-label="Персонаж"></canvas>
-              <div class="mcEquip">
+              <canvas id="mcAvatar" width="142" height="166" aria-label="Персонаж"></canvas>
+              <div class="mcEquip mcEquipSix">
                 <button type="button" class="mcSlot mcEquipSlot" data-equip="weapon" aria-label="Оружие в руке"><span class="mcSlotKey">РУКА</span></button>
                 <button type="button" class="mcSlot mcEquipSlot" data-equip="gear" aria-label="Надетая броня"><span class="mcSlotKey">БРОНЯ</span></button>
+                <button type="button" class="mcSlot mcEquipSlot" data-equip="ring" aria-label="Кольцо"><span class="mcSlotKey">КОЛЬЦО</span></button>
+                <button type="button" class="mcSlot mcEquipSlot" data-equip="amulet" aria-label="Ожерелье"><span class="mcSlotKey">АМУЛЕТ</span></button>
+                <button type="button" class="mcSlot mcEquipSlot" data-equip="artifact_1" aria-label="Артефакт I"><span class="mcSlotKey">АРТ I</span></button>
+                <button type="button" class="mcSlot mcEquipSlot" data-equip="artifact_2" aria-label="Артефакт II"><span class="mcSlotKey">АРТ II</span></button>
               </div>
             </div>
             <div class="mcStats" id="mcStats"></div>
           </aside>
           <section class="mcMain">
-            <div class="mcGrid" id="mcGrid" aria-label="Предметы"></div>
+            <div class="mcFilterToolbar">
+              <div class="mcFilterTabs" id="mcFilterBar" role="tablist" aria-label="Фильтр предметов">
+                <button type="button" class="mcFilterBtn active" data-mc-filter="all">Все</button>
+                <button type="button" class="mcFilterBtn" data-mc-filter="weapon">Оружие</button>
+                <button type="button" class="mcFilterBtn" data-mc-filter="gear">Броня</button>
+                <button type="button" class="mcFilterBtn" data-mc-filter="accessory">Реликвии</button>
+                <button type="button" class="mcFilterBtn" data-mc-filter="consumable">Зелья</button>
+                <button type="button" class="mcFilterBtn" data-mc-filter="material">Ресурсы</button>
+              </div>
+              <input type="search" id="mcSearch" class="mcSearchInput" placeholder="Поиск в сумке..." autocomplete="off" />
+            </div>
+            <div class="mcGridWrap" id="mcGridWrap">
+              <div class="mcGrid" id="mcGrid" aria-label="Предметы"></div>
+            </div>
             <div class="mcHotbarEdit">
-              <span class="mcHotbarLabel">Быстрый доступ</span>
+              <span class="mcHotbarLabel">Быстрый доступ (1–9)</span>
               <div class="mcHotbarSlots" id="mcHotbarEdit"></div>
             </div>
-            <div class="mcActions" id="mcActions"><span class="mcHint">Выбери предмет. Двойной клик — взять в руку или использовать. Перетащи предмет в горячий слот.</span></div>
-            <p class="mcFootNote">Клавиши <b>1–9</b> используют предмет из горячего слота, <b>I</b> — сумка, <b>Esc</b> — закрыть.</p>
+            <div class="mcActions" id="mcActions"><span class="mcHint">Выбери предмет. Двойной клик — экипировать или использовать. Колёсико мыши прокручивает сумку.</span></div>
+            <div class="mcCraftBlock">
+              <h3 class="craftHeadTitle">Ремесло из собранных материалов</h3>
+              <nav class="invCraftTabs" id="craftTabs" aria-label="Категории ремесла">
+                <button type="button" class="active" data-craft-tab="supplies">Расходники</button>
+                <button type="button" data-craft-tab="weapon">Оружие</button>
+                <button type="button" data-craft-tab="gear">Броня</button>
+                <button type="button" data-craft-tab="accessory">Реликвии</button>
+              </nav>
+              <div class="craft invCraftGrid" id="craftGrid"></div>
+            </div>
+            <p class="mcFootNote">Клавиши <b>1–9</b> — горячий слот, <b>I</b> — сумка, перековка, закалка и авторское оружие — у <b>Кузнеца</b>.</p>
           </section>
         </div>
       </section>`;
     el.addEventListener('click', e => {
       if (e.target === el) closeMC();
+      const fbtn = e.target?.closest?.('[data-mc-filter]');
+      if (fbtn) {
+        activeFilter = fbtn.dataset.mcFilter || 'all';
+        (el.querySelectorAll?.('[data-mc-filter]') || []).forEach(b => b.classList?.toggle('active', b === fbtn));
+        invSig = '';
+        renderMC(meSafe());
+      }
     });
-    el.querySelector('#mcClose').addEventListener('click', closeMC);
+    el.querySelector('#mcClose')?.addEventListener('click', closeMC);
+    el.querySelector('#mcSearch')?.addEventListener('input', e => {
+      searchQuery = String(e.target?.value || '').trim().toLowerCase();
+      invSig = '';
+      renderMC(meSafe());
+    });
     el.addEventListener('pointermove', onDragMove);
     el.addEventListener('pointerup', onDragEnd);
     el.addEventListener('pointercancel', () => endDrag(false));
@@ -295,6 +475,8 @@
       b.appendChild(cv);
       if (item.count > 1) {
         const n = document.createElement('span'); n.className = 'mcCount'; n.textContent = item.count > 999 ? '999+' : String(item.count); b.appendChild(n);
+      } else if (item.upgrade > 0) {
+        const u = document.createElement('span'); u.className = 'mcUpgradeBadge'; u.textContent = `+${item.upgrade}`; b.appendChild(u);
       }
       if (item.equipped) { const t = document.createElement('span'); t.className = 'mcTag'; t.textContent = '✓'; b.appendChild(t); }
       b.setAttribute('aria-label', `${item.name}${item.count > 1 ? ' × ' + item.count : ''}`);
@@ -326,44 +508,87 @@
     const el = document.getElementById('invOverlay');
     if (!el || el.dataset.mc !== '1') return;
     const items = inventoryItems(p);
-    const sig = JSON.stringify([items.map(i => [i.id, i.count, i.equipped]), p.gold, p.hp, p.max_hp, p.mana, p.max_mana, p.stamina, p.max_stamina, hotbar, selected]);
+    const eqAcc = p.equipped_accessories || {};
+    const sig = JSON.stringify([
+      items.map(i => [i.id, i.count, i.equipped, i.upgrade, i.reforge?.id]),
+      eqAcc, activeFilter, searchQuery,
+      p.gold, p.hp, p.max_hp, p.mana, p.max_mana, p.stamina, p.max_stamina, p.defense, p.crit_chance_pct,
+      hotbar, selected,
+    ]);
     if (sig === invSig) return;
     invSig = sig;
-    document.getElementById('mcMeta').textContent = `${items.length} типов предметов · ${p.level} уровень · ${p.class_name || 'Путник'}`;
+
+    const filtered = items.filter(it => {
+      if (activeFilter !== 'all') {
+        if (activeFilter === 'material' && it.kind !== 'material' && it.kind !== 'ammo') return false;
+        if (activeFilter !== 'material' && it.kind !== activeFilter) return false;
+      }
+      if (searchQuery) {
+        const hay = `${it.name || ''} ${it.desc || ''} ${it.lore || ''}`.toLowerCase();
+        if (!hay.includes(searchQuery)) return false;
+      }
+      return true;
+    });
+
+    document.getElementById('mcMeta').textContent = `${items.length} предметов в коллекции · уровень ${p.level} · ${p.class_name || 'Путник'}`;
+    const goldNode = document.getElementById('mcGold');
+    if (goldNode) goldNode.textContent = `${p.gold || 0} ◉`;
     document.getElementById('mcGold').textContent = `${p.gold || 0} ◉`;
-    // equipment slots
-    for (const [kind, id] of [['weapon', p.weapon], ['gear', p.gear]]) {
+
+    // 6 слотов экипировки (Оружие, Броня, Кольцо, Ожерелье, Артефакт I, Артефакт II)
+    const equipLayout = [
+      ['weapon', p.weapon, 'РУКА'],
+      ['gear', p.gear, 'БРОНЯ'],
+      ['ring', eqAcc.ring || '', 'КОЛЬЦО'],
+      ['amulet', eqAcc.amulet || '', 'АМУЛЕТ'],
+      ['artifact_1', eqAcc.artifact_1 || '', 'АРТ I'],
+      ['artifact_2', eqAcc.artifact_2 || '', 'АРТ II'],
+    ];
+    for (const [kind, id, emptyLabel] of equipLayout) {
       const slot = el.querySelector(`.mcEquipSlot[data-equip="${kind}"]`);
       if (!slot) continue;
       slot.replaceChildren();
-      const item = resolveItem(p, id);
+      const item = id ? resolveItem(p, id) : null;
       slot.className = `mcSlot mcEquipSlot rarity-${item?.rarity || 'common'}`;
       slot.dataset.equip = kind;
       if (item) {
-        slot.appendChild(iconCanvas(item, 34));
+        slot.appendChild(iconCanvas(item, 32));
         slot.setAttribute('title', item.name);
-        if (kind === 'weapon') {
-          const k = document.createElement('span'); k.className = 'mcEquipLabel'; k.textContent = item.name; slot.appendChild(k);
+        if (item.upgrade > 0) {
+          const u = document.createElement('span'); u.className = 'mcUpgradeBadge'; u.textContent = `+${item.upgrade}`; slot.appendChild(u);
         }
+        const k = document.createElement('span'); k.className = 'mcEquipMiniTag'; k.textContent = emptyLabel; slot.appendChild(k);
       } else {
-        const k = document.createElement('span'); k.className = 'mcSlotKey'; k.textContent = kind === 'weapon' ? 'РУКА' : 'БРОНЯ'; slot.appendChild(k);
+        const k = document.createElement('span'); k.className = 'mcSlotKey'; k.textContent = emptyLabel; slot.appendChild(k);
       }
-      const equippedItem = resolveItem(p, id);
-      slot.onclick = () => primaryAction(equippedItem);
-      if (equippedItem) {
-        slot.addEventListener('pointerenter', () => showTooltip(slot, equippedItem));
+      slot.onclick = () => {
+        if (!item) return;
+        selected = item.id;
+        invSig = '';
+        renderMC(meSafe());
+      };
+      slot.ondblclick = e => {
+        e.preventDefault();
+        if (item && ['ring', 'amulet', 'artifact_1', 'artifact_2'].includes(kind)) {
+          send({ type: 'unequip_accessory', slot: kind });
+        }
+      };
+      if (item) {
+        slot.addEventListener('pointerenter', () => showTooltip(slot, item));
         slot.addEventListener('pointerleave', hideTooltip);
-        slot.addEventListener('pointerdown', ev => onDragStart(ev, equippedItem, slot, { equip: kind }));
+        slot.addEventListener('pointerdown', ev => onDragStart(ev, item, slot, { equip: kind }));
       }
     }
-    // grid
+
+    // Прокручиваемая сетка предметов (минимум 36 слотов, автоматически растёт при >31 предмета!)
     const grid = document.getElementById('mcGrid');
     grid.replaceChildren();
-    const total = 36;
+    const total = filtered.length <= 31 ? 36 : Math.ceil((filtered.length + 9) / 9) * 9;
     for (let i = 0; i < total; i++) {
-      const item = items[i] || null;
+      const item = filtered[i] || null;
       grid.appendChild(slotEl(item, {}));
     }
+
     // hotbar edit row
     const hot = document.getElementById('mcHotbarEdit');
     hot.replaceChildren();
@@ -371,19 +596,39 @@
       const item = resolveItem(p, hotbar[i]) || null;
       hot.appendChild(slotEl(item, { hotIndex: i, keyLabel: String(i + 1) }));
     }
-    // stats
-    const defense = (p.gear_catalog?.[p.gear]?.defense || gearDefense?.[p.gear] || 0) + Number(p.upgrades?.gear?.[p.gear] || 0) * 3;
+
+    // Сводка характеристик с учётом колец, амулетов, артефактов и перековки
+    const defense = p.defense ?? ((p.gear_catalog?.[p.gear]?.defense || gearDefense?.[p.gear] || 0) + Number(p.upgrades?.gear?.[p.gear] || 0) * 3);
     const w = p.weapon_catalog?.[p.weapon] || {};
+    const eqB = p.equipment_bonuses || {};
+    const bonusPills = [];
+    if (eqB.damage_pct) bonusPills.push(`${eqB.damage_pct > 0 ? '+' : ''}${Math.round(eqB.damage_pct * 100)}% урон`);
+    if (eqB.spell_power_pct) bonusPills.push(`+${Math.round(eqB.spell_power_pct * 100)}% чары`);
+    if (eqB.attack_speed_pct) bonusPills.push(`${eqB.attack_speed_pct > 0 ? '+' : ''}${Math.round(eqB.attack_speed_pct * 100)}% ск.атаки`);
+    if (eqB.move_speed_pct) bonusPills.push(`+${Math.round(eqB.move_speed_pct * 100)}% бег`);
+    if (eqB.vampirism_pct) bonusPills.push(`+${Math.round(eqB.vampirism_pct * 100)}% вамп.`);
+    if (eqB.cdr_pct) bonusPills.push(`-${Math.round(eqB.cdr_pct * 100)}% КД`);
     document.getElementById('mcStats').innerHTML = `
       <div class="mcStat"><span>Здоровье</span><b>${Math.ceil(p.hp)} / ${p.max_hp}</b></div>
       <div class="mcStat"><span>Мана</span><b>${Math.floor(p.mana || 0)} / ${p.max_mana || 0}</b></div>
       <div class="mcStat"><span>Выносливость</span><b>${Math.floor(p.stamina)} / ${p.max_stamina}</b></div>
-      <div class="mcStat"><span>Защита</span><b>${defense}</b></div>
-      <div class="mcStat"><span>Оружие</span><b>${w.name || '—'}</b></div>
-      <div class="mcStat"><span>Опыт</span><b>${p.xp || 0} / ${p.level * 120}</b></div>`;
+      <div class="mcStat"><span>Защита / Крит</span><b>${defense} 🛡 · ${p.crit_chance_pct ?? p.crit_chance ?? 0}%</b></div>
+      <div class="mcStat"><span>Оружие</span><b>${escapeHtml(w.name || '—')}</b></div>
+      ${bonusPills.length ? `<div class="mcStat mcBonusRow"><span>Реликвии</span><b>${escapeHtml(bonusPills.slice(0, 4).join(' · '))}</b></div>` : `<div class="mcStat"><span>Опыт</span><b>${p.xp || 0} / ${p.xp_next || p.level * 120}</b></div>`}`;
     renderActions(p);
     drawAvatar(p);
     renderHotbar(p);
+    // Crafting tabs live inside this window and are re-bound after every rebuild
+    // of the markup, because the overlay body is regenerated on open.
+    const craftHost = document.getElementById('craftGrid');
+    if (craftHost && typeof window.renderCraftPanel === 'function') {
+      try { window.renderCraftPanel(p); } catch (err) { console.warn('renderCraftPanel', err); }
+      (el.querySelectorAll?.('#craftTabs [data-craft-tab]') || []).forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (typeof window.setCraftTab === 'function') window.setCraftTab(btn.dataset.craftTab);
+        });
+      });
+    }
   }
 
   function renderActions(p) {
@@ -391,19 +636,33 @@
     if (!box) return;
     const item = selected ? resolveItem(p, selected) : null;
     if (!item) {
-      box.innerHTML = '<span class="mcHint">Выбери предмет. Двойной клик — взять в руку или использовать. Перетащи предмет в горячий слот.</span>';
+      box.innerHTML = '<span class="mcHint">Выбери предмет. Двойной клик — экипировать или использовать. Перетащи реликвии в слоты Кольца, Амулета или Артефактов.</span>';
       return;
     }
     const actions = [];
     if (item.kind === 'weapon') actions.push(`<button type="button" data-mc-action="primary">${item.equipped ? 'Уже в руке' : 'Взять в руку'}</button>`);
     if (item.kind === 'gear') actions.push(`<button type="button" data-mc-action="primary">${item.equipped ? 'Уже надето' : 'Надеть'}</button>`);
+    if (item.kind === 'accessory') {
+      if (item.equipped) actions.push('<button type="button" data-mc-action="unequip">Снять</button>');
+      else if (item.slotType === 'artifact') {
+        actions.push('<button type="button" data-mc-action="art1">В Артефакт I</button>');
+        actions.push('<button type="button" data-mc-action="art2">В Артефакт II</button>');
+      } else {
+        actions.push('<button type="button" data-mc-action="primary">Надеть</button>');
+      }
+    }
     if (item.kind === 'consumable') actions.push(`<button type="button" data-mc-action="primary">Использовать</button>`);
-    if (item.kind !== 'material' && item.kind !== 'ammo') actions.push('<button type="button" data-mc-action="hot">В горячий слот</button>');
-    box.innerHTML = `<div class="mcSel"><span class="mcSelIcon"></span><div><b class="rarity-${item.rarity}">${escapeHtml(item.name)}</b><small>${escapeHtml(item.desc || '')}${item.count > 1 ? ` · ${item.count} шт.` : ''}</small></div></div><div class="mcActBtns">${actions.join('')}</div>`;
-    const iconHost = box.querySelector('.mcSelIcon');
+    if (item.kind !== 'material' && item.kind !== 'ammo' && item.kind !== 'accessory') actions.push('<button type="button" data-mc-action="hot">В горячий слот</button>');
+    const refBadge = item.reforge ? `<span class="mcReforgePill" style="color:${TIER_COL[String(item.reforge.tier)] || '#d8e4dc'}">✦ ${escapeHtml(item.reforge.name)}: ${escapeHtml(item.reforge.summary)}</span>` : '';
+    box.innerHTML = `<div class="mcSel"><span class="mcSelIcon"></span><div><b class="rarity-${item.rarity}">${escapeHtml(item.name)}</b><small>${escapeHtml(item.desc || '')}${item.count > 1 ? ` · ${item.count} шт.` : ''}</small>${refBadge}</div></div><div class="mcActBtns">${actions.join('')}</div>`;
+    const iconHost = box.querySelector?.('.mcSelIcon');
     if (iconHost) iconHost.appendChild(iconCanvas(item, 30));
-    box.querySelectorAll('[data-mc-action]').forEach(b => b.addEventListener('click', () => {
-      if (b.dataset.mcAction === 'primary') primaryAction(item);
+    (box.querySelectorAll?.('[data-mc-action]') || []).forEach(b => b.addEventListener('click', () => {
+      const act = b.dataset.mcAction;
+      if (act === 'primary') primaryAction(item);
+      else if (act === 'unequip' && item.equippedSlot) send({ type: 'unequip_accessory', slot: item.equippedSlot });
+      else if (act === 'art1') send({ type: 'equip_accessory', id: item.id, slot: 'artifact_1' });
+      else if (act === 'art2') send({ type: 'equip_accessory', id: item.id, slot: 'artifact_2' });
       else quickAssign(item);
     }));
   }
@@ -501,6 +760,10 @@
     if (!item) return;
     if (item.kind === 'weapon' && !item.equipped) { if (window.heroGesture) window.heroGesture('swap'); send({ type: 'weapon', id: item.id }); toast(`В руке: ${item.name}`); }
     else if (item.kind === 'gear' && !item.equipped) { send({ type: 'equip_gear', id: item.id }); }
+    else if (item.kind === 'accessory') {
+      if (item.equipped && item.equippedSlot) send({ type: 'unequip_accessory', slot: item.equippedSlot });
+      else send({ type: 'equip_accessory', id: item.id });
+    }
     else if (item.kind === 'consumable') useConsumable(item);
     else if (item.kind === 'weapon') toast(`${item.name} уже в руке.`);
     else if (item.kind === 'gear') toast(`${item.name} уже надето.`);
@@ -526,7 +789,7 @@
     el.id = 'bossBar';
     el.className = 'bossBar';
     el.setAttribute('aria-live', 'polite');
-    el.innerHTML = '<b id="bossName">—</b><div class="bossTrack"><i id="bossFill"></i></div><small id="bossMeta"></small>';
+    el.innerHTML = '<b id="bossName">—</b><div class="bossTrack"><i id="bossFill"></i></div><div class="bossPoiseTrack" title="Шкала стойкости: заполни ударами, чтобы ошеломить босса (+35% урона)"><i id="bossPoiseFill"></i></div><small id="bossMeta"></small>';
     document.querySelector('.game')?.appendChild(el);
     return el;
   }
@@ -534,7 +797,7 @@
     const p = meSafe();
     const host = ensureBossBar();
     if (!p || !host) return;
-    const bosses = (snap?.mobs || []).filter(m => m.boss || ['colossus', 'echo_dragon', 'astral_titan', 'ancient_warden'].includes(m.kind));
+    const bosses = (snap?.mobs || []).filter(m => m.boss || ['colossus', 'echo_dragon', 'astral_titan', 'ancient_warden', 'obsidian_sentinel', 'crystal_stag', 'sun_golem'].includes(m.kind));
     let best = null, bestDist = Infinity;
     for (const m of bosses) {
       const d = Math.hypot(m.x - p.x, m.y - p.y);
@@ -543,14 +806,23 @@
     if (!best || bestDist > 900) { host.classList.remove('show'); bossSig = ''; return; }
     host.classList.add('show');
     const frac = Math.max(0, Math.min(1, best.hp / Math.max(1, best.maxHp || best.max_hp)));
-    const sig = `${best.id}:${Math.round(frac * 1000)}:${best.level}`;
+    const poiseFrac = best.staggered ? 1 : Math.max(0, Math.min(1, Number(best.stagger_pct || 0) / 100));
+    const sig = `${best.id}:${Math.round(frac * 1000)}:${Math.round(poiseFrac * 100)}:${best.staggered ? 1 : 0}:${best.bleeding ? 1 : 0}:${best.sundered ? 1 : 0}:${best.slowed ? 1 : 0}:${best.stunned ? 1 : 0}:${best.level}`;
     if (sig === bossSig) return;
     bossSig = sig;
-    const nameEl = document.getElementById('bossName'), fillEl = document.getElementById('bossFill'), metaEl = document.getElementById('bossMeta');
+    host.classList.toggle('isStaggered', !!best.staggered);
+    const nameEl = document.getElementById('bossName'), fillEl = document.getElementById('bossFill'), poiseEl = document.getElementById('bossPoiseFill'), metaEl = document.getElementById('bossMeta');
     const label = typeof mobNames !== 'undefined' ? (mobNames[best.kind] || best.kind) : best.kind;
     if (nameEl) nameEl.textContent = label;
     if (fillEl) fillEl.style.width = `${frac * 100}%`;
-    if (metaEl) metaEl.textContent = `${best.boss ? 'БОСС' : 'ОПАСНЫЙ ВРАГ'} · ур. ${best.level} · ${Math.ceil(best.hp)} / ${best.maxHp || best.max_hp}`;
+    if (poiseEl) poiseEl.style.width = `${poiseFrac * 100}%`;
+    const statuses = [];
+    if (best.staggered) statuses.push('⚡ ОШЕЛОМЛЁН (+35% УРОНА)');
+    if (best.bleeding) statuses.push('🩸 Кровоток');
+    if (best.sundered) statuses.push('🛡 Раскол');
+    if (best.slowed) statuses.push('❄ Озноб');
+    if (best.stunned && !best.staggered) statuses.push('✦ Скован');
+    if (metaEl) metaEl.textContent = `${best.boss ? 'БОСС' : 'ЭЛИТНЫЙ ВРАГ'} · ур. ${best.level} · ${Math.ceil(best.hp)} / ${best.maxHp || best.max_hp}${statuses.length ? ' · ' + statuses.join(' · ') : ''}`;
   }
 
   /* ── drag & drop ────────────────────────────────────────────────────── */
@@ -609,8 +881,13 @@
       } else if (equip && st.item) {
         if (equip === 'weapon' && st.item.kind === 'weapon') send({ type: 'weapon', id: st.item.id });
         else if (equip === 'gear' && st.item.kind === 'gear') send({ type: 'equip_gear', id: st.item.id });
-        else toast(equip === 'weapon' ? 'Сюда можно положить только оружие.' : 'Сюда можно надеть только броню.');
+        else if (equip === 'ring' && st.item.kind === 'accessory' && st.item.slotType === 'ring') send({ type: 'equip_accessory', id: st.item.id, slot: 'ring' });
+        else if (equip === 'amulet' && st.item.kind === 'accessory' && st.item.slotType === 'amulet') send({ type: 'equip_accessory', id: st.item.id, slot: 'amulet' });
+        else if ((equip === 'artifact_1' || equip === 'artifact_2') && st.item.kind === 'accessory' && st.item.slotType === 'artifact') send({ type: 'equip_accessory', id: st.item.id, slot: equip });
+        else toast('Этот предмет не подходит к выбранному слоту экипировки.');
       }
+    } else if (st.fromEquip && ['ring', 'amulet', 'artifact_1', 'artifact_2'].includes(st.fromEquip) && st.moved) {
+      send({ type: 'unequip_accessory', slot: st.fromEquip });
     } else if (st.fromHot !== undefined && st.moved) {
       // dragging out of the hotbar clears the slot
       const i = st.fromHot;
@@ -632,7 +909,11 @@
     if (!item) return;
     const tip = document.createElement('div');
     tip.className = 'mcTooltip';
-    tip.innerHTML = `<b class="rarity-${item.rarity}">${escapeHtml(item.name)}</b><small>${escapeHtml(item.desc || '')}</small>${item.count > 1 ? `<em>Количество: ${item.count}</em>` : ''}`;
+    const refLine = item.reforge
+      ? `<em style="color:${TIER_COL[String(item.reforge.tier)] || '#e2ecd8'}">✦ Модификатор «${escapeHtml(item.reforge.name)}»: ${escapeHtml(item.reforge.summary)}</em>`
+      : '';
+    const loreLine = item.lore ? `<em class="mcLoreLine">${escapeHtml(item.lore)}</em>` : '';
+    tip.innerHTML = `<b class="rarity-${item.rarity}">${escapeHtml(item.name)}</b><small>${escapeHtml(item.desc || '')}</small>${refLine}${loreLine}${item.count > 1 ? `<em>Количество: ${item.count}</em>` : ''}`;
     document.body.appendChild(tip);
     tooltipEl = tip;
     const r = slot.getBoundingClientRect(), tr = tip.getBoundingClientRect();
