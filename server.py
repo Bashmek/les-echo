@@ -18,9 +18,11 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, Response, 
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 import uvicorn
+from encounters import advance_attack, attack_contains, attack_view, backstab, boss_phase
+from bestiary import MAX_BESTIARY_KILLS, build_catalog, sanitize_kills
 
 from world import (
-    MAP_W, MAP_H, SPAWN, REGIONS, NPCS, PORTALS, POWER_SITES, REGION_QUESTS,
+    MAP_W, MAP_H, SPAWN, REGIONS, NPCS, PORTALS, POWER_SITES, REGION_QUESTS, POPULATION,
     ZONES, NPC_RADIUS, PORTAL_RADIUS, COMBAT_LOCK, region_for, is_safe, same_region,
     near_npc, nearest_npc, build_shops, public_region, atlas_view, migrate_position, populate,
     resolve_collision, collision_blocked,
@@ -423,14 +425,22 @@ MONSTERS = {
     "ashguard": {"name": "Страж руин", "hp": 330, "speed": 34, "damage": 34, "range": 66, "cooldown": 2.15, "xp": 190, "color": "#c6ad86", "zone": 3, "size": 34, "anim": "guard"},
     "colossus": {"name": "Пепельный колосс", "hp": 920, "speed": 22, "damage": 48, "range": 94, "cooldown": 2.6, "xp": 700, "color": "#e2a26c", "zone": 3, "size": 55, "anim": "quake"},
     "frost_wyrm": {"name": "Ледяной змей", "hp": 560, "speed": 59, "damage": 38, "range": 76, "cooldown": 1.65, "xp": 410, "color": "#8ee8f2", "zone": 4, "size": 30, "anim": "serpent"},
+    "blueflame_siren": {"name": "Певица Синего Пламени", "hp": 880, "speed": 35, "damage": 41, "range": 94, "cooldown": 2.25, "xp": 960, "color": "#72e8ff", "zone": 4, "size": 48, "anim": "cast", "mini_boss": True},
     "rift_knight": {"name": "Рыцарь разлома", "hp": 760, "speed": 45, "damage": 52, "range": 82, "cooldown": 1.9, "xp": 580, "color": "#bd85ed", "zone": 5, "size": 32, "anim": "lunge"},
     "echo_dragon": {"name": "Дракон Пустого Эха", "hp": 2600, "speed": 31, "damage": 74, "range": 126, "cooldown": 2.45, "xp": 2400, "color": "#ff637e", "zone": 5, "size": 50, "anim": "fly", "boss": True},
     "void_wraith": {"name": "Призрак Бездны", "hp": 1400, "speed": 48, "damage": 55, "range": 85, "cooldown": 1.4, "xp": 1100, "color": "#7b2cbf", "zone": 6, "size": 28, "anim": "phase"},
     "astral_titan": {"name": "Титан Астральной Бездны", "hp": 4800, "speed": 36, "damage": 95, "range": 140, "cooldown": 2.2, "xp": 4500, "color": "#00f0ff", "zone": 6, "size": 58, "anim": "quake", "boss": True},
     "obsidian_sentinel": {"name": "Страж чёрного стекла", "hp": 2100, "speed": 38, "damage": 70, "range": 94, "cooldown": 1.8, "xp": 1850, "color": "#86718f", "zone": 7, "size": 36, "anim": "guard"},
+    "glass_inquisitor": {"name": "Инквизитор Чёрного Зеркала", "hp": 2400, "speed": 27, "damage": 75, "range": 112, "cooldown": 2.5, "xp": 2750, "color": "#c67acb", "zone": 7, "size": 46, "anim": "guard", "mini_boss": True},
     "starseer": {"name": "Звёздочёт Пустоты", "hp": 2650, "speed": 49, "damage": 82, "range": 76, "cooldown": 1.55, "xp": 3100, "color": "#d9a6ef", "zone": 8, "size": 30, "anim": "cast"},
     "ancient_warden": {"name": "Хранитель Первозданного сада", "hp": 7200, "speed": 29, "damage": 108, "range": 148, "cooldown": 2.05, "xp": 7200, "color": "#91cb79", "zone": 8, "size": 56, "anim": "quake", "boss": True},
+    "bramble_warden": {"name": "Корневой Страж", "hp": 360, "speed": 31, "damage": 18, "range": 72, "cooldown": 2.15, "xp": 210, "color": "#9fce66", "zone": 1, "size": 36, "anim": "quake", "mini_boss": True},
+    "fen_matron": {"name": "Матрона Топей", "hp": 610, "speed": 38, "damage": 27, "range": 82, "cooldown": 2.0, "xp": 440, "color": "#74d2c0", "zone": 4, "size": 40, "anim": "float", "mini_boss": True},
+    "ashbound_herald": {"name": "Пепельный Вестник", "hp": 690, "speed": 36, "damage": 34, "range": 92, "cooldown": 1.9, "xp": 780, "color": "#f0a071", "zone": 7, "size": 42, "anim": "guard", "mini_boss": True},
 }
+
+
+BESTIARY_CATALOG = build_catalog(MONSTERS, POPULATION, REGIONS)
 
 
 for _wid, _wlore in WEAPON_LORE.items():
@@ -701,6 +711,7 @@ app = FastAPI(title="Лес Эхо: Пробуждение")
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 players: dict[str, dict[str, Any]] = {}
 clients: dict[str, WebSocket] = {}
+snapshot_profiles_sent: set[str] = set()
 # Heartbeat bookkeeping for the idle watchdog (see close_stale_clients).
 last_seen_at: dict[str, float] = {}
 last_ping_at: dict[str, float] = {}
@@ -723,6 +734,10 @@ SPELLS = {
     "frost_ring": {"name": "Кольцо стужи", "kind": "Лёд", "rarity": 3, "mana": 34, "cooldown": 9.5, "damage": 34, "radius": 150, "stun_duration": 2.0, "slow_duration": 3.0, "slow_factor": .45, "unlock_spent": 420, "unlock_level": 7},
     "root_bind": {"name": "Оковы корней", "kind": "Терни", "rarity": 3, "mana": 30, "cooldown": 10.0, "damage": 26, "radius": 138, "stun_duration": 2.6, "slow_duration": 3.5, "slow_factor": .35, "unlock_spent": 300, "unlock_level": 6},
     "mind_chill": {"name": "Леденящий разум", "kind": "Тень", "rarity": 4, "mana": 42, "cooldown": 11.0, "damage": 58, "radius": 78, "stun_duration": 2.2, "slow_duration": 2.5, "slow_factor": .5, "unlock_spent": 620, "unlock_level": 9},
+    "echo_lattice": {"name": "Сеть эха", "kind": "Эхо", "rarity": 4, "mana": 42, "cooldown": 9.0,
+                     "damage": 54, "radius": 172, "chain": True, "jumps": 4, "falloff": .76,
+                     "stun_duration": .85, "slow_duration": 1.4, "slow_factor": .68,
+                     "unlock_spent": 0, "unlock_level": 7, "unlock_story_stage": 3},
 }
 
 CLASS_MIN_LEVEL = 5
@@ -786,7 +801,7 @@ ABILITY_CATALOG = {
                   "desc": "Разворачивает оружие по кругу и задевает всех врагов в радиусе 112."},
     "iron_guard": {"tree": "warrior", "name": "Железная стойка", "icon": "🛡", "mastery": 4,
                    "cost": 16, "cooldown": 16.0, "duration": 5.0, "armor": 14, "key": "KeyV",
-                   "desc": "На 5 секунд добавляет 14 брони и снижает входящий урон."},
+                   "desc": "Первые 0,22 с парирует удар монстра: без урона, с оглушением и контратакой. Затем +14 брони на 5 секунд."},
     "arrow_rain": {"tree": "ranger", "name": "Дождь стрел", "icon": "☔", "mastery": 1,
                    "cost": 28, "arrows": 3, "cooldown": 15.0, "range": 520.0, "radius": 122.0,
                    "duration": 2.4, "telegraph": 0.9, "tick": 0.55, "mult": 0.52, "key": "KeyR",
@@ -921,6 +936,12 @@ def ensure_status(p: dict[str, Any]) -> None:
     for field in PLAYER_STATUS_FIELDS:
         p.setdefault(field, 0.0)
     p.setdefault("slow_factor", .45)
+    for kind in ("burn", "poison"):
+        p.setdefault(f"{kind}_next", 0.0)
+        p.setdefault(f"{kind}_owner", "")
+        p.setdefault(f"{kind}_source", "")
+        p.setdefault(f"{kind}_damage", 0.0)
+        p.setdefault(f"{kind}_tick", .8)
 
 
 def apply_player_control(target: dict[str, Any], now: float, *, slow_duration: float = 0.0,
@@ -953,6 +974,121 @@ def apply_player_control(target: dict[str, Any], now: float, *, slow_duration: f
                        "text": f"Ты оглушён{' ' + source if source else ''}: {duration:.1f} с."})
 
 
+def apply_player_damage_over_time(target: dict[str, Any], kind: str, *, now: float,
+                                  duration: float, damage: float, tick: float,
+                                  owner: str = "", source: str = "") -> bool:
+    """Refresh a bounded, single-stack burn or poison effect on a player."""
+    if kind not in ("burn", "poison") or target.get("respawn_at", 0) > now:
+        return False
+    ensure_status(target)
+    until_key, next_key = f"{kind}_until", f"{kind}_next"
+    damage_key, tick_key = f"{kind}_damage", f"{kind}_tick"
+    owner_key, source_key = f"{kind}_owner", f"{kind}_source"
+    old_until = float(target.get(until_key, 0) or 0)
+    active = old_until > now
+    effect_tick = max(.35, min(5.0, float(tick)))
+    effect_damage = max(1.0, min(10000.0, float(damage)))
+    if not active:
+        target[next_key] = now + effect_tick
+        target[damage_key] = effect_damage
+        target[tick_key] = effect_tick
+        target[owner_key] = str(owner or "")
+        target[source_key] = str(source or "")
+    elif effect_damage >= float(target.get(damage_key, 0) or 0):
+        # A stronger refresh replaces the source, but never creates a second tick stream.
+        target[damage_key] = effect_damage
+        target[owner_key] = str(owner or "")
+        target[source_key] = str(source or "")
+    target[until_key] = min(max(old_until, now + max(0.0, min(8.0, float(duration)))), now + 8.0)
+    return True
+
+
+def consume_player_damage_over_time(target: dict[str, Any], kind: str, now: float) -> dict[str, Any] | None:
+    """Consume one due player DOT pulse and move its deadline forward."""
+    if kind not in ("burn", "poison"):
+        return None
+    ensure_status(target)
+    until = float(target.get(f"{kind}_until", 0) or 0)
+    if until <= now:
+        target[f"{kind}_next"] = 0.0
+        return None
+    if float(target.get(f"{kind}_next", 0) or 0) > now:
+        return None
+    tick = max(.35, min(5.0, float(target.get(f"{kind}_tick", .8) or .8)))
+    target[f"{kind}_next"] = now + tick
+    return {"kind": kind, "damage": max(1, round(float(target.get(f"{kind}_damage", 0) or 0))),
+            "owner": str(target.get(f"{kind}_owner", "") or ""),
+            "source": str(target.get(f"{kind}_source", "") or "")}
+
+
+def clear_player_combat_status(target: dict[str, Any]) -> None:
+    """Remove temporary combat effects when a character dies or respawns."""
+    ensure_status(target)
+    for field in PLAYER_STATUS_FIELDS:
+        target[field] = 0.0
+    target["slow_factor"] = .45
+    for kind in ("burn", "poison"):
+        target[f"{kind}_next"] = 0.0
+        target[f"{kind}_owner"] = ""
+        target[f"{kind}_source"] = ""
+        target[f"{kind}_damage"] = 0.0
+        target[f"{kind}_tick"] = .8
+
+
+def apply_player_dot_pulse(target: dict[str, Any], pulse: dict[str, Any], now: float) -> dict[str, Any] | None:
+    """Apply one already-due DOT pulse and return its network event/death result."""
+    if target.get("respawn_at", 0) > now:
+        return None
+    owner_id = str(pulse.get("owner", "") or "")
+    damage = max(1, round(float(pulse.get("damage", 0) or 0)
+                          * (PVP_DAMAGE_FACTOR if owner_id else 1.0)))
+    target["hp"] = max(0, int(target.get("hp", 0) or 0) - damage)
+    target["last_combat"] = now
+    owner = players.get(owner_id) if owner_id else None
+    if owner and owner is not target:
+        owner["last_combat"] = now
+        add_damage_score(owner, damage, "pvp_dot", now)
+    event = {"type": "hit_player", "region": target.get("region", "camp"),
+             "id": target.get("id", ""), "damage": damage,
+             "status": pulse.get("kind", ""), "damage_over_time": True,
+             "mob": pulse.get("source", ""), "attacker": owner_id,
+             "x": round(float(target.get("x", 0) or 0), 1),
+             "y": round(float(target.get("y", 0) or 0), 1)}
+    killed = target["hp"] <= 0
+    if killed:
+        target["respawn_at"] = now + 5
+        target["attack"] = None; target["gathering"] = None
+        clear_player_combat_status(target)
+    return {"event": event, "killed": killed}
+
+
+def apply_monster_attack_rider(target: dict[str, Any], mob: dict[str, Any],
+                               attack: dict[str, Any], now: float, *, hit_damage: int) -> bool:
+    """Apply only the authored herald rider after its strike actually hits."""
+    if target.get("respawn_at", 0) > now:
+        return False
+    signature = {
+        "bramble_warden": "slow",
+        "fen_matron": "poison",
+        "ashbound_herald": "burn",
+        "blueflame_siren": "slow",
+        "glass_inquisitor": "poison",
+    }
+    kind = str(mob.get("kind", ""))
+    effect = signature.get(kind)
+    if not mob.get("mini_boss") or not effect or attack.get("effect") != effect:
+        return False
+    if effect == "slow":
+        source = "Корневой Страж" if kind == "bramble_warden" else MONSTERS[kind]["name"]
+        apply_player_control(target, now, slow_duration=2.4, slow_factor=.58,
+                             source=source)
+    else:
+        apply_player_damage_over_time(target, effect, now=now, duration=2.6,
+                                      damage=max(1, round(hit_damage * .06)), tick=.8,
+                                      source=MONSTERS[kind]["name"])
+    return True
+
+
 def spell_control(spec: dict[str, Any], target: dict[str, Any], now: float, source: str) -> None:
     """Apply a spell's stun/slow fields to a mob or another player.
 
@@ -965,6 +1101,9 @@ def spell_control(spec: dict[str, Any], target: dict[str, Any], now: float, sour
     if target.get("boss"):
         stun *= .35
         slow *= .6
+    elif target.get("mini_boss"):
+        stun *= .62
+        slow *= .78
     if "mx" in target:  # players carry movement input, mobs do not
         apply_player_control(target, now,
                              stun_duration=pvp_effect_duration(stun),
@@ -1052,7 +1191,7 @@ def damage_points_view(p: dict[str, Any]) -> dict[str, Any]:
     return {
         "total": total,
         "pve": bucket("mob", "spell", "dot"),
-        "pvp": bucket("pvp", "pvp_spell"),
+        "pvp": bucket("pvp", "pvp_spell", "pvp_dot"),
         "dps": round(float(stats.get("dps", 0) or 0), 1),
         "peak_dps": round(float(stats.get("peak_dps", 0) or 0), 1),
         "recent": int(stats.get("recent", 0) or 0),
@@ -1068,42 +1207,18 @@ def pvp_effect_duration(duration: float) -> float:
     return max(0.0, min(MAX_PVP_STUN, float(duration) * PVP_EFFECT_FACTOR))
 
 
-def spell_control(spec: dict[str, Any], target: dict[str, Any], now: float, source: str) -> None:
-    """Apply a spell's stun/slow fields to a mob or another player.
-
-    Players receive the same fields the monsters use, but every duration is
-    shortened by ``PVP_EFFECT_FACTOR`` so duels stay playable.
-    """
-    stun = float(spec.get("stun_duration", 0) or 0)
-    slow = float(spec.get("slow_duration", 0) or 0)
-    factor = float(spec.get("slow_factor", .45) or .45)
-    if target.get("boss"):
-        stun *= .35
-        slow *= .6
-    if "mx" in target:  # players carry movement input, mobs do not
-        apply_player_control(target, now,
-                             stun_duration=pvp_effect_duration(stun),
-                             slow_duration=min(MAX_PVP_SLOW, slow),
-                             slow_factor=factor, source=source)
-    else:
-        if stun > 0:
-            target["stun_until"] = max(float(target.get("stun_until", 0) or 0), now + stun)
-            target["telegraph_until"] = 0.0
-        if slow > 0:
-            target["slow_until"] = max(float(target.get("slow_until", 0) or 0), now + slow)
-            target["slow_factor"] = factor
-
-
 def scaled_mob(kind: str, level: int, index: int, x: float, y: float) -> dict[str, Any]:
     spec = MONSTERS[kind]
     scale = 1 + max(0, level - spec["zone"]) * .16
     return {"id": f"{kind}-{index}", "kind": kind, "level": level,
+            "_kill_rewarded": False, "_contributors": {},
             "x": float(x), "y": float(y), "spawn_x": float(x), "spawn_y": float(y),
             "hp": round(spec["hp"] * scale), "max_hp": round(spec["hp"] * scale),
             "speed": spec["speed"] * (1 + max(0, level - spec["zone"]) * .035),
             "wander_x": random.uniform(-1, 1), "wander_y": random.uniform(-1, 1),
             "wander_at": time.monotonic() + random.uniform(.5, 3), "attack_at": 0.0,
             "respawn_at": 0.0, "telegraph_until": 0.0, "alert_until": 0.0,
+            "pending_attack": None, "attack_step": 0, "phase": 1,
             "burn_until": 0.0, "burn_next": 0.0, "burn_owner": "", "burn_damage": 0.0,
             "burn_tick": .75, "slow_until": 0.0, "slow_factor": .45,
             "stun_until": 0.0,
@@ -1111,7 +1226,8 @@ def scaled_mob(kind: str, level: int, index: int, x: float, y: float) -> dict[st
             "poison_tick": .8,
             "bleed_until": 0.0, "bleed_next": 0.0, "bleed_owner": "", "bleed_damage": 0.0,
             "sunder_until": 0.0, "stagger": 0.0, "staggered_until": 0.0,
-            "boss": bool(spec.get("boss") or kind == "colossus")}
+            "boss": bool(spec.get("boss") or kind == "colossus"),
+            "mini_boss": bool(spec.get("mini_boss"))}
 
 
 def grant_gear(p: dict[str, Any], gear_id: str) -> bool:
@@ -1528,6 +1644,23 @@ def quest_journal(p: dict[str, Any]) -> list[dict[str, Any]]:
             "description": "Основная ветка: каждое поручение Хранителя ведёт дальше по девяти землям.",
         })
 
+    herald = herald_story_view(p)
+    for chapter in herald["chapters"]:
+        if chapter["status"] == "hidden":
+            continue
+        objective = quest_objective("kill", chapter["mob"], 1,
+                                    1 if chapter["status"] in ("ready", "done") else
+                                    int(p.get("herald_story_kills", 0) or 0)
+                                    if chapter["stage"] == herald["stage"] else 0)
+        gold, xp = chapter["gold"], chapter["xp"]
+        journal.append({
+            "id": f"herald:{chapter['stage']}", "kind": "herald_story", "stage": chapter["stage"],
+            "total": len(HERALD_QUESTS), "title": chapter["title"], "status": chapter["status"],
+            "objectives": [objective], "reward": quest_reward_view(gold, xp, []),
+            "region": chapter["region"], "region_name": _region_name(chapter["region"]),
+            "giver": _guide_name("camp"), "description": chapter["description"],
+        })
+
     for region_id, spec in REGION_QUESTS.items():
         status = region_quest_status(p, region_id)
         if status == "idle":
@@ -1553,10 +1686,43 @@ def quest_journal(p: dict[str, Any]) -> list[dict[str, Any]]:
 
     order = {"ready": 0, "short": 1, "ongoing": 2, "active": 2, "done": 3}
     main_line = sorted((q for q in journal if q["kind"] == "story"), key=lambda q: q["stage"])
+    herald_line = sorted((q for q in journal if q["kind"] == "herald_story"), key=lambda q: q["stage"])
     side = sorted((q for q in journal if q["kind"] == "region"),
                   key=lambda q: (order.get(q["status"], 4), list(REGION_QUESTS).index(q["region"])
                                  if q["region"] in REGION_QUESTS else 99))
-    return main_line + side
+    return main_line + herald_line + side
+
+
+HERALD_QUESTS = (
+    {"mob": "bramble_warden", "region": "forest", "title": "Корни, что шепчут",
+     "description": "Егор просит найти след Корневого Стража и остановить зов, пробуждающий древние корни.",
+     "gold": 180, "xp": 480},
+    {"mob": "fen_matron", "region": "marsh", "title": "Песнь под чёрной водой",
+     "description": "Печать леса привела к Матроне Топей. Прерви её песнь, пока болото не поглотило тропы.",
+     "gold": 420, "xp": 1000},
+    {"mob": "ashbound_herald", "region": "ruins", "title": "Пепел помнит имя",
+     "description": "Пепельный Вестник хранит третью печать и имя того, кто разбудил Эхо.",
+     "gold": 900, "xp": 1800},
+)
+
+
+def herald_story_view(p: dict[str, Any]) -> dict[str, Any]:
+    stage = max(0, min(len(HERALD_QUESTS), int(p.get("herald_story_stage", 0) or 0)))
+    active = bool(p.get("herald_story_active")) and stage < len(HERALD_QUESTS)
+    kills = max(0, int(p.get("herald_story_kills", 0) or 0))
+    chapters = []
+    for index, spec in enumerate(HERALD_QUESTS):
+        if index < stage:
+            status = "done"
+        elif index > stage or stage >= len(HERALD_QUESTS):
+            status = "hidden"
+        elif active:
+            status = "ready" if kills >= 1 else "active"
+        else:
+            status = "available"
+        chapters.append({"stage": index, **spec, "status": status})
+    return {"stage": stage, "total": len(HERALD_QUESTS), "active": active,
+            "kills": min(1, kills), "complete": stage >= len(HERALD_QUESTS), "chapters": chapters}
 
 
 def default_tracked_quest(p: dict[str, Any], journal: list[dict[str, Any]]) -> str:
@@ -1607,7 +1773,7 @@ def combat_state_view(p: dict[str, Any], now: float) -> dict[str, Any]:
     }
 
 
-def player_row(pid: str, p: dict[str, Any], now: float) -> dict[str, Any]:
+def player_row(pid: str, p: dict[str, Any], now: float, *, compact: bool = False) -> dict[str, Any]:
     reconcile_talent_points(p)
     action = None
     if p["attack"]:
@@ -1621,17 +1787,22 @@ def player_row(pid: str, p: dict[str, Any], now: float) -> dict[str, Any]:
     tree = action_tree(p)
     chosen_class = p.get("class") if p.get("class") in CLASSES else None
     eq_bonuses = equipment_bonuses(p, now)
-    w_all = all_weapons(p)
-    return {"id": pid, "name": p["name"], "x": round(p["x"], 1), "y": round(p["y"], 1),
+    w_all = all_weapons(p) if not compact else {}
+    spell_catalog = all_spells(p)
+    abilities = abilities_view(p, now, eq_bonuses)
+    spells = spells_view(p, now, eq_bonuses, spell_catalog)
+    combat_view = combat_state_view(p, now)
+    journal = quest_journal(p)
+    row = {"id": pid, "name": p["name"], "x": round(p["x"], 1), "y": round(p["y"], 1),
             "class": chosen_class, "class_name": CLASSES[chosen_class]["name"] if chosen_class else "Путник",
             "class_offer": p["level"] >= CLASS_MIN_LEVEL and not chosen_class,
             "class_compatible": class_compatible(p, tree), "action_tree": tree,
             "weapon_kind": weapon_kind(p), "mastery": mastery_view(p),
-            "abilities": abilities_view(p, now), "spells": spells_view(p, now),
+            "abilities": abilities, "spells": spells,
             "class_perks": class_perks_view(p, chosen_class) if chosen_class else [],
             "effects": player_effects(p, now),
-            "combat": combat_state_view(p, now),
-            "combat_state": combat_state_view(p, now),
+            "combat": combat_view,
+            "combat_state": combat_view,
             "face_x": p["face_x"], "face_y": p["face_y"], "hp": p["hp"], "max_hp": p["max_hp"],
             "stamina": round(p["stamina"], 1), "max_stamina": p["max_stamina"],
             "mana": round(p.get("mana", 0), 1), "max_mana": p.get("max_mana", 0), "xp": p["xp"],
@@ -1658,6 +1829,7 @@ def player_row(pid: str, p: dict[str, Any], now: float) -> dict[str, Any]:
             "accessory_sell_prices": {key: accessory_sell_price(key) for key in all_owned_accessories(p)},
             "max_accessory_upgrade": MAX_ACCESSORY_UPGRADE,
             "reforges": p.get("reforges", {"weapon": {}, "gear": {}, "accessory": {}}),
+            "herald_story": herald_story_view(p),
             "reforge_prefixes": REFORGE_PREFIXES,
             "custom_weapons": dict(p.get("custom_weapons", {}) or {}),
             "custom_weapon_archetypes": CUSTOM_WEAPON_ARCHETYPES,
@@ -1665,8 +1837,8 @@ def player_row(pid: str, p: dict[str, Any], now: float) -> dict[str, Any]:
             "custom_weapon_tiers": {str(k): v for k, v in CUSTOM_WEAPON_TIERS.items()},
             "equipment_bonuses": {k: round(v, 4) for k, v in eq_bonuses.items()},
             "craft_recipes": CRAFT_RECIPES,
-            "forge_blueprints": {bid: {"name": name, "cost": dict(cost), "category": kind}
-                                 for bid, (cost, name, kind) in FORGE_BLUEPRINTS.items()},
+            "forge_blueprints": ({bid: {"name": name, "cost": dict(cost), "category": kind}
+                                  for bid, (cost, name, kind) in FORGE_BLUEPRINTS.items()} if not compact else None),
             "craft_catalog": CRAFT_RECIPES,
             "enchantments": p.get("enchantments", {"weapon": {}, "gear": {}}),
             "enchant_max_level": ENCHANT_MAX_LEVEL, "max_item_upgrade": MAX_ITEM_UPGRADE,
@@ -1682,13 +1854,15 @@ def player_row(pid: str, p: dict[str, Any], now: float) -> dict[str, Any]:
             "crit_chance": round(player_crit_chance(p) * 100, 1),
             "crit_chance_pct": round(player_crit_chance(p) * 100, 1),
             "shop_catalog": REGION_SHOPS[p.get("region", "camp")], "sell_prices": SELL_PRICES, "enchant_catalog": ENCHANT_CATALOG,
-            "spell_catalog": all_spells(p), "spells_unlocked": [sid for sid in all_spells(p) if spell_unlocked(p, sid)],
+            "spell_catalog": spell_catalog,
+            "spells_unlocked": [sid for sid in spell_catalog if spell_unlocked(p, sid, spell_catalog)],
             "spell_uses": dict(p.get("spell_uses", {})),
-            "spell_levels": {sid: spell_mastery_level(p, sid) for sid in all_spells(p)},
+            "spell_levels": {sid: spell_mastery_level(p, sid) for sid in spell_catalog},
             "custom_spells": [{**spell, "id": spell_id, "spell_id": spell_id}
                               for spell_id, spell in p.get("custom_spells", {}).items()
                               if isinstance(spell, dict)],
-            "spell_cooldowns": {sid: {"remaining": max(0.0, round(until - now, 2)), "total": spell_cooldown_seconds(p, sid)}
+            "spell_cooldowns": {sid: {"remaining": max(0.0, round(until - now, 2)),
+                                      "total": spell_cooldown_seconds(p, sid, spell_catalog, eq_bonuses)}
                                 for sid, until in p.get("spell_cooldowns", {}).items()},
             "magic_mana_spent": int(p.get("magic_mana_spent", 0)),
             "upgrades": p.get("upgrades", {"weapon": {}, "gear": {}, "accessory": {}}),
@@ -1713,42 +1887,81 @@ def player_row(pid: str, p: dict[str, Any], now: float) -> dict[str, Any]:
                                for key, value in w_all.items()},
             "region": p.get("region", "camp"), "visited_regions": list(p.get("visited_regions", [])),
             "region_quest": region_quest_view(p, p.get("region", "camp")),
-            "journal": quest_journal(p), "tracked_quest": default_tracked_quest(p, quest_journal(p)),
+            "journal": journal, "tracked_quest": default_tracked_quest(p, journal),
             "gather_kind": gather_node_kind(p),
             "bosses_defeated": list(p.get("bosses_defeated", [])),
+            "bestiary_kills": sanitize_kills(p.get("bestiary_kills"), MONSTERS, p.get("bosses_defeated")),
             "world_travel_unlocked": has_free_world_travel(p),
             "main_boss_id": MAIN_BOSS_KIND,
             "recall_ready": time.monotonic() >= float(p.get("recall_at", 0)),
             "in_combat": time.monotonic() - float(p.get("last_combat", 0)) < COMBAT_LOCK,
             "inventory": dict(p["inventory"]), "attack": action,
-            "consumable_catalog": {cid: {"name": c["name"], "description": c.get("description", "")}
-                                   for cid, c in CONSUMABLE_ALIASES.items()},
+            "consumable_catalog": ({cid: {"name": c["name"], "description": c.get("description", "")}
+                                    for cid, c in CONSUMABLE_ALIASES.items()} if not compact else None),
             "gathering": p["gathering"] is not None, "gather_progress": (p["gathering"]["progress"] / 1.15 if p["gathering"] else 0), "zone": zone["id"],
             "run": bool(p.get("running")), "sneak": bool(p.get("sneaking")),
             "dodge_ready": now >= p["dodge_at"],
             "status": player_status_view(p, now), "damage_points": damage_points_view(p)}
+    if not compact:
+        row["bestiary_catalog"] = BESTIARY_CATALOG
+    if compact:
+        for field in (
+            "consumable_catalog", "accessory_catalog", "reforge_prefixes", "custom_weapon_archetypes",
+            "custom_weapon_cores", "custom_weapon_tiers", "craft_recipes", "forge_blueprints",
+            "craft_catalog", "enchant_catalog", "sell_prices", "spell_catalog", "shop_catalog",
+            "gear_catalog", "weapon_catalog",
+        ):
+            row.pop(field, None)
+    return row
 
 
-def snapshot(for_id: str) -> dict[str, Any]:
+def public_player_row(pid: str, p: dict[str, Any], now: float) -> dict[str, Any]:
+    """Build only the small player state that nearby clients are allowed to see."""
+    action = None
+    attack = p.get("attack")
+    if attack:
+        spec = weapon_spec_for(p, attack["weapon"])
+        attack_speed = equipment_bonuses(p, now)["attack_speed_pct"]
+        effective_charge = max(0.16, float(spec["charge"]) / max(0.45, 1.0 + attack_speed))
+        action = {"weapon": attack["weapon"], "kind": spec["kind"],
+                  "charge": min(1.0, max(0.0, (now - attack["started"]) / effective_charge)),
+                  "aim_x": attack["aim_x"], "aim_y": attack["aim_y"]}
+
+    chosen_class = p.get("class") if p.get("class") in CLASSES else None
+    region_id = p.get("region", "camp")
+    return {
+        "id": pid, "name": p["name"], "x": round(p["x"], 1), "y": round(p["y"], 1),
+        "region": region_id, "zone": region_for(p)["id"],
+        "face_x": p["face_x"], "face_y": p["face_y"], "hp": p["hp"], "max_hp": p["max_hp"],
+        "level": p["level"], "class": chosen_class,
+        "class_name": CLASSES[chosen_class]["name"] if chosen_class else "Путник",
+        "weapon": p["weapon"], "weapon_kind": weapon_kind(p), "gear": p["gear"],
+        "attack": action, "effects": player_effects(p, now), "status": player_status_view(p, now),
+        "respawning": p["respawn_at"] > now, "gathering": p["gathering"] is not None,
+        "run": bool(p.get("running")), "sneak": bool(p.get("sneaking")),
+    }
+
+
+def snapshot(for_id: str, *, compact: bool = False) -> dict[str, Any]:
     now = time.monotonic()
     own = players[for_id]
     rid = own.get("region", "camp")
     local_players = [(pid, p) for pid, p in players.items() if p.get("region", "camp") == rid]
-    public_fields = ("id", "name", "x", "y", "region", "zone", "face_x", "face_y", "hp", "max_hp", "level",
-                     "class", "class_name", "weapon", "weapon_kind", "gear", "attack", "effects", "status", "respawning", "gathering",
-                     "run", "sneak")
     rows = []
     for pid, p in local_players:
-        row = player_row(pid, p, now)
-        rows.append(row if pid == for_id else {k: row[k] for k in public_fields})
-    return {"type": "state", "you": for_id, "world": {"w": MAP_W, "h": MAP_H, "region": rid, "mode": "separate-maps"},
-            "region": public_region(REGIONS[rid]), "regions": atlas_view(), "portals": [v for v in PORTALS.values() if v["region"] == rid],
-            "zones": [public_region(REGIONS[rid])], "elements": ELEMENT_FX,
-            "power_sites": [s for s in POWER_SITES if s["region"] == rid],
-            "classes": CLASSES,
+        rows.append(player_row(pid, p, now, compact=compact) if pid == for_id else public_player_row(pid, p, now))
+    return {"type": "state", "you": for_id, **({"compact": True} if compact else {}),
+            "world": {"w": MAP_W, "h": MAP_H, "region": rid, "mode": "separate-maps"},
+            "region": {"id": rid} if compact else public_region(REGIONS[rid]),
+            **({"regions": atlas_view(), "portals": [v for v in PORTALS.values() if v["region"] == rid],
+                "zones": [public_region(REGIONS[rid])], "elements": ELEMENT_FX,
+                "power_sites": [s for s in POWER_SITES if s["region"] == rid], "classes": CLASSES}
+               if not compact else {}),
             "players": rows,
-            "mobs": [{**{k: mob[k] for k in ("id", "kind", "level", "x", "y", "hp", "max_hp", "boss", "region")},
+            "mobs": [{**{k: mob[k] for k in ("id", "kind", "level", "x", "y", "hp", "max_hp", "boss", "mini_boss", "region")},
                       "telegraphing": mob["telegraph_until"] > now,
+                      "attack_hint": attack_view(mob, now), "phase": boss_phase(mob),
+                      "recovering": mob.get("attack_at", 0) > now and not mob.get("telegraph_until", 0),
                       "burning": float(mob.get("burn_until", 0) or 0) > now,
                       "slowed": float(mob.get("slow_until", 0) or 0) > now,
                       "stunned": float(mob.get("stun_until", 0) or 0) > now,
@@ -1781,6 +1994,7 @@ def drop_client(pid: str, *, save: bool = True) -> dict[str, Any] | None:
     """
     player = players.pop(pid, None)
     clients.pop(pid, None)
+    snapshot_profiles_sent.discard(pid)
     last_seen_at.pop(pid, None)
     last_ping_at.pop(pid, None)
     if player is not None and save:
@@ -1912,11 +2126,8 @@ def upgrades_view(p: dict[str, Any]) -> dict[str, dict[str, Any]]:
     stats = p.get("stats", {})
     insight = max(0, int(p.get("insight_level", 0) or 0))
     enriched = {**stats, "insight": 1 + insight}
-    original = stats
     p = {**p, "stats": enriched}
-    result = _upgrades_view_core(p)
-    del original
-    return result
+    return _upgrades_view_core(p)
 
 
 def player_crit_chance(p: dict[str, Any]) -> float:
@@ -2033,12 +2244,14 @@ def ability_rank_mult(rank: int) -> float:
     return 1.0 + 0.09 * max(0, int(rank) - 1)
 
 
-def ability_cooldown_seconds(p: dict[str, Any], ability_id: str) -> float:
+def ability_cooldown_seconds(p: dict[str, Any], ability_id: str,
+                             eq_bonuses: dict[str, float] | None = None) -> float:
     spec = ABILITY_CATALOG.get(ability_id, {})
     mastery = mastery_level(p, str(spec.get("tree", "warrior")))
     rank = ability_rank(p, ability_id)
     ins_cdr = min(0.25, max(0, int(p.get("insight_level", 0) or 0)) * 0.0065)
-    eq_cdr = equipment_bonuses(p)["cdr_pct"]
+    bonuses = eq_bonuses if eq_bonuses is not None else equipment_bonuses(p)
+    eq_cdr = bonuses["cdr_pct"]
     mastery_cdr = min(0.35, 0.025 * (mastery - 1))
     rank_cdr = 0.025 * (rank - 1)
     total_factor = max(0.30, (1.0 - mastery_cdr) * (1.0 - rank_cdr) * (1.0 - ins_cdr) * (1.0 - eq_cdr))
@@ -2134,7 +2347,8 @@ def player_effects(p: dict[str, Any], now: float) -> list[dict[str, Any]]:
     return effects
 
 
-def ability_effective_cost(p: dict[str, Any], ability_id: str) -> int:
+def ability_effective_cost(p: dict[str, Any], ability_id: str,
+                           eq_bonuses: dict[str, float] | None = None) -> int:
     spec = ABILITY_CATALOG.get(ability_id, {})
     base = float(spec.get("cost", 0))
     if base <= 0:
@@ -2142,13 +2356,15 @@ def ability_effective_cost(p: dict[str, Any], ability_id: str) -> int:
     rank = ability_rank(p, ability_id)
     if rank >= 5:
         base *= 0.88
-    eq = equipment_bonuses(p)
+    eq = eq_bonuses if eq_bonuses is not None else equipment_bonuses(p)
     res_kind = str(spec.get("resource") or "stamina")
     base *= (1.0 - eq["mana_cost_pct"]) if res_kind == "mana" else (1.0 - eq["stamina_cost_pct"])
     return max(1, round(base))
 
 
-def abilities_view(p: dict[str, Any], now: float) -> dict[str, dict[str, Any]]:
+def abilities_view(p: dict[str, Any], now: float,
+                   eq_bonuses: dict[str, float] | None = None) -> dict[str, dict[str, Any]]:
+    eq_bonuses = eq_bonuses if eq_bonuses is not None else equipment_bonuses(p, now)
     cooldowns = p.get("ability_cooldowns", {}) if isinstance(p.get("ability_cooldowns"), dict) else {}
     uses_map = p.get("ability_uses", {}) if isinstance(p.get("ability_uses"), dict) else {}
     result: dict[str, dict[str, Any]] = {}
@@ -2158,14 +2374,14 @@ def abilities_view(p: dict[str, Any], now: float) -> dict[str, dict[str, Any]]:
         radius_mult = 1.15 if rank >= 5 else 1.0
         result[ability_id] = {
             "id": ability_id, "tree": spec["tree"], "name": spec["name"], "icon": spec.get("icon", "✦"),
-            "desc": spec["desc"], "cost": ability_effective_cost(p, ability_id), "arrows": int(spec.get("arrows", 0)),
+            "desc": spec["desc"], "cost": ability_effective_cost(p, ability_id, eq_bonuses), "arrows": int(spec.get("arrows", 0)),
             "resource": str(spec.get("resource") or "stamina"),
             "mastery_required": int(spec["mastery"]), "unlocked": ability_unlocked(p, ability_id),
             "level": rank, "max_level": ABILITY_MAX_LEVEL,
             "uses": int(uses_map.get(ability_id, 0) or 0),
             "power_bonus_pct": round((ability_rank_mult(rank) - 1.0) * 100),
             "awakened": rank >= 10,
-            "key": spec.get("key", ""), "cooldown": ability_cooldown_seconds(p, ability_id),
+            "key": spec.get("key", ""), "cooldown": ability_cooldown_seconds(p, ability_id, eq_bonuses),
             "range": round(float(spec.get("range", 0) or 0) * radius_mult, 1),
             "radius": round(float(spec.get("radius", 0) or 0) * radius_mult, 1),
             "distance": float(spec.get("distance", 0) or 0), "width": float(spec.get("width", 0) or 0),
@@ -2355,7 +2571,8 @@ def region_quest_view(p: dict[str, Any], region_id: str) -> dict[str, Any]:
 
 async def npc_dialog(p: dict[str, Any], npc: dict[str, Any]) -> None:
     await send_event({"type": "npc_dialog", "target": p["id"], "npc": npc,
-                      "quest": region_quest_view(p, p["region"]) if "quest" in npc["services"] else None})
+                      "quest": region_quest_view(p, p["region"]) if "quest" in npc["services"] else None,
+                      "herald_story": herald_story_view(p) if npc.get("id") == "camp-guide" else None})
 
 
 async def interact_keeper(p: dict[str, Any]) -> None:
@@ -2382,8 +2599,32 @@ async def npc_quest_action(p: dict[str, Any], msg: dict[str, Any]) -> None:
     q = region_quest_view(p, rid)
     action = str(msg.get("action", ""))
     if rid == "camp" and str(msg.get("quest_kind", "story")) != "region":
+        quest_kind = str(msg.get("quest_kind", "story"))
+        if quest_kind == "herald_story":
+            chapter = herald_story_view(p)
+            if action == "accept" and chapter["stage"] < chapter["total"] and not chapter["active"]:
+                p["herald_story_active"] = True
+                p["herald_story_kills"] = 0
+                current = HERALD_QUESTS[chapter["stage"]]
+                await tell(p["id"], f"Новая охота: «{current['title']}». Ищи: {MONSTERS[current['mob']]['name']}.")
+            elif action == "claim" and chapter["active"] and chapter["kills"] >= 1:
+                stage = chapter["stage"]
+                reward = HERALD_QUESTS[stage]
+                p["herald_story_active"] = False
+                p["herald_story_stage"] = stage + 1
+                p["herald_story_kills"] = 0
+                if str(p.get("tracked_quest") or "") == f"herald:{stage}":
+                    p["tracked_quest"] = ""
+                p["gold"] += reward["gold"]
+                add_xp(p, reward["xp"])
+                p["skill_points"] = int(p.get("skill_points", 0)) + 1
+                p["quest_points"] = int(p.get("quest_points", 0)) + 1
+                unlock = " Сеть эха открыта магам!" if p["herald_story_stage"] == len(HERALD_QUESTS) else ""
+                await tell(p["id"], f"Глава завершена: +{reward['gold']} монет, +{reward['xp']} опыта и +1 очко развития.{unlock}")
+            else:
+                await tell(p["id"], "Сначала прими текущую охоту, затем одолей указанного вестника.")
         # The original 13-stage story remains available at the camp guide.
-        if action == "accept" and not p["quest_active"] and p["quest_stage"] < len(QUESTS):
+        elif action == "accept" and not p["quest_active"] and p["quest_stage"] < len(QUESTS):
             p["quest_active"] = True; p["quest_kills"] = {}; p["quest_gather"] = {}
             await tell(p["id"], f"Новое поручение: {quest_requirements(p['quest_stage'])[4]}.")
         elif action == "claim" and p["quest_active"] and quest_complete(p):
@@ -2430,8 +2671,9 @@ async def npc_quest_action(p: dict[str, Any], msg: dict[str, Any]) -> None:
     await npc_dialog(p, npc)
 
 
-def record_region_progress(p: dict[str, Any], kind: str, amount: int, *, kill: bool = False) -> None:
-    rid = p.get("region", "camp")
+def record_region_progress(p: dict[str, Any], kind: str, amount: int, *, kill: bool = False,
+                           region_id: str | None = None) -> None:
+    rid = region_id or p.get("region", "camp")
     state = p.setdefault("region_quests", {}).get(rid)
     if not state or not state.get("active") or state.get("done"):
         return
@@ -2540,34 +2782,174 @@ def insight_level(p: dict[str, Any]) -> int:
     return max(0, int(p.get("insight_level", 0) or 0))
 
 
-def award_drop(p: dict[str, Any], mob: dict[str, Any]) -> None:
-    record_region_progress(p, mob["kind"], 1, kill=True)
-    if mob.get("boss"):
-        defeated = p.setdefault("bosses_defeated", [])
-        if mob["kind"] not in defeated:
-            defeated.append(mob["kind"])
-            reconcile_talent_points(p)
-            broadcast({"type": "notice", "region": p["region"], "text": f"{p['name']} одолел(а) {MONSTERS[mob['kind']]['name']}! (+2 очка навыков)"})
-            if mob["kind"] == MAIN_BOSS_KIND:
-                p["world_travel_unlocked"] = True
-                for rid in REGIONS:
-                    if rid not in p.setdefault("visited_regions", []):
-                        p["visited_regions"].append(rid)
-                broadcast({"type": "notice", "text": f"✦ {p['name']} поверг(ла) Хранителя Первозданного сада! Открыто свободное перемещение между всеми мирами в Атласе (M)!"})
+MOB_CONTRIBUTION_WINDOW = 120.0
+MOB_CONTRIBUTION_MIN_FRACTION = 0.05
+
+
+def record_mob_contribution(p: dict[str, Any], mob: dict[str, Any], damage: float, now: float) -> None:
+    """Record capped, recent player damage used for co-op kill eligibility."""
+    try:
+        dealt = max(0.0, min(float(damage), float(mob.get("hp", 0) or 0)))
+        max_hp = max(0.0, float(mob.get("max_hp", 0) or 0))
+    except (TypeError, ValueError):
+        return
+    player_id = str(p.get("id") or "")
+    if not player_id or dealt <= 0 or max_hp <= 0:
+        return
+    contributions = mob.setdefault("_contributors", {})
+    if not isinstance(contributions, dict):
+        contributions = mob["_contributors"] = {}
+    now = float(now)
+    for old_id, entry in list(contributions.items()):
+        try:
+            expired = now - float(entry.get("last_hit", 0)) > MOB_CONTRIBUTION_WINDOW
+        except (AttributeError, TypeError, ValueError):
+            expired = True
+        if expired or (old_id != player_id and old_id not in players):
+            contributions.pop(old_id, None)
+    if player_id not in contributions and len(contributions) >= MAX_PLAYERS:
+        weakest = min(contributions, key=lambda key: float(contributions[key].get("damage", 0) or 0))
+        contributions.pop(weakest, None)
+    entry = contributions.setdefault(player_id, {"damage": 0.0})
+    entry["damage"] = min(max_hp, float(entry.get("damage", 0) or 0) + dealt)
+    entry["last_hit"] = now
+    entry["region"] = str(mob.get("region", "camp"))
+
+
+def _eligible_mob_contributors(killer: dict[str, Any], mob: dict[str, Any], now: float
+                                ) -> dict[str, tuple[dict[str, Any], float]]:
+    """Return the killer plus online players with 5% recent mob damage."""
+    max_hp = max(0.0, float(mob.get("max_hp", 0) or 0))
+    required = max(1.0, max_hp * MOB_CONTRIBUTION_MIN_FRACTION)
+    region_id = str(mob.get("region", "camp"))
+    contributions = mob.get("_contributors") if isinstance(mob.get("_contributors"), dict) else {}
+    recipients: dict[str, tuple[dict[str, Any], float]] = {}
+    for player_id, entry in contributions.items():
+        if not isinstance(entry, dict) or str(entry.get("region", "")) != region_id:
+            continue
+        try:
+            damage = min(max_hp, max(0.0, float(entry.get("damage", 0) or 0)))
+            age = float(now) - float(entry.get("last_hit", 0) or 0)
+        except (TypeError, ValueError):
+            continue
+        if damage < required or age < 0 or age > MOB_CONTRIBUTION_WINDOW:
+            continue
+        contributor = killer if str(killer.get("id")) == str(player_id) else players.get(str(player_id))
+        if contributor is not None:
+            recipients[str(player_id)] = (contributor, damage)
+    killer_id = str(killer.get("id") or "")
+    if killer_id and killer_id not in recipients:
+        killer_entry = contributions.get(killer_id, {}) if isinstance(contributions, dict) else {}
+        try:
+            killer_damage = max(1.0, float(killer_entry.get("damage", 0) or 0))
+        except (AttributeError, TypeError, ValueError):
+            killer_damage = 1.0
+        recipients[killer_id] = (killer, killer_damage)
+    return recipients
+
+
+def _split_kill_reward(total: int, weights: dict[str, float]) -> dict[str, int]:
+    """Split an integer reward pool proportionally, with exact total conservation."""
+    pool = max(0, int(total))
+    weight_total = sum(max(0.0, float(weight)) for weight in weights.values())
+    if not weights or weight_total <= 0:
+        return {}
+    exact = {key: pool * max(0.0, float(weight)) / weight_total for key, weight in weights.items()}
+    shares = {key: math.floor(value) for key, value in exact.items()}
+    remainder = pool - sum(shares.values())
+    order = sorted(weights, key=lambda key: (-(exact[key] - shares[key]), key))
+    for key in order[:remainder]:
+        shares[key] += 1
+    return shares
+
+
+def award_drop(p: dict[str, Any], mob: dict[str, Any], now: float | None = None) -> None:
+    """Award one kill once: shared credit/rewards, with personal loot for the finisher.
+
+    Contributors must deal at least 5% of max HP within 120 seconds. XP and gold
+    are each split by actual contribution from one pool, capped at the largest
+    solo award any eligible contributor would have received. Guaranteed and
+    random item drops stay with the final hitter; herald seals are progression
+    currency, so every eligible contributor gets one.
+    """
+    if mob.get("_kill_rewarded"):
+        return
+    mob["_kill_rewarded"] = True
+    now = time.monotonic() if now is None else float(now)
     kind = mob["kind"]
+    region_id = str(mob.get("region", p.get("region", "camp")))
+    recipients = _eligible_mob_contributors(p, mob, now)
+    weights = {player_id: damage for player_id, (_, damage) in recipients.items()}
+    newly_defeated: list[dict[str, Any]] = []
+    discoveries: list[str] = []
+
+    for member, _damage in recipients.values():
+        collection = sanitize_kills(member.get("bestiary_kills"), MONSTERS, member.get("bosses_defeated"))
+        if not collection.get(kind, 0):
+            discoveries.append(str(member["id"]))
+        collection[kind] = min(MAX_BESTIARY_KILLS, collection.get(kind, 0) + 1)
+        member["bestiary_kills"] = collection
+        record_region_progress(member, kind, 1, kill=True, region_id=region_id)
+        member["kills"] = int(member.get("kills", 0) or 0) + 1
+        if member.get("quest_active"):
+            quest_kills = member.setdefault("quest_kills", {})
+            quest_kills[kind] = int(quest_kills.get(kind, 0) or 0) + 1
+        if mob.get("mini_boss"):
+            inventory = member.setdefault("inventory", {})
+            inventory["champion_seal"] = max(0, int(inventory.get("champion_seal", 0) or 0)) + 1
+            stage = max(0, min(len(HERALD_QUESTS), int(member.get("herald_story_stage", 0) or 0)))
+            if (member.get("herald_story_active") and stage < len(HERALD_QUESTS)
+                    and kind == HERALD_QUESTS[stage]["mob"]):
+                member["herald_story_kills"] = min(1, max(0, int(member.get("herald_story_kills", 0) or 0)) + 1)
+            broadcast({"type": "notice", "target": member["id"],
+                       "text": f"Победа над {MONSTERS[kind]['name']}: получена Печать вестника.",
+                       "item": "champion_seal"})
+        if mob.get("boss"):
+            defeated = member.setdefault("bosses_defeated", [])
+            if kind not in defeated:
+                defeated.append(kind)
+                reconcile_talent_points(member)
+                newly_defeated.append(member)
+            if kind == MAIN_BOSS_KIND:
+                member["world_travel_unlocked"] = True
+                for rid in REGIONS:
+                    if rid not in member.setdefault("visited_regions", []):
+                        member["visited_regions"].append(rid)
+
+    spec = MONSTERS[kind]
+    broadcast({"type": "mob_defeated", "region": region_id, "mob": mob["id"],
+               "kind": kind, "name": spec["name"], "level": mob["level"],
+               "x": mob["x"], "y": mob["y"], "boss": bool(mob.get("boss")),
+               "mini_boss": bool(mob.get("mini_boss")), "color": spec["color"], "size": spec["size"],
+               "participants": list(recipients), "discoveries": discoveries})
+
+    if mob.get("boss") and newly_defeated:
+        names = ", ".join(member["name"] for member in newly_defeated)
+        broadcast({"type": "notice", "region": region_id,
+                   "text": f"{names} одолели {MONSTERS[kind]['name']}! (+2 очка навыков каждому)"})
+    if mob.get("boss") and kind == MAIN_BOSS_KIND and newly_defeated:
+        broadcast({"type": "notice",
+                   "text": "✦ Хранитель Первозданного сада повержен! Участникам боя открыто свободное перемещение между мирами в Атласе (M)!"})
+
+    base_xp = MONSTERS[kind]["xp"] + max(0, mob["level"] - MONSTERS[kind]["zone"]) * 7
+    base_gold = random.randint(4, 11) + mob["level"]
+    xp_nominal: dict[str, int] = {}
+    gold_nominal: dict[str, int] = {}
+    for player_id, (member, _damage) in recipients.items():
+        eq = equipment_bonuses(member, now)
+        insight = insight_level(member)
+        xp_nominal[player_id] = int(round(base_xp * (1 + 0.04 * insight + eq["xp_pct"])))
+        gold_nominal[player_id] = int(round(base_gold * (1 + 0.03 * insight + eq["gold_pct"])))
+    xp_awards = _split_kill_reward(max(xp_nominal.values(), default=0), weights)
+    gold_awards = _split_kill_reward(max(gold_nominal.values(), default=0), weights)
+    for player_id, (member, _damage) in recipients.items():
+        add_xp(member, xp_awards.get(player_id, 0))
+        member["gold"] = int(member.get("gold", 0) or 0) + gold_awards.get(player_id, 0)
+
+    # Item and material drops remain personal to the final hitter.
     inv = p["inventory"]
     for _rk in ("essence", "rune_dust", "mithril"):
         inv.setdefault(_rk, 0)
-    p["kills"] += 1
-    insight = insight_level(p)
-    eq = equipment_bonuses(p)
-    xp_gain = int(round((MONSTERS[kind]["xp"] + max(0, mob["level"] - MONSTERS[kind]["zone"]) * 7)
-                        * (1 + 0.04 * insight + eq["xp_pct"])))
-    add_xp(p, xp_gain)
-    gold_gain = int(round((random.randint(4, 11) + mob["level"]) * (1 + 0.03 * insight + eq["gold_pct"])))
-    p["gold"] += gold_gain
-    if p["quest_active"]:
-        p["quest_kills"][kind] = p["quest_kills"].get(kind, 0) + 1
     if kind == "slime":
         inv["slime"] += 1
         if random.random() < .45: inv["herb"] += 1
@@ -2610,6 +2992,11 @@ def award_drop(p: dict[str, Any], mob: dict[str, Any]) -> None:
         if loot_chance(p, .14): grant_gear(p, random.choice(["glacier_mantle", "hunter_brigandine"]))
         if loot_chance(p, .06): grant_weapon(p, random.choice(["frostfang", "frost_spear", "frost_crown_staff"]))
         if loot_chance(p, .10): grant_accessory(p, random.choice(["frost_band", "glacier_heart_amulet", "mana_flower", "magic_quiver"]))
+    elif kind == "blueflame_siren":
+        inv["crystal"] += 8; inv["essence"] += 2; inv["shard"] += 3
+        grant_accessory(p, "glacier_heart_amulet")
+        if loot_chance(p, .16): grant_gear(p, "glacier_mantle")
+        if loot_chance(p, .10): grant_weapon(p, "frost_crown_staff")
     elif kind == "rift_knight":
         inv["crystal"] += 6; inv["shard"] += random.randint(3, 5); inv["mithril"] += 1; inv["rune_dust"] += 1
         if loot_chance(p, .20): grant_gear(p, random.choice(["rift_plate", "shadow_garb", "stormweaver_coat"]))
@@ -2633,6 +3020,11 @@ def award_drop(p: dict[str, Any], mob: dict[str, Any]) -> None:
         if loot_chance(p, .15): grant_gear(p, random.choice(["obsidian_shell", "crimson_plate", "dragonscale_mail"]))
         if loot_chance(p, .10): grant_weapon(p, random.choice(["obsidian_axe", "blood_reaper", "dragonbone_bow"]))
         if loot_chance(p, .12): grant_accessory(p, random.choice(["obsidian_bastion_ring", "reaper_choker", "blood_chalice"]))
+    elif kind == "glass_inquisitor":
+        inv["ore"] += 6; inv["shard"] += 4; inv["mithril"] += 2; inv["rune_dust"] += 1
+        grant_accessory(p, "obsidian_bastion_ring")
+        if loot_chance(p, .16): grant_gear(p, "obsidian_shell")
+        if loot_chance(p, .10): grant_weapon(p, "obsidian_axe")
     elif kind == "starseer":
         inv["crystal"] += random.randint(4, 7); inv["shard"] += random.randint(3, 6); inv["essence"] += random.randint(1, 2); inv["rune_dust"] += 1
         if loot_chance(p, .16): grant_gear(p, random.choice(["starseer_robe", "archmage_regalia", "phantom_shroud"]))
@@ -2751,6 +3143,9 @@ def attack_release(p: dict[str, Any], now: float, ax: float, ay: float) -> None:
     attack = p.get("attack")
     if not attack:
         return
+    if float(p.get("stun_until", 0) or 0) > now:
+        p["attack"] = None
+        return
     weapon_id = attack["weapon"]
     spec = weapon_spec_for(p, weapon_id)
     eq = equipment_bonuses(p, now)
@@ -2766,6 +3161,9 @@ def attack_release(p: dict[str, Any], now: float, ax: float, ay: float) -> None:
     else:
         ax, ay = p["face_x"], p["face_y"]
     if elapsed < .14:
+        return
+    if spec["kind"] == "bow" and p["inventory"]["arrows"] <= 0:
+        broadcast({"type": "notice", "target": p["id"], "text": "Колчан пуст. Стрелы можно изготовить из дерева и руды."})
         return
     cost = spec["stamina"] * (.50 + .35 * charge if spec["kind"] == "staff" else .62 + .38 * charge) * (1.0 - eq["stamina_cost_pct"])
     if p["stamina"] < cost:
@@ -2794,9 +3192,6 @@ def attack_release(p: dict[str, Any], now: float, ax: float, ay: float) -> None:
     damage = max(1, round(base_damage * combo_mult * counter_mult * (crit_mult if critical else 1.0)))
     w_elem = str(spec.get("element") or "")
     if spec["kind"] == "bow":
-        if p["inventory"]["arrows"] <= 0:
-            broadcast({"type": "notice", "target": p["id"], "text": "Колчан пуст. Стрелы можно изготовить из дерева и руды."})
-            return
         if eq["ammo_save_pct"] <= 0 or random.random() >= eq["ammo_save_pct"]:
             p["inventory"]["arrows"] -= 1
         broadcast({"type": "weapon_action", "region": p["region"], "action": "attack", "id": p["id"],
@@ -2878,7 +3273,9 @@ def attack_release(p: dict[str, Any], now: float, ax: float, ay: float) -> None:
     for _, mob in hits[:max_hits]:
         _, streak_mult = register_combat_hit(p, now)
         react_mult, react_tag = evaluate_combat_reaction(p, mob, w_elem, heavy_hit, now)
-        final_dmg = max(1, round(damage * streak_mult * react_mult))
+        flanked = spec["kind"] == "melee" and backstab(mob, p)
+        final_dmg = max(1, round(damage * streak_mult * react_mult * (1.30 if flanked else 1.0)))
+        record_mob_contribution(p, mob, final_dmg, now)
         mob["hp"] -= final_dmg
         stagger_base = (14.0 + 22.0 * charge + (18.0 if finisher else 0.0)) * (1.0 + eq["stagger_pct"])
         build_mob_stagger(mob, stagger_base, now)
@@ -2916,17 +3313,18 @@ def attack_release(p: dict[str, Any], now: float, ax: float, ay: float) -> None:
             for extra in mobs:
                 if extra is not mob and extra["hp"] > 0 and same_region(p, extra) and math.hypot(extra["x"] - mob["x"], extra["y"] - mob["y"]) <= 85:
                     cleave_dmg = max(1, round(final_dmg * 0.25))
+                    record_mob_contribution(p, extra, cleave_dmg, now)
                     extra["hp"] -= cleave_dmg
                     if extra["hp"] <= 0:
-                        extra["hp"] = 0; extra["respawn_at"] = now + random.uniform(24, 40); award_drop(p, extra)
+                        extra["hp"] = 0; extra["respawn_at"] = now + random.uniform(24, 40); award_drop(p, extra, now)
                     broadcast({"type": "hit", "region": extra["region"], "mob": extra["id"], "x": extra["x"], "y": extra["y"], "damage": cleave_dmg})
         if mob["hp"] <= 0:
             mob["hp"] = 0
             mob["respawn_at"] = now + random.uniform(24, 40)
-            award_drop(p, mob)
+            award_drop(p, mob, now)
         broadcast({"type": "hit", "region": mob["region"], "mob": mob["id"], "x": mob["x"], "y": mob["y"],
                    "damage": final_dmg, "critical": critical, "combo": combo_step, "finisher": finisher,
-                   "reaction": react_tag or ("КОНТРАТАКА" if countered else "")})
+                   "reaction": react_tag or ("КОНТРАТАКА" if countered else "") or ("В СПИНУ" if flanked else "")})
     # Player-versus-player combat is enabled outside the safe camp.
     if not is_safe(p):
         candidates = []
@@ -2951,12 +3349,16 @@ def attack_release(p: dict[str, Any], now: float, ax: float, ay: float) -> None:
                 other["respawn_at"] = now + 5
                 other["attack"] = None
                 other["gathering"] = None
+                clear_player_combat_status(other)
                 broadcast({"type": "notice", "target": other["id"], "text": f"Ты пал в дуэли с {p['name']}. Через несколько секунд вернёшься в лагерь."})
                 broadcast({"type": "notice", "target": p["id"], "text": f"Победа в дуэли над {other['name']}!"})
     award_mastery(p, "warrior", 4 + min(6, len(hits)))
 
 
 def start_attack(p: dict[str, Any], now: float, ax: float, ay: float) -> None:
+    if float(p.get("stun_until", 0) or 0) > now:
+        p["attack"] = None
+        return
     wspec = weapon_spec_for(p, p["weapon"])
     eff_cd = max(0.08, float(wspec["cooldown"]) / max(0.45, 1.0 + equipment_bonuses(p, now)["attack_speed_pct"]))
     if p["attack"] or p["respawn_at"] > now or now - p["last_attack"] < eff_cd:
@@ -2971,7 +3373,7 @@ def start_attack(p: dict[str, Any], now: float, ax: float, ay: float) -> None:
 
 
 def start_gather(p: dict[str, Any], now: float) -> None:
-    if p["gathering"] is not None or p["attack"] or p["respawn_at"] > now:
+    if p["gathering"] is not None or p["attack"] or p["respawn_at"] > now or float(p.get("stun_until", 0) or 0) > now:
         return
     nearest = min((n for n in nodes if n["active"] and same_region(p, n) and math.hypot(n["x"] - p["x"], n["y"] - p["y"]) < 64),
                   key=lambda n: math.hypot(n["x"] - p["x"], n["y"] - p["y"]), default=None)
@@ -3036,10 +3438,13 @@ def all_spells(p: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return catalog
 
 
-def spell_unlocked(p: dict[str, Any], spell_id: str) -> bool:
-    spec = all_spells(p).get(spell_id)
+def spell_unlocked(p: dict[str, Any], spell_id: str,
+                   catalog: dict[str, dict[str, Any]] | None = None) -> bool:
+    catalog = catalog if catalog is not None else all_spells(p)
+    spec = catalog.get(spell_id)
     return bool(spec and p.get("level", 1) >= spec.get("unlock_level", 1)
-                and p.get("magic_mana_spent", 0) >= spec.get("unlock_spent", 0))
+                and p.get("magic_mana_spent", 0) >= spec.get("unlock_spent", 0)
+                and int(p.get("herald_story_stage", 0) or 0) >= int(spec.get("unlock_story_stage", 0) or 0))
 
 
 def spell_upgrade_rank(p: dict[str, Any], spell_id: str) -> int:
@@ -3058,23 +3463,31 @@ def spell_rank_mult(level: int) -> float:
     return 1.0 + 0.07 * max(0, int(level) - 1)
 
 
-def spell_effective_mana(p: dict[str, Any], spell_id: str) -> int:
-    spec = all_spells(p).get(spell_id, {})
+def spell_effective_mana(p: dict[str, Any], spell_id: str,
+                         catalog: dict[str, dict[str, Any]] | None = None,
+                         eq_bonuses: dict[str, float] | None = None) -> int:
+    catalog = catalog if catalog is not None else all_spells(p)
+    spec = catalog.get(spell_id, {})
     base = float(spec.get("mana", 0) or 0)
     if base <= 0:
         return 0
     lvl = spell_mastery_level(p, spell_id)
     if lvl >= 6:
         base *= 0.90
-    base *= 1.0 - equipment_bonuses(p)["mana_cost_pct"]
+    bonuses = eq_bonuses if eq_bonuses is not None else equipment_bonuses(p)
+    base *= 1.0 - bonuses["mana_cost_pct"]
     return max(1, round(base))
 
 
-def spell_cooldown_seconds(p: dict[str, Any], spell_id: str) -> float:
-    spec = all_spells(p).get(spell_id, {})
+def spell_cooldown_seconds(p: dict[str, Any], spell_id: str,
+                           catalog: dict[str, dict[str, Any]] | None = None,
+                           eq_bonuses: dict[str, float] | None = None) -> float:
+    catalog = catalog if catalog is not None else all_spells(p)
+    spec = catalog.get(spell_id, {})
     mastery = spell_mastery_level(p, spell_id)
     ins_cdr = min(0.25, max(0, int(p.get("insight_level", 0) or 0)) * 0.0065)
-    eq_cdr = equipment_bonuses(p)["cdr_pct"]
+    bonuses = eq_bonuses if eq_bonuses is not None else equipment_bonuses(p)
+    eq_cdr = bonuses["cdr_pct"]
     factor = max(0.32, (1.0 - 0.035 * (mastery - 1)) * (1.0 - ins_cdr) * (1.0 - eq_cdr))
     return round(max(1.0, float(spec.get("cooldown", 0)) * factor), 2)
 
@@ -3084,11 +3497,14 @@ SPELL_ICONS = {"fireball": "✦", "lightning": "ϟ", "heal": "✚", "thorns": "�
                "frost_ring": "❅", "root_bind": "🌿", "mind_chill": "☾"}
 
 
-def spells_view(p: dict[str, Any], now: float) -> dict[str, dict[str, Any]]:
+def spells_view(p: dict[str, Any], now: float,
+                eq_bonuses: dict[str, float] | None = None,
+                catalog: dict[str, dict[str, Any]] | None = None) -> dict[str, dict[str, Any]]:
     """Spell deck for the Mage, shaped like abilities_view() so the client can render
     every spell as a card with name, icon, key, cost, cooldown and unlock conditions."""
     allowed, reason = spells_allowed(p)
-    catalog = all_spells(p)
+    catalog = catalog if catalog is not None else all_spells(p)
+    eq_bonuses = eq_bonuses if eq_bonuses is not None else equipment_bonuses(p, now)
     cooldowns = p.get("spell_cooldowns", {}) if isinstance(p.get("spell_cooldowns"), dict) else {}
     order = list(SPELLS) + [sid for sid in catalog if sid not in SPELLS]
     result: dict[str, dict[str, Any]] = {}
@@ -3111,16 +3527,17 @@ def spells_view(p: dict[str, Any], now: float) -> dict[str, dict[str, Any]]:
             "kind": spec.get("kind", "Аркана"), "rarity": int(spec.get("rarity", 1) or 1),
             "desc": f"{spec.get('kind', 'Аркана')} · {'лечение' if spec.get('heal') else 'урон'} "
                     f"{eff_val} · область {int(spec.get('radius', 0) or 0)}{ctrl_note}",
-            "cost": spell_effective_mana(p, spell_id), "base_cost": int(spec.get("mana", 0)),
+            "cost": spell_effective_mana(p, spell_id, catalog, eq_bonuses), "base_cost": int(spec.get("mana", 0)),
             "key": spec.get("key", "") if is_custom else "",
-            "unlocked": spell_unlocked(p, spell_id), "allowed": allowed, "reason": reason,
+            "unlocked": spell_unlocked(p, spell_id, catalog), "allowed": allowed, "reason": reason,
             "unlock_level": int(spec.get("unlock_level", 1) or 1),
             "unlock_spent": int(spec.get("unlock_spent", 0) or 0),
+            "unlock_story_stage": int(spec.get("unlock_story_stage", 0) or 0),
             "level": lvl, "max_level": SPELL_MAX_LEVEL,
             "upgrade_rank": spell_upgrade_rank(p, spell_id),
             "power_bonus_pct": round((mult - 1.0) * 100),
             "uses": int(p.get("spell_uses", {}).get(spell_id, 0) or 0),
-            "cooldown": spell_cooldown_seconds(p, spell_id),
+            "cooldown": spell_cooldown_seconds(p, spell_id, catalog, eq_bonuses),
             "remaining": max(0.0, round(until - now, 2)),
             "crafted": bool(is_custom or spec.get("crafted")),
         }
@@ -3298,7 +3715,7 @@ def reforge_cost_for(p: dict[str, Any], target: str, item_id: str) -> int:
 
 
 def roll_reforge_prefix(target: str, weapon_kind_str: str = "melee", current_prefix: str = "",
-                        catalysed: bool = False) -> tuple[str, dict[str, Any]]:
+                        catalysed: bool = False, tier_floor: int | None = None) -> tuple[str, dict[str, Any]]:
     candidates: list[tuple[str, dict[str, Any], float]] = []
     for pid, spec in REFORGE_PREFIXES.items():
         if spec.get("group") != target:
@@ -3310,11 +3727,21 @@ def roll_reforge_prefix(target: str, weapon_kind_str: str = "melee", current_pre
         tier = int(spec.get("tier", 1))
         if catalysed and tier < 0:
             continue
+        if tier_floor is not None and tier < tier_floor:
+            continue
         weight = float(spec.get("weight", 8))
         if catalysed and tier >= 3:
             weight *= 1.65
         candidates.append((pid, spec, weight))
     if not candidates:
+        if tier_floor is not None:
+            # A seal may reroll to the same elite prefix when it is the only
+            # eligible option for this weapon archetype.
+            eligible = [(pid, spec) for pid, spec in REFORGE_PREFIXES.items()
+                        if spec.get("group") == target and int(spec.get("tier", 1)) >= tier_floor
+                        and (target != "weapon" or weapon_kind_str in spec.get("allowed", ("melee", "bow", "staff")))]
+            if eligible:
+                return random.choice(eligible)
         pid = "keen" if target == "weapon" else "sturdy" if target == "gear" else "hard"
         return pid, REFORGE_PREFIXES[pid]
     total_w = sum(c[2] for c in candidates)
@@ -3486,15 +3913,25 @@ async def forge_action(p: dict[str, Any], msg: dict[str, Any]) -> None:
 
         gold_cost = reforge_cost_for(p, ref_target, item_id)
         use_catalyst = bool(msg.get("use_catalyst"))
+        use_seal = bool(msg.get("use_champion_seal"))
+        if use_catalyst and use_seal:
+            await tell(p["id"], "Выбери только один катализатор: рунную пыль или Печать вестника."); return
         if p["gold"] < gold_cost:
             await tell(p["id"], f"Для перековки нужно {gold_cost} монет (сейчас {p['gold']})."); return
         if use_catalyst and int(inv.get("rune_dust", 0)) < 1:
             await tell(p["id"], "Для рунного катализатора перековки нужна 1 рунная пыль."); return
+        if use_seal and int(inv.get("champion_seal", 0)) < 1:
+            await tell(p["id"], "Для высшей перековки нужна 1 Печать вестника."); return
+        cur_pid = item_reforge_id(p, ref_target, item_id)
+        new_pid, new_spec = roll_reforge_prefix(ref_target, w_kind, cur_pid,
+                                                catalysed=use_catalyst, tier_floor=3 if use_seal else None)
+        # All constraints are checked and the replacement is resolved before
+        # any resource changes, so rejected operations never charge the player.
         p["gold"] -= gold_cost
         if use_catalyst:
             inv["rune_dust"] = int(inv.get("rune_dust", 0)) - 1
-        cur_pid = item_reforge_id(p, ref_target, item_id)
-        new_pid, new_spec = roll_reforge_prefix(ref_target, w_kind, cur_pid, catalysed=use_catalyst)
+        if use_seal:
+            inv["champion_seal"] = int(inv.get("champion_seal", 0)) - 1
         p.setdefault("reforges", {}).setdefault(ref_target, {})[item_id] = new_pid
         update_derived(p)
         await sync_station_state(p)
@@ -3505,6 +3942,7 @@ async def forge_action(p: dict[str, Any], msg: dict[str, Any]) -> None:
             "prefix_id": new_pid, "prefix_name": new_spec["name"],
             "tier": tier, "summary": new_spec["summary"],
             "gold_spent": gold_cost, "gold": int(p["gold"]),
+            "catalyst": "champion_seal" if use_seal else "rune_dust" if use_catalyst else "",
         })
         badge = "✦ МИФИЧЕСКАЯ УДАЧА! " if tier >= 4 else "⚠ Неудачная ковка: " if tier < 0 else "Перековка: "
         await tell(p["id"], f"{badge}{new_spec['name']} {item_name} ({new_spec['summary']}).")
@@ -3595,7 +4033,7 @@ async def wizard_action(p: dict[str, Any], msg: dict[str, Any]) -> None:
 
 def spell_damage(p: dict[str, Any], mob: dict[str, Any], damage: float, now: float, *,
                  element: str = "", can_crit: bool = False, heavy: bool = False,
-                 stagger_amt: float = 12.0) -> int:
+                 stagger_amt: float = 12.0, precomputed_critical: bool = False) -> int:
     if mob["hp"] <= 0 or not same_region(p, mob):
         return 0
     eq = equipment_bonuses(p, now)
@@ -3606,13 +4044,15 @@ def spell_damage(p: dict[str, Any], mob: dict[str, Any], damage: float, now: flo
         damage *= 1 + mark_bonus * ability_rank_mult(ability_rank(p, "eagle_mark"))
     react_mult, react_tag = evaluate_combat_reaction(p, mob, element, heavy, now)
     damage *= react_mult
-    critical = False
-    if can_crit:
+    # Weapon projectiles already include their release-time critical multiplier.
+    critical = precomputed_critical
+    if can_crit and not critical:
         crit_chance = player_crit_chance(p) + (0.10 if has_class_perk(p, "mage", 20) else 0.0)
         if random.random() < min(0.88, crit_chance):
             critical = True
             damage *= 1.65 + eq["crit_mult_bonus"]
     dealt = max(1, round(damage))
+    record_mob_contribution(p, mob, dealt, now)
     mob["hp"] -= dealt
     mob["alert_until"] = now + 4
     build_mob_stagger(mob, stagger_amt * (1.0 + eq["stagger_pct"]), now)
@@ -3620,7 +4060,7 @@ def spell_damage(p: dict[str, Any], mob: dict[str, Any], damage: float, now: flo
         p["hp"] = min(p["max_hp"], p["hp"] + max(1, round(dealt * eq["vampirism_pct"])))
     add_damage_score(p, dealt, "mob", now)
     if mob["hp"] <= 0:
-        mob["hp"] = 0; mob["respawn_at"] = now + random.uniform(24, 40); award_drop(p, mob)
+        mob["hp"] = 0; mob["respawn_at"] = now + random.uniform(24, 40); award_drop(p, mob, now)
     hit_payload: dict[str, Any] = {"type": "hit", "region": mob["region"], "mob": mob["id"],
                                    "x": mob["x"], "y": mob["y"], "damage": dealt}
     if critical:
@@ -3691,6 +4131,7 @@ def _damage_players_around(p: dict[str, Any], now: float, x: float, y: float, ra
             other["respawn_at"] = now + 5
             other["attack"] = None
             other["gathering"] = None
+            clear_player_combat_status(other)
             broadcast({"type": "notice", "target": other["id"], "text": f"Ты пал в бою с {p['name']}. Через несколько секунд вернёшься в лагерь."})
             broadcast({"type": "notice", "target": p["id"], "text": f"Победа над {other['name']}!"})
 
@@ -3806,6 +4247,9 @@ async def use_ability(p: dict[str, Any], now: float, ability_id: str, aim_x: flo
     if p.get("respawn_at", 0) > now:
         await tell(p["id"], "Нельзя применять способности во время возвращения в лагерь.")
         return
+    if float(p.get("stun_until", 0) or 0) > now:
+        await tell(p["id"], "Оглушение не даёт применить способность.")
+        return
     if now < float(p.get("ability_lock_until", 0) or 0):
         await tell(p["id"], "Персонаж ещё не завершил предыдущее действие.")
         return
@@ -3886,6 +4330,7 @@ async def use_ability(p: dict[str, Any], now: float, ability_id: str, aim_x: flo
         armor_gain = round(int(spec.get("armor", 14)) * rank_mult)
         p["guard_until"] = max(float(p.get("guard_until", 0) or 0), now + dur)
         p["guard_armor"] = armor_gain
+        p["parry_until"] = now + .22
         await send_event(event)
         await tell(p["id"], f"Железная стойка (ур. {rank}): +{armor_gain} брони на {dur:.1f} с.")
     elif ability_id == "lunge":
@@ -4140,8 +4585,12 @@ async def cast_spell(p: dict[str, Any], now: float, spell_id: str, aim_x: float,
         await tell(p["id"], reason)
         return
     if not spell_unlocked(p, spell_id):
+        story_gate = int(spec.get("unlock_story_stage", 0) or 0)
+        if story_gate > int(p.get("herald_story_stage", 0) or 0):
+            await tell(p["id"], "Заклинание откроется после завершения главы «Зов трёх вестников»."); return
         await tell(p["id"], f"Заклинание откроется на уровне {spec['unlock_level']} после расхода {spec['unlock_spent']} маны. Потрачено: {int(p.get('magic_mana_spent', 0))}."); return
     if p.get("respawn_at", 0) > now: await tell(p["id"], "Нельзя колдовать во время возвращения в лагерь."); return
+    if float(p.get("stun_until", 0) or 0) > now: await tell(p["id"], "Оглушение прерывает заклинание."); return
     cooldowns = p.setdefault("spell_cooldowns", {})
     if cooldowns.get(spell_id, 0) > now: await tell(p["id"], f"Заклинание перезаряжается: {cooldowns[spell_id] - now:.1f} с."); return
     mana_cost = spell_effective_mana(p, spell_id)
@@ -4211,12 +4660,15 @@ async def cast_spell(p: dict[str, Any], now: float, spell_id: str, aim_x: float,
                        "spell_id": spell_id, "spell_kind": spec.get("kind", spell_id), "spell_name": spec.get("name", spell_id),
                        "spell_rarity": spec.get("rarity", 1), "spell_mastery": visual["mastery"],
                        "spell_variant": visual["variant"], "spell_palette": visual["palette"], "radius": eff_radius})
-    elif spell_id == "lightning" or spec.get("crafted") and spec.get("kind") in {"Молния", "Эхо", "Звёзды"}:
+    elif spell_id == "lightning" or spec.get("chain") or spec.get("crafted") and spec.get("kind") in {"Молния", "Эхо", "Звёзды"}:
         candidates = sorted((m for m in mobs if m["hp"] > 0 and same_region(p, m) and math.hypot(m["x"] - tx, m["y"] - ty) <= eff_radius),
                            key=lambda m: math.hypot(m["x"] - tx, m["y"] - ty))
-        max_jumps = 5 if spell_lvl >= 8 else 4
+        max_jumps = int(spec.get("jumps", 5 if spell_lvl >= 8 else 4))
+        falloff = max(.1, min(1.0, float(spec.get("falloff", .72))))
         for index, mob in enumerate(candidates[:max_jumps]):
-            spell_damage(p, mob, spell_damage_base * power * (0.72 ** index), now, element=sp_elem, can_crit=True)
+            spell_damage(p, mob, spell_damage_base * power * (falloff ** index), now, element=sp_elem, can_crit=True)
+            if mob["hp"] > 0 and (spec.get("stun_duration") or spec.get("slow_duration")):
+                spell_control(spec, mob, now, spec.get("name", spell_id))
         await send_event(spell_fx_event(p, spell_id, spec, tx, ty))
     elif spell_id in {"frost_nova", "frost_ring"} or spec.get("crafted") and spec.get("kind") == "Лёд":
         for mob in mobs:
@@ -4775,7 +5227,7 @@ async def handle_message(pid: str, p: dict[str, Any], msg: dict[str, Any], now: 
     elif kind == "dodge":
         eq = equipment_bonuses(p, now)
         dodge_cost = max(10.0, round(24.0 * (1.0 - eq["stamina_cost_pct"])))
-        if now >= p["dodge_at"] and p["stamina"] >= dodge_cost and p["respawn_at"] <= now:
+        if now >= p["dodge_at"] and p["stamina"] >= dodge_cost and p["respawn_at"] <= now and float(p.get("stun_until", 0) or 0) <= now:
             dx, dy = p["mx"], p["my"]
             if math.hypot(dx, dy) < .1: dx, dy = p["face_x"], p["face_y"]
             length = max(.01, math.hypot(dx, dy)); dx /= length; dy /= length
@@ -4784,12 +5236,16 @@ async def handle_message(pid: str, p: dict[str, Any], msg: dict[str, Any], now: 
                                                p["x"] + dx * 130, p["y"] + dy * 130, 15.0)
             cd = (.70 if has_class_perk(p, "ranger", 15) else .85) * (1.0 - eq["cdr_pct"] * 0.5)
             p["stamina"] -= dodge_cost; p["dodge_at"] = now + cd; p["dodge_until"] = now + .26 + eq["dodge_window_bonus"] * 0.5
+            p["attack"] = None
+            p["gathering"] = None
             threat_window = 0.45 + eq["dodge_window_bonus"]
             threat = any(
                 m["hp"] > 0 and same_region(p, m)
                 and m.get("stun_until", 0) <= now and m.get("staggered_until", 0) <= now
-                and math.hypot(m["x"] - sx, m["y"] - sy) <= 95
-                and float(m.get("attack_at", 0) or 0) - now <= threat_window
+                and m.get("pending_attack")
+                and 0 < float(m.get("telegraph_until", 0) or 0) - now <= threat_window
+                and attack_contains(m["pending_attack"], {"x": sx, "y": sy})
+                and (not attack_contains(m["pending_attack"], p) or m["telegraph_until"] <= p["dodge_until"])
                 for m in mobs
             )
             if threat and float(p.get("counter_until", 0) or 0) <= now:
@@ -4812,12 +5268,13 @@ async def handle_message(pid: str, p: dict[str, Any], msg: dict[str, Any], now: 
 stat_names = {"might": "Сила", "vitality": "Живучесть", "agility": "Ловкость", "precision": "Точность", "fortune": "Удача"}
 EXTRA_STAT_NAMES = {"insight": "Прозорливость", "tenacity": "Стойкость", "ferocity": "Свирепость"}
 PERSIST_FIELDS = (
-    "region", "visited_regions", "region_quests", "bosses_defeated", "world_travel_unlocked",
+    "region", "visited_regions", "region_quests", "bosses_defeated", "bestiary_kills", "world_travel_unlocked",
     "x", "y", "hp", "stamina", "xp", "level", "skill_points",
     "talent_points", "bonus_talent_points", "gold_skill_upgrades", "ability_levels", "ability_uses", "spell_upgrades",
     "stats", "gold", "kills", "weapon", "weapons", "custom_weapons",
     "gear", "gear_inventory", "accessories", "equipped_accessories", "reforges",
     "inventory", "quest_stage", "quest_active", "quest_kills", "quest_gather", "quest_points",
+    "herald_story_stage", "herald_story_active", "herald_story_kills",
     "class_bonus_points", "class_bonus_spent",
     "enchantments", "market_starter_grant", "magic_mana_spent", "upgrades",
     "mana_regen_level", "magic_damage_level", "insight_level", "tenacity_level", "ferocity_level",
@@ -4942,7 +5399,11 @@ def load_character(name: str) -> dict[str, Any]:
             ).fetchone()
         if row:
             data = json.loads(row[0])
-            return {key: data[key] for key in PERSIST_FIELDS if key in data}
+            if not isinstance(data, dict):
+                return {}
+            saved = {key: data[key] for key in PERSIST_FIELDS if key in data}
+            saved["bestiary_kills"] = sanitize_kills(data.get("bestiary_kills"), MONSTERS, data.get("bosses_defeated"))
+            return saved
     except (sqlite3.Error, json.JSONDecodeError, TypeError):
         pass
     return {}
@@ -4987,6 +5448,7 @@ def browser_account_roster(browser_id: str | None) -> list[dict[str, Any]]:
 
 def save_character(p: dict[str, Any]) -> None:
     data = {key: p[key] for key in PERSIST_FIELDS if key in p}
+    data["bestiary_kills"] = sanitize_kills(p.get("bestiary_kills"), MONSTERS, p.get("bosses_defeated"))
     # Store cooldowns as remaining seconds: monotonic clocks restart with the process,
     # while the player's cooldown progress should survive a normal reconnect.
     now = time.monotonic()
@@ -5008,13 +5470,18 @@ SNEAK_SPEED_FACTOR = .52
 WALK_SPEED_BASE = 178.0
 
 
-def player_move_profile(p: dict[str, Any]) -> tuple[float, bool, bool]:
+def player_move_profile(p: dict[str, Any], now: float | None = None,
+                        eq_bonuses: dict[str, float] | None = None) -> tuple[float, bool, bool]:
     """(speed, running, sneaking) for one player this tick.
 
     Running is a stamina-gated sprint, sneaking a slow crouch; both only apply
     while the player is actually holding a direction.
     """
-    speed = (WALK_SPEED_BASE + (p["stats"]["agility"] - 1) * 3.2) * (1.0 + equipment_bonuses(p)["move_speed_pct"])
+    now = time.monotonic() if now is None else now
+    if float(p.get("respawn_at", 0) or 0) > now or float(p.get("stun_until", 0) or 0) > now:
+        return 0.0, False, False
+    bonuses = eq_bonuses if eq_bonuses is not None else equipment_bonuses(p, now)
+    speed = (WALK_SPEED_BASE + (p["stats"]["agility"] - 1) * 3.2) * (1.0 + bonuses["move_speed_pct"])
     moving = math.hypot(p.get("mx", 0.0), p.get("my", 0.0)) > .1
     running = bool(moving and p.get("running") and float(p.get("stamina", 0)) > 1.0 and not p.get("sneaking"))
     sneaking = bool(moving and p.get("sneaking"))
@@ -5022,6 +5489,8 @@ def player_move_profile(p: dict[str, Any]) -> tuple[float, bool, bool]:
         speed *= RUN_SPEED_FACTOR
     elif sneaking:
         speed *= SNEAK_SPEED_FACTOR
+    if float(p.get("slow_until", 0) or 0) > now:
+        speed *= max(.15, min(.95, float(p.get("slow_factor", .45) or .45)))
     return speed, running, sneaking
 
 
@@ -5034,12 +5503,25 @@ async def world_tick() -> None:
         for pid, p in list(players.items()):
             if p["respawn_at"] and p["respawn_at"] <= now:
                 p["respawn_at"] = 0.0
+                clear_player_combat_status(p)
                 p["hp"] = p["max_hp"]; p["stamina"] = p["max_stamina"]; p["mana"] = p["max_mana"]
                 await enter_region(p, "camp", *SPAWN, reason="respawn")
                 await tell(pid, "Ты вернулся в лагерь. Потеряно немного времени, но не добыча.")
             if p["respawn_at"] > now: continue
+            for status_kind in ("burn", "poison"):
+                pulse = consume_player_damage_over_time(p, status_kind, now)
+                if not pulse:
+                    continue
+                result = apply_player_dot_pulse(p, pulse, now)
+                if not result:
+                    continue
+                await send_event(result["event"])
+                if result["killed"]:
+                    await tell(pid, "Рана продолжала жечь. Ты пал в бою и скоро вернёшься в лагерь.")
+                    break
+            if p["respawn_at"] > now: continue
             eq_p = equipment_bonuses(p, now)
-            speed, running, sneaking = player_move_profile(p)
+            speed, running, sneaking = player_move_profile(p, now, eq_p)
             # Solid scenery: the server slides the player around trunks, rocks
             # and pillars instead of letting them pass through.
             nx = max(25, min(WORLD_W - 25, p["x"] + p["mx"] * speed * dt))
@@ -5111,14 +5593,27 @@ async def world_tick() -> None:
                     continue
             if float(mob.get("staggered_until", 0) or 0) <= now and float(mob.get("stagger", 0) or 0) > 0:
                 mob["stagger"] = max(0.0, float(mob.get("stagger", 0) or 0) - 7.5 * dt)
+            phase = boss_phase(mob)
+            if phase > mob.get("phase", 1):
+                mob["phase"] = phase
+                mob["telegraph_until"] = 0.0
+                mob["pending_attack"] = None
+                mob["attack_at"] = max(mob["attack_at"], now + 1.2)
+                await send_event({"type": "combat_fx", "region": mob["region"], "kind": "boss_phase",
+                                  "x": mob["x"], "y": mob["y"], "text": "ПРОБУЖДЕНИЕ" if phase == 2 else "ЯРОСТЬ!"})
             slow_active = float(mob.get("slow_until", 0) or 0) > now
             mob_speed = float(mob["speed"]) * (float(mob.get("slow_factor", .45) or .45) if slow_active else 1.0)
+            mob_speed *= 1.0 + .10 * (phase - 1)
             if float(mob.get("stun_until", 0) or 0) > now:
+                mob["telegraph_until"] = 0.0
+                mob["pending_attack"] = None
                 continue
             target = min((p for p in players.values() if p["respawn_at"] <= now and
                           not is_safe(p) and same_region(p, mob)),
                          key=lambda p: math.hypot(p["x"] - mob["x"], p["y"] - mob["y"]), default=None)
             if target is None:
+                mob["telegraph_until"] = 0.0
+                mob["pending_attack"] = None
                 if now > mob["wander_at"]:
                     mob["wander_x"], mob["wander_y"] = random.uniform(-1, 1), random.uniform(-1, 1)
                     mob["wander_at"] = now + random.uniform(1.2, 3.3)
@@ -5130,6 +5625,8 @@ async def world_tick() -> None:
                 continue
             dx, dy = target["x"] - mob["x"], target["y"] - mob["y"]
             dist = math.hypot(dx, dy)
+            if dist > .01 and not mob.get("pending_attack"):
+                mob["face_x"], mob["face_y"] = dx / dist, dy / dist
             if dist > 520:
                 mob["alert_until"] = 0.0
                 mob["telegraph_until"] = 0.0
@@ -5139,19 +5636,33 @@ async def world_tick() -> None:
             if dist > 300 and now > mob["wander_at"]:
                 mob["wander_x"], mob["wander_y"] = random.uniform(-1, 1), random.uniform(-1, 1)
                 mob["wander_at"] = now + 2
-            elif dist < (165 if target.get("sneaking") else 260) and dist > MONSTERS[mob["kind"]]["range"] * .72:
+            elif (not mob.get("telegraph_until") and dist < (165 if target.get("sneaking") else 360)
+                  and dist > MONSTERS[mob["kind"]]["range"] * .72):
                 mob["x"], mob["y"] = resolve_collision(
                     mob.get("region", "camp"),
                     mob["x"] + dx / max(1, dist) * mob_speed * dt,
                     mob["y"] + dy / max(1, dist) * mob_speed * dt,
                     max(10.0, mob_hit_radius(mob) * .55))
-            if dist <= MONSTERS[mob["kind"]]["range"] and mob["attack_at"] <= now:
-                if mob["telegraph_until"] <= now:
-                    mob["telegraph_until"] = now + .72
-                else:
+            strike = advance_attack(mob, target, MONSTERS[mob["kind"]], now)
+            if strike:
+                await send_event({"type": "combat_fx", "region": mob["region"], "kind": "monster_strike",
+                                  "x": strike["x"], "y": strike["y"], "radius": strike["radius"],
+                                  "attack_hint": strike, "text": ""})
+                victims = [p for p in players.values() if p["respawn_at"] <= now
+                           and same_region(p, mob) and not is_safe(p) and attack_contains(strike, p)]
+                for target in victims:
+                    dx, dy = target["x"] - mob["x"], target["y"] - mob["y"]
+                    if now < float(target.get("parry_until", 0)):
+                        target["parry_until"] = 0.0
+                        target["counter_until"] = now + 3.6
+                        target["stamina"] = min(target["max_stamina"], target["stamina"] + 8)
+                        target["last_combat"] = now
+                        mob["stun_until"] = now + (.7 if mob.get("boss") else 1.5)
+                        await send_event({"type": "combat_fx", "region": target["region"], "kind": "parry",
+                                          "id": target["id"], "x": target["x"], "y": target["y"], "text": "ПАРИРОВАНИЕ!"})
+                        continue
                     if now < target["dodge_until"]:
                         mob["telegraph_until"] = 0.0
-                        mob["attack_at"] = now + MONSTERS[mob["kind"]]["cooldown"]
                         stam_gain = 25.0 if has_class_perk(target, "ranger", 15) else 14.0
                         target["stamina"] = min(float(target["max_stamina"]), float(target["stamina"]) + stam_gain)
                         target["counter_until"] = now + 3.6
@@ -5173,17 +5684,19 @@ async def world_tick() -> None:
                     if target.get("class") == "warrior" and has_class_perk(target, "warrior", 15) and target["max_hp"] > 0 and target["hp"] / target["max_hp"] <= 0.40:
                         actual = max(1, round(actual * 0.78))
                     target["hp"] = max(0, target["hp"] - actual)
+                    if target["hp"] > 0:
+                        apply_monster_attack_rider(target, mob, strike, now, hit_damage=actual)
                     if eq_def_bon["thorns_pct"] > 0 and mob["hp"] > 0:
                         thorn_dmg = max(1, round(raw_damage * eq_def_bon["thorns_pct"]))
+                        record_mob_contribution(target, mob, thorn_dmg, now)
                         mob["hp"] = max(0, mob["hp"] - thorn_dmg)
                         await send_event({"type": "hit", "region": mob["region"], "mob": mob["id"],
                                           "x": mob["x"], "y": mob["y"], "damage": thorn_dmg, "reaction": "ОТРАЖЕНИЕ"})
                         if mob["hp"] <= 0:
                             mob["respawn_at"] = now + random.uniform(24, 40)
-                            award_drop(target, mob)
+                            award_drop(target, mob, now)
                     target["last_combat"] = now
                     mob["telegraph_until"] = 0.0
-                    mob["attack_at"] = now + MONSTERS[mob["kind"]]["cooldown"]
                     # The blow shoves the hero back into the scenery, never through it.
                     shove = 34.0 if mob.get("boss") else 20.0
                     sdist = max(.01, math.hypot(dx, dy))
@@ -5197,6 +5710,7 @@ async def world_tick() -> None:
                     if target["hp"] <= 0:
                         target["respawn_at"] = now + 5
                         target["attack"] = None; target["gathering"] = None
+                        clear_player_combat_status(target)
                         await tell(target["id"], "Ты пал в бою. Через несколько секунд вернёшься в лагерь.")
         for field in list(thorn_fields):
             if field["until"] <= now:
@@ -5255,6 +5769,7 @@ async def world_tick() -> None:
                     player_target["respawn_at"] = now + 5
                     player_target["attack"] = None
                     player_target["gathering"] = None
+                    clear_player_combat_status(player_target)
                     await tell(player_target["id"], f"Ты пал в дуэли с {shooter['name']}. Через несколько секунд вернёшься в лагерь.")
                     await tell(shooter["id"], f"Победа в дуэли над {player_target['name']}!")
                 if is_ability_arrow:
@@ -5279,7 +5794,7 @@ async def world_tick() -> None:
                     register_combat_hit(owner, now)
                     element = str(arrow.get("element", "") or "")
                     spell_damage(owner, target, float(arrow["damage"]), now, element=element,
-                                 can_crit=bool(arrow.get("critical")), stagger_amt=14.0)
+                                 precomputed_critical=bool(arrow.get("critical")), stagger_amt=14.0)
                     mana_gain = int(arrow.get("mana_on_hit", 0) or 0)
                     if mana_gain > 0:
                         owner["mana"] = min(float(owner["max_mana"]), float(owner["mana"]) + mana_gain)
@@ -5348,17 +5863,19 @@ async def world_tick() -> None:
                 react_tag = str(arrow.get("reaction_tag") or "")
                 if owner:
                     _, streak_mult = register_combat_hit(owner, now)
-                    react_mult, rtag = evaluate_combat_reaction(owner, target, "", bool(arrow.get("heavy")), now)
+                    react_mult, rtag = evaluate_combat_reaction(owner, target, str(arrow.get("element") or ""), bool(arrow.get("heavy")), now)
                     arr_dmg = max(1.0, round(arr_dmg * streak_mult * react_mult))
                     if rtag:
                         react_tag = rtag
                     build_mob_stagger(target, 18.0 if arrow.get("heavy") else 10.0, now)
                     add_damage_score(owner, arr_dmg, "mob", now)
                 dealt_arr = round(arr_dmg)
+                if owner:
+                    record_mob_contribution(owner, target, dealt_arr, now)
                 target["hp"] -= dealt_arr; target["alert_until"] = now + 4
                 if target["hp"] <= 0:
                     target["hp"] = 0; target["respawn_at"] = now + random.uniform(24, 40)
-                    if owner: award_drop(owner, target)
+                    if owner: award_drop(owner, target, now)
                 hit_ev: dict[str, Any] = {"type": "hit", "region": target["region"], "mob": target["id"],
                                           "x": target["x"], "y": target["y"], "damage": dealt_arr,
                                           "critical": bool(arrow.get("critical"))}
@@ -5378,7 +5895,11 @@ async def world_tick() -> None:
         if clients and now - last_snapshot >= SNAPSHOT_INTERVAL:
             last_snapshot = now
             for pid, ws in list(clients.items()):
-                try: await ws.send_text(json.dumps(snapshot(pid), ensure_ascii=False))
+                compact = pid in snapshot_profiles_sent
+                try:
+                    await ws.send_text(json.dumps(snapshot(pid, compact=compact), ensure_ascii=False))
+                    if not compact:
+                        snapshot_profiles_sent.add(pid)
                 except Exception:
                     # Соединение сломано — освобождаем слот сразу, не дожидаясь watchdog'а.
                     drop_client(pid)
@@ -5413,7 +5934,6 @@ async def stats_upgrade_endpoint(request: Request) -> dict[str, Any]:
     except (ValueError, TypeError):
         return {"ok": False, "error": "Некорректный запрос."}
     stat = str(body.get("stat", ""))
-    p = players.get(name)  # players is keyed by pid; look up by name below
     target = next((pl for pl in players.values() if pl.get("name") == name), None)
     if target is None:
         return {"ok": False, "error": "Персонаж сейчас не в мире. Зайдите и повторите."}
@@ -5438,12 +5958,13 @@ async def stats_upgrade_endpoint(request: Request) -> dict[str, Any]:
 def default_player(pid: str, name: str) -> dict[str, Any]:
     """Fresh character state; also used by tests and save migration."""
     return {"id": pid, "name": name, "region": "camp", "zone": "camp", "visited_regions": ["camp"],
-         "region_quests": {}, "bosses_defeated": [], "world_travel_unlocked": False,
+         "region_quests": {}, "bosses_defeated": [], "bestiary_kills": {}, "world_travel_unlocked": False,
          "x": SPAWN[0], "y": SPAWN[1], "mx": 0.0, "my": 0.0,
          "face_x": 1.0, "face_y": 0.0, "hp": 100, "max_hp": 100, "stamina": 100.0, "max_stamina": 100,
          "xp": 0, "level": 1, "skill_points": 0, "talent_points": 0, "bonus_talent_points": 0,
          "gold_skill_upgrades": 0, "ability_levels": {}, "ability_uses": {}, "spell_upgrades": {},
          "quest_points": 0, "class_bonus_points": 0, "stats": {"might": 1, "vitality": 1, "agility": 1, "precision": 1, "fortune": 1},
+         "herald_story_stage": 0, "herald_story_active": False, "herald_story_kills": 0,
          "gold": 0, "kills": 0, "last_attack": 0.0, "attack": None, "respawn_at": 0.0,
          "mana": 60, "max_mana": 60, "spell_cooldowns": {}, "spell_uses": {}, "custom_spells": {},
          "enchantments": {"weapon": {}, "gear": {}}, "upgrades": {"weapon": {}, "gear": {}, "accessory": {}},
@@ -5463,7 +5984,7 @@ def default_player(pid: str, name: str) -> dict[str, Any]:
          "dodge_at": 0.0, "dodge_until": 0.0, "running": False, "sneaking": False, "weapon": "sword", "weapons": ["sword", "axe", "bow"],
          "gear": "traveler", "gear_inventory": [],
          "inventory": {"wood": 0, "herb": 0, "ore": 0, "hide": 0, "slime": 0, "crystal": 0, "shard": 0,
-                       "essence": 0, "rune_dust": 0, "mithril": 0, "potion": 2, "arrows": 18},
+                       "essence": 0, "rune_dust": 0, "mithril": 0, "champion_seal": 0, "potion": 2, "arrows": 18},
          "quest_stage": 0, "quest_active": False, "quest_kills": {}, "quest_gather": {},
          "gathering": None, "last_chat": 0.0, "last_combat": 0.0, "travel_lock_until": 0.0, "recall_at": 0.0,
          "tracked_quest": ""}
@@ -5490,6 +6011,11 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     # while every existing level, item, spell and statistic is kept intact.
     if p.get("class") not in CLASSES:
         p["class"] = None
+    p["herald_story_stage"] = max(0, min(len(HERALD_QUESTS), int(p.get("herald_story_stage", 0) or 0)))
+    p["herald_story_active"] = bool(p.get("herald_story_active")) and p["herald_story_stage"] < len(HERALD_QUESTS)
+    p["herald_story_kills"] = min(1, max(0, int(p.get("herald_story_kills", 0) or 0)))
+    if not p["herald_story_active"]:
+        p["herald_story_kills"] = 0
     p["mastery"] = normalize_mastery(p.get("mastery"))
     saved_cooldowns = p.get("ability_cooldowns") if isinstance(p.get("ability_cooldowns"), dict) else {}
     p["ability_cooldowns"] = {
@@ -5517,7 +6043,8 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
             "gather": {k: max(0, int(v)) for k, v in (state.get("gather") or {}).items() if k in SELL_PRICES},
             "kills": {k: max(0, int(v)) for k, v in (state.get("kills") or {}).items() if k in MONSTERS}}
     if not isinstance(p.get("bosses_defeated"), list): p["bosses_defeated"] = []
-    p["bosses_defeated"] = [k for k in p["bosses_defeated"] if k in MONSTERS]
+    p["bosses_defeated"] = [k for k in p["bosses_defeated"] if isinstance(k, str) and k in MONSTERS]
+    p["bestiary_kills"] = sanitize_kills(p.get("bestiary_kills"), MONSTERS, p["bosses_defeated"])
     if MAIN_BOSS_KIND in p["bosses_defeated"]:
         p["world_travel_unlocked"] = True
     p["world_travel_unlocked"] = bool(p.get("world_travel_unlocked", False))
@@ -5567,7 +6094,7 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
         }
     p["inventory"] = {key: max(0, min(999999, int(p.get("inventory", {}).get(key, 0))))
                        for key in p["inventory"]}
-    for resource in ("wood", "herb", "ore", "hide", "slime", "crystal", "shard", "essence", "rune_dust", "mithril", "potion", "arrows"):
+    for resource in ("wood", "herb", "ore", "hide", "slime", "crystal", "shard", "essence", "rune_dust", "mithril", "champion_seal", "potion", "arrows"):
         p["inventory"].setdefault(resource, 0)
     if not isinstance(p.get("enchantments"), dict): p["enchantments"] = {"weapon": {}, "gear": {}}
     p["enchantments"].setdefault("weapon", {}); p["enchantments"].setdefault("gear", {})
@@ -5595,8 +6122,10 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     p["tracked_quest"] = p["tracked_quest"][:48]
     update_derived(p)
     players[pid] = p; clients[pid] = websocket
+    snapshot_profiles_sent.discard(pid)
     last_seen_at[pid] = time.monotonic(); last_ping_at[pid] = 0.0
     await websocket.send_text(json.dumps(snapshot(pid), ensure_ascii=False))
+    snapshot_profiles_sent.add(pid)
     if p["level"] >= CLASS_MIN_LEVEL and not p["class"]:
         await send_event({"type": "class_offer", "target": pid, "level": p["level"],
                           "classes": CLASSES})

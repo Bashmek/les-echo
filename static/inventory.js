@@ -9,6 +9,14 @@
   'use strict';
 
   const HOT_KEY = 'echoHotbarV2';
+  function craftPanelSignature(tab, rows) {
+    const stableRows = (rows || []).map(row => [
+      String(row.id || ''), String(row.name || ''),
+      Object.entries(row.cost || {}).sort(([a], [b]) => a.localeCompare(b)),
+      !!row.owned, !!row.affordable,
+    ]);
+    return JSON.stringify([String(tab || ''), stableRows]);
+  }
   const CONSUMABLE_META = {
     potion: { name: 'Настойка следопыта', desc: '+48 здоровья', color: '#e0574d', color2: '#ff8a72', kind: 'potion' },
     mana_potion: { name: 'Эссенция синего пламени', desc: '+60 маны', color: '#3f7fd8', color2: '#7fc4ff', kind: 'mana_potion' },
@@ -21,6 +29,7 @@
     bandage: { name: 'Лубяная повязка', desc: '+24 здоровья', color: '#c8b894', color2: '#f0e6c8', kind: 'bandage' },
     throwing_knife: { name: 'Метательные ножи', desc: 'Метательный боеприпас', color: '#a8b8bd', color2: '#e8f4f8', kind: 'knife' },
   };
+  window.EchoItems = { consumables: CONSUMABLE_META, craftPanelSignature };
   const RES_ICON = {
     wood: 'wood', herb: 'herb', ore: 'ore', crystal: 'crystal', shard: 'shard', hide: 'hide', slime: 'slime',
     essence: 'essence', rune_dust: 'rune_dust', mithril: 'mithril',
@@ -28,6 +37,7 @@
     rage_potion: 'potion', ironskin_potion: 'potion', haste_potion: 'potion', arcane_tonic: 'potion',
     bandage: 'bandage', throwing_knife: 'knife',
   };
+  RES_ICON.champion_seal = 'crystal';
   const RARITY_COL = { common: '#b9c0aa', uncommon: '#86cf91', rare: '#79bce2', epic: '#c49be8', legendary: '#f1b75e' };
   const TIER_COL = { '-1': '#d96b6b', '1': '#9ad69c', '2': '#7cc6f2', '3': '#cf9eff', '4': '#ffcf66' };
 
@@ -129,7 +139,7 @@
     }
     const matName = resourceNames?.[id] || ({ essence: 'Стихийная эссенция', rune_dust: 'Рунная пыль', mithril: 'Мифрил' })[id];
     if (matName) {
-      const matRarity = id === 'mithril' ? 'epic' : (id === 'essence' || id === 'rune_dust' || id === 'shard' || id === 'crystal') ? 'rare' : 'common';
+      const matRarity = id === 'champion_seal' ? 'legendary' : id === 'mithril' ? 'epic' : (id === 'essence' || id === 'rune_dust' || id === 'shard' || id === 'crystal') ? 'rare' : 'common';
       return { id, kind: id === 'arrows' ? 'ammo' : 'material', name: matName, rarity: matRarity, count: Number(p.inventory?.[id] || 0), desc: materialDesc(id), icon: RES_ICON[id] || 'material' };
     }
     return null;
@@ -160,6 +170,7 @@
       essence: 'Стихийная эссенция — сердцевина для артефактов и авторского оружия.',
       rune_dust: 'Рунная пыль — катализатор перековки и закалки в кузнице.',
       mithril: 'Благородный мифрил для высшей ковки и закалки +11..+15.',
+      champion_seal: 'Печать мини-босса. В кузнице гарантирует префикс III тира или выше.',
       hide: 'Шкура для брони, сапог и отваров.',
       slime: 'Слизь для целебных настоек.',
       arrows: 'Боеприпас для луков и арбалетов.',
@@ -179,7 +190,7 @@
     for (const k of ['ring', 'amulet', 'artifact_1', 'artifact_2']) if (eqAcc[k]) push(eqAcc[k]);
     for (const id of p.accessories || []) push(id);
     for (const id of Object.keys(CONSUMABLE_META)) if (Number(p.inventory?.[id] || 0) > 0) push(id);
-    const allResKeys = new Set([...Object.keys(resourceNames || {}), 'essence', 'rune_dust', 'mithril']);
+    const allResKeys = new Set([...Object.keys(resourceNames || {}), 'essence', 'rune_dust', 'mithril', 'champion_seal']);
     for (const id of allResKeys) if (Number(p.inventory?.[id] || 0) > 0) push(id);
     return out;
   }
@@ -961,9 +972,11 @@
       hotbarSlotClick(i);
     }, true);
 
-    // Escape closes our window even if another overlay manager looks first.
+    // Inventory gets first refusal: one Escape closes it without opening the pause menu.
     window.addEventListener('keydown', e => {
       if (e.key !== 'Escape' || !invOpen) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
       closeMC();
     }, true);
 
@@ -975,6 +988,6 @@
   if (typeof document !== 'undefined') install();
 
   if (typeof module === 'object' && module.exports) {
-    module.exports = { inventoryItems, resolveItem, HOT_KEY, CONSUMABLE_META };
+    module.exports = { inventoryItems, resolveItem, HOT_KEY, CONSUMABLE_META, craftPanelSignature };
   }
 })();

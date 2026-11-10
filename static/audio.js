@@ -243,6 +243,12 @@
     pickup() { [880, 1320].forEach((f, i) => tone({ freq: f, type: 'sine', dur: .09, gain: .04, delay: i * .07 })); },
     coin() { if (gate('coin', 90)) { tone({ freq: 1180, type: 'triangle', dur: .07, gain: .035 }); tone({ freq: 1560, type: 'triangle', dur: .1, gain: .025, delay: .06 }); } },
     level() { [523, 659, 784, 1047].forEach((f, i) => tone({ freq: f, type: 'triangle', dur: .16, gain: .05, delay: i * .09 })); },
+    victory(boss = false) {
+      if (!gate('victory', 900)) return;
+      [392, 523.25, 659.25, 783.99].forEach((freq, i) =>
+        tone({ freq, type: 'triangle', dur: boss ? .32 : .22, gain: .035, delay: i * .1 }));
+      if (boss) tone({ freq: 196, type: 'sine', dur: .45, gain: .025 });
+    },
 
     dodge() { noise({ dur: .22, gain: .07, from: 2000, to: 300, q: .8 }); },
     portal() { tone({ freq: 900, to: 280, type: 'sine', dur: .5, gain: .05 }); noise({ dur: .4, gain: .03, from: 600, to: 180, q: 2 }); },

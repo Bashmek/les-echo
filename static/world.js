@@ -3,9 +3,9 @@
    drawAvatarSprite, drawMobSprite, marketSignature, spellFx, weaponActions, attackFx, vfxParticles,
    abilityFx, hitFlashes, keys, touchDirs, joyRelease, actionKeyLabel */
 
-const WORLD_UI_VERSION = 1;
-const terrainCache = new Map();
-const entityViews = new Map();
+const WORLD_UI_VERSION = 2;
+const terrainCache = window.EchoTerrainCache?.create(3) || new Map();
+const entityViews = EchoMotion.createTracker();
 const stationNpc = {};
 let currentRegionId = null;
 let activeNpc = null;
@@ -22,10 +22,7 @@ function nearestService(service) {
     .sort((a, b) => npcDistance(a) - npcDistance(b))[0] || null;
 }
 function entityPosition(e, now) {
-  let v = entityViews.get(e.id);
-  if (!v || Math.hypot(e.x - v.x, e.y - v.y) > 260) { v = { x: e.x, y: e.y }; entityViews.set(e.id, v); }
-  v.x += (e.x - v.x) * .28; v.y += (e.y - v.y) * .28;
-  return v;
+  return entityViews.sample(e, now, e.id === myId ? 18 : 32);
 }
 
 /* ---------- deterministic pixel terrain ---------- */
@@ -146,6 +143,21 @@ function buildTerrain(r) {
   ellipse(c, 470, 800, 330, 260, r.id === 'glacier' ? '#a8c4c8' : r.id === 'rift' || r.id === 'abyss' ? '#5a4e72' : '#8a7a58');
   ellipse(c, 470, 800, 300, 235, r.id === 'glacier' ? '#b8d4d8' : r.id === 'rift' || r.id === 'abyss' ? '#6a5a86' : '#9c8a64');
   for (let i = 0; i < 80; i++) { const a = rnd() * Math.PI * 2, d = Math.sqrt(rnd()); px(c, 470 + Math.cos(a) * d * 290, 800 + Math.sin(a) * d * 225, 5, 3, '#00000018'); }
+  // Inlaid plaza stones give the settlement a crafted surface at close zoom.
+  c.save();
+  c.beginPath();c.ellipse(470,800,287,221,0,0,Math.PI*2);c.clip();
+  for(let row=0;row<19;row++)for(let col=0;col<25;col++){
+    const x=165+col*26+(row%2)*13,y=568+row*26;
+    c.fillStyle=(row+col)%4===0?'#ffffff09':'#191d2510';
+    c.fillRect(x+1,y+1,24,24);c.strokeStyle='#ead7a014';c.lineWidth=.7;c.strokeRect(x+2,y+2,22,22);
+  }
+  c.strokeStyle='#e7d39a30';c.lineWidth=2;
+  for(const rad of [80,91]){c.beginPath();c.arc(470,800,rad,0,Math.PI*2);c.stroke();}
+  for(let i=0;i<8;i++){
+    const a=i*Math.PI/4,x=470+Math.cos(a)*86,y=800+Math.sin(a)*86;
+    c.save();c.translate(x,y);c.rotate(a);c.fillStyle='#f0dfaa66';c.fillRect(-2,-3,4,6);c.restore();
+  }
+  c.restore();
   // Biome decoration, kept clear of roads and the hub.
   const palettes = {
     camp: ['#2e4a32', '#4a7040', '#7fa050'], forest: ['#22452f', '#3f7042', '#7fa653'], marsh: ['#2a4a3a', '#4a7050', '#7a9a60'],
@@ -192,7 +204,13 @@ function buildTerrain(r) {
   c.strokeStyle = r.dark; c.lineWidth = 24; c.strokeRect(0, 0, r.width, r.height);
   return cv;
 }
-function getTerrain(r) { if (!r) return null; const key = r.id + ':' + r.seed; if (!terrainCache.has(key)) terrainCache.set(key, buildTerrain(r)); return terrainCache.get(key); }
+function getTerrain(r) {
+  if (!r) return null;
+  const key = r.id + ':' + r.seed;
+  if (terrainCache.getOrCreate) return terrainCache.getOrCreate(key, () => buildTerrain(r));
+  if (!terrainCache.has(key)) terrainCache.set(key, buildTerrain(r));
+  return terrainCache.get(key);
+}
 
 function drawRegionWorld(c, ox, oy, w, h, now) {
   const r = snap?.region;
@@ -272,7 +290,7 @@ function injectWorldUI() {
   ribbon.innerHTML = `<div class="regionChapter" id="regionChapter">I</div><div class="regionText"><b id="regionName">Лагерь Следопытов</b><small id="regionSub">Тихая гавань</small></div><div class="regionMeta"><span id="regionDanger">Безопасно</span><span id="regionOnline">1 в карте</span></div>`;
   game.append(ribbon);
   const tools = document.createElement('div'); tools.id = 'worldTools'; tools.className = 'worldTools';
-  tools.innerHTML = `<button type="button" id="charToolButton" class="worldTool">✦ Герой <kbd>C</kbd><span id="charToolBadge" class="toolPointBadge" hidden></span></button><button type="button" id="atlasButton" class="worldTool">◈ Атлас <kbd>M</kbd></button><button type="button" id="recallButton" class="worldTool">⌂ В лагерь</button>`;
+  tools.innerHTML = `<button type="button" id="charToolButton" class="worldTool worldShortcut">✦ Герой <kbd>C</kbd><span id="charToolBadge" class="toolPointBadge" hidden></span></button><button type="button" id="atlasButton" class="worldTool worldShortcut">◈ Атлас <kbd>M</kbd></button><button type="button" id="recallButton" class="worldTool">⌂ В лагерь</button>`;
   game.append(tools);
   const prompt = document.createElement('button'); prompt.type = 'button'; prompt.id = 'npcPrompt'; prompt.className = 'npcPrompt panel'; prompt.hidden = true; game.append(prompt);
   const local = document.createElement('div'); local.id = 'localQuestChip'; local.className = 'localQuestChip'; local.hidden = true; game.append(local);
@@ -298,9 +316,6 @@ function injectWorldUI() {
   npc.addEventListener('click', e => { if (e.target === npc) closeNpc(); });
   $('shopSearch').addEventListener('input', e => { shopFilter.text = e.target.value.toLowerCase(); applyShopFilter(); });
   $('shopFilters').addEventListener('click', e => { const b = e.target.closest('[data-shop-kind]'); if (!b) return; shopFilter.kind = b.dataset.shopKind; document.querySelectorAll('[data-shop-kind]').forEach(x => x.classList.toggle('active', x === b)); applyShopFilter(); });
-  // Add atlas to the pause menu.
-  const menu = $('gameMenuList'); const cont = menu.querySelector('[data-menu-action="continue"]');
-  const b = document.createElement('button'); b.type = 'button'; b.textContent = 'Атлас девяти земель'; b.insertAdjacentHTML('beforeend', '<kbd>M</kbd>'); b.onclick = () => { toggleGameMenu(false, true); openAtlas(); }; cont.insertAdjacentElement('afterend', b);
 }
 function openAtlas(selected) {
   if (!snap?.region) return;
@@ -373,7 +388,7 @@ function localQuestReady(q, p) {
 }
 function renderNpcDialog() {
   const p = me(), n = activeNpc; if (!p || !n) return;
-  const sig = JSON.stringify([n.id, p.region, p.quest, p.region_quest, p.inventory, p.gold]);
+  const sig = JSON.stringify([n.id, p.region, p.quest, p.region_quest, p.herald_story, n.herald_story, p.inventory, p.gold]);
   if (sig === npcRenderSignature) return; npcRenderSignature = sig;
   $('npcTitle').textContent = n.title; $('npcName').textContent = n.name; $('npcRegion').textContent = snap.region.name; $('npcDialogue').textContent = n.dialogue;
   drawNpcPortrait(n);
@@ -393,6 +408,19 @@ function renderNpcDialog() {
     if (p.region === 'camp') {
       const q = p.quest, done = q.active && questDone(q), finished = q.stage >= q.total;
       content.insertAdjacentHTML('beforeend', `<div class="npcQuest"><h3>Путь следопыта · ${Math.min(q.stage + 1, q.total)} / ${q.total}</h3><p>${finished ? 'История Леса Эха завершена.' : esc(questStages[Math.min(q.stage, questStages.length - 1)][4])}</p>${!finished ? `<div class="questRow"><span>${esc(mobNames[questStages[Math.min(q.stage, questStages.length - 1)][0]] || '')}</span><b>${Math.min(q.kills?.[questStages[Math.min(q.stage, questStages.length - 1)][0]] || 0, questStages[Math.min(q.stage, questStages.length - 1)][1])} / ${questStages[Math.min(q.stage, questStages.length - 1)][1]}</b></div>` : ''}<div class="npcQuestButtons">${!q.active && !finished ? `<button type="button" data-story-quest="accept">Принять поручение</button>` : ''}${done ? `<button type="button" data-story-quest="claim" class="ready">Сдать поручение</button>` : ''}</div></div>`);
+      const hs = n.herald_story || p.herald_story;
+      if (hs) {
+        const current = (hs.chapters || []).find(ch => ch.status !== 'done' && ch.status !== 'hidden');
+        const contentText = hs.complete ? 'Три печати отозвались. Имя, спрятанное в их памяти, ведёт глубже — к истоку Эха.'
+          : current?.description || 'Три вестника оставили печати в землях Леса Эха.';
+        const action = current?.status === 'available'
+          ? `<button type="button" data-herald-quest="accept">Принять охоту</button>`
+          : current?.status === 'ready'
+            ? `<button type="button" data-herald-quest="claim" class="ready">Сдать печать</button>` : '';
+        const progress = current && current.status !== 'available'
+          ? `<div class="questRow"><span>${esc(mobNames[current.mob] || current.mob)}</span><b>${current.status === 'ready' ? 1 : Math.min(1, Number(hs.kills || 0))} / 1</b></div>` : '';
+        content.insertAdjacentHTML('beforeend', `<div class="npcQuest heraldQuest"><h3>Зов трёх вестников · ${Math.min(hs.stage + 1, hs.total)} / ${hs.total}</h3><p>${esc(contentText)}</p>${progress}<div class="questReward">Победы дают Печать вестника для высшей перековки. Завершение главы открывает магам заклинание «Сеть эха».</div><div class="npcQuestButtons">${action}</div></div>`);
+      }
     }
     const q = p.region_quest;
     if (q) {
@@ -400,10 +428,11 @@ function renderNpcDialog() {
       content.insertAdjacentHTML('beforeend', `<div class="npcQuest"><h3>${esc(q.title)} ${q.done ? '· выполнено' : ''}</h3><p>${esc(q.description)}</p>${questProgressHtml(q, p)}<div class="questReward">Награда: ${q.gold} ◉ · ${q.xp} XP · 2 настойки · 1 очко развития</div><div class="npcQuestButtons">${!q.active && !q.done ? `<button type="button" data-region-quest="accept">Принять поручение</button>` : ''}${q.active && !q.done ? `<button type="button" data-region-quest="claim" class="${ready ? 'ready' : ''}" ${ready ? '' : 'disabled'}>Сдать поручение</button>` : ''}</div></div>`);
     }
     content.querySelectorAll('[data-story-quest]').forEach(b => b.onclick = () => send({ type: 'npc_quest', npc_id: n.id, action: b.dataset.storyQuest, quest_kind: 'story' }));
+    content.querySelectorAll('[data-herald-quest]').forEach(b => b.onclick = () => send({ type: 'npc_quest', npc_id: n.id, action: b.dataset.heraldQuest, quest_kind: 'herald_story' }));
     content.querySelectorAll('[data-region-quest]').forEach(b => b.onclick = () => send({ type: 'npc_quest', npc_id: n.id, action: b.dataset.regionQuest, quest_kind: 'region' }));
   }
 }
-function openNpc(n, quest) { activeNpc = n; npcRenderSignature = ''; renderNpcDialog(); $('npcOverlay').style.display = 'flex'; $('closeNpc').focus(); }
+function openNpc(n, quest, heraldStory) { activeNpc = { ...n, ...(heraldStory ? { herald_story: heraldStory } : {}) }; npcRenderSignature = ''; renderNpcDialog(); $('npcOverlay').style.display = 'flex'; $('closeNpc').focus(); }
 function closeNpc() { $('npcOverlay').style.display = 'none'; activeNpc = null; npcRenderSignature = ''; }
 function openPortal(portal) { const target = snap?.regions.find(r => r.id === portal.target); openAtlas(target?.id); }
 
@@ -483,6 +512,9 @@ function showTravelBanner(r, reason) {
 }
 function resetMapViews() {
   entityViews.clear(); keys.clear(); touchDirs.clear(); if (typeof joyRelease === 'function') joyRelease();
+  window.LesEchoView?.reset?.();
+  window.EncounterView?.reset?.(currentRegionId);
+  window.echoBestiaryView?.close();
   spellFx.length = 0; weaponActions.length = 0; attackFx.length = 0; if (typeof vfxParticles !== 'undefined') vfxParticles.length = 0; if (typeof abilityFx !== 'undefined') abilityFx.length = 0;
   for (const k of Object.keys(hitFlashes)) delete hitFlashes[k];
   waypoint = null; closeNpc(); closeAtlas();
@@ -498,20 +530,25 @@ const WorldUI = {
       cam.x = p.x; cam.y = p.y; if (!first) showTravelBanner(r, WorldUI.pendingReason || 'travel'); WorldUI.pendingReason = null;
       document.documentElement.style.setProperty('--region-accent', r.accent);
     }
+    entityViews.retain(snap.players, snap.mobs);
+    window.LesEchoView?.retain?.(snap.players, snap.mobs);
     $('regionChapter').textContent = r.chapter; $('regionName').textContent = r.name; $('regionSub').textContent = r.short;
     $('regionDanger').textContent = r.danger === 0 ? 'Безопасно' : p.in_combat ? 'В бою' : r.level;
     $('regionDanger').classList.toggle('combat', !!p.in_combat);
     $('regionOnline').textContent = `${snap.players.length} в карте`;
     $('miniMapLabel').textContent = r.name.toUpperCase();
-    const recall = $('recallButton'); recall.disabled = p.region === 'camp' || p.in_combat || !p.recall_ready; recall.title = p.in_combat ? 'Недоступно в бою' : p.region === 'camp' ? 'Ты уже в лагере' : 'Вернуться в лагерь · перезарядка 20 с';
+    const recall = $('recallButton'); recall.hidden = p.region === 'camp' || !!p.in_combat; recall.disabled = !p.recall_ready; recall.title = p.in_combat ? 'Недоступно в бою' : 'Вернуться в лагерь · перезарядка 20 с';
     const q = p.region_quest, chip = $('localQuestChip');
     if (q && q.active && !q.done) { chip.hidden = false; chip.textContent = `❖ ${q.title}`; } else chip.hidden = true;
     // Context prompt.
     const npc = (r.npcs || []).filter(n => npcDistance(n) <= 125).sort((a, b) => npcDistance(a) - npcDistance(b))[0];
     const portal = (snap.portals || []).find(v => Math.hypot(p.x - v.x, p.y - v.y) <= 145);
     const node = (snap.nodes || []).find(n => n.active && Math.hypot(p.x - n.x, p.y - n.y) < 68);
+    const mobileInteract = $('mInteractButton'); if (mobileInteract) { mobileInteract.hidden = !(npc || portal || node); mobileInteract.disabled = !(npc || portal || node); }
     const prompt = $('npcPrompt');
-    if (npc) { prompt.hidden = false; prompt.innerHTML = `<kbd>${actionKeyLabel('interact')}</kbd><span><b>${esc(npc.name)}</b><small>${esc(npc.title)}</small></span>`; $('interactButton').innerHTML = `${actionKeyLabel('interact')} · ${esc(npc.role === 'merchant' ? 'ЛАВКА' : npc.role === 'forge' ? 'КУЗНЯ' : npc.role === 'wizard' ? 'МАГ' : 'ЖИТЕЛЬ')}`; if ($('mInteractButton')) $('mInteractButton').textContent = 'ЖИТЕЛЬ'; }
+    const touchLayout = window.matchMedia('(max-width: 760px), (pointer: coarse)').matches;
+    prompt.disabled = touchLayout && !!(npc || portal || node);
+    if (npc) { prompt.hidden = false; prompt.innerHTML = `<kbd>${actionKeyLabel('interact')}</kbd><span><b>${esc(npc.name)}</b><small>${esc(npc.title)}</small></span>`; $('interactButton').innerHTML = `${actionKeyLabel('interact')} · ${esc(npc.role === 'merchant' ? 'ЛАВКА' : npc.role === 'forge' ? 'КУЗНЯ' : npc.role === 'wizard' ? 'МАГ' : 'ЖИТЕЛЬ')}`; if ($('mInteractButton')) $('mInteractButton').textContent = npc.role === 'merchant' ? 'ТОРГОВАТЬ' : npc.role === 'forge' ? 'КУЗНЯ' : npc.role === 'wizard' ? 'МАГ' : 'ЖИТЕЛЬ'; }
     else if (portal) { const target = snap.regions.find(z => z.id === portal.target); prompt.hidden = false; prompt.innerHTML = `<kbd>${actionKeyLabel('interact')}</kbd><span><b>Дорожный камень</b><small>${esc(target?.name || '')}</small></span>`; $('interactButton').textContent = `${actionKeyLabel('interact')} · ПЕРЕХОД`; if ($('mInteractButton')) $('mInteractButton').textContent = 'ПЕРЕХОД'; }
     else if (node) { prompt.hidden = false; prompt.innerHTML = `<kbd>${actionKeyLabel('gather')}</kbd><span><b>${esc(resourceNames[node.kind] || 'Ресурс')}</b><small>Собрать</small></span>`; $('interactButton').textContent = `${actionKeyLabel('gather')} · СБОР`; if ($('mInteractButton')) $('mInteractButton').textContent = 'СБОР'; }
     else { prompt.hidden = true; $('interactButton').textContent = `${actionKeyLabel('gather')} · РЕСУРС`; if ($('mInteractButton')) $('mInteractButton').textContent = 'СБОР'; }

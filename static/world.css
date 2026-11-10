@@ -192,3 +192,5 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
   .travelBanner.show { animation: none; opacity: 1; }
   * { transition-duration: .01ms !important; }
 }
+
+.heraldQuest .questReward{color:#9ee4cd}

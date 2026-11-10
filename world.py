@@ -58,11 +58,11 @@ _REGION_DATA = [
     dict(id="glacier", name="Хребет Синего Пламени", short="По ту сторону инея", chapter="V", min_level=11, danger=4,
          level="Уровень 11–14", accent="#a5e5f2", ground="#718e98", dark="#3b5869", light="#b5d4d6",
          description="Ледяные шпили поют на ветру. Синее пламя не греет, но не даёт погаснуть последней надежде.",
-         lore="Даже у холода есть сердце.", landmark="Кристалл синего пламени", weather="snow",
-         guide=("Сэйра Льдинка", "mage", "Ледяные змеи спускаются к перевалу. Их чешуя остудит жар разлома — если добудешь её."),
+         lore="В сердце ледника звучит голос, который замораживает даже эхо.", landmark="Кристалл синего пламени", weather="snow",
+         guide=("Сэйра Льдинка", "mage", "Собери кристаллы у ледяных змеев и прерви песнь Певицы Синего Пламени — её иней глушит дорогу к разлому."),
          merchant=("Ниве · север", "Лавка «Синий иней»", ["potion", "mana_potion", "arcane_tonic", "crystal_bow", "frost_spear", "frostguard_plate", "hunter_brigandine", "moon_staff", "frost_band", "glacier_heart_amulet", "mana_flower", "magic_quiver", "elixir", "essence_pack"]),
          artisan=("Хальд · иней", "Мастерская вечного льда", "wizard"),
-         quest=("Песня ледяных шпилей", "crystal", 8, "ore", 0, "frost_wyrm", 4),
+         quest=("Песня ледяных шпилей", "crystal", 8, "ore", 0, "blueflame_siren", 1),
          stock_note="Морозные пики, луки, артефакты маны и колчаны"),
     dict(id="rift", name="Разлом Эха", short="Трещина в памяти мира", chapter="VI", min_level=15, danger=5,
          level="Уровень 15–19", accent="#caa6f4", ground="#514665", dark="#302c46", light="#8971a2",
@@ -85,11 +85,11 @@ _REGION_DATA = [
     dict(id="obsidian", name="Обсидиановый край", short="На границе чёрного стекла", chapter="VIII", min_level=26, danger=7,
          level="Уровень 26–30", accent="#d5a4cf", ground="#4e4054", dark="#2c2735", light="#806783",
          description="Вулканическое стекло режет горизонт. Под алыми прожилками скал куётся оружие для последнего пути.",
-         lore="Стекло помнит форму огня.", landmark="Осколок чёрного стекла", weather="embers",
-         guide=("Карн Страж", "warrior", "Стражи чёрного стекла закрывают перевал. Добудь руду из их брони и открой путь к саду."),
+         lore="Чёрное зеркало помнит приговор судьи, которого здесь никогда не было.", landmark="Осколок чёрного стекла", weather="embers",
+         guide=("Карн Страж", "warrior", "Добудь руду у стражей и выдержи суд Инквизитора Чёрного Зеркала. За ним откроется путь к саду."),
          merchant=("Мора · обсидиан", "Лавка «Чёрное зеркало»", ["elixir", "rage_potion", "ironskin_potion", "obsidian_axe", "blood_reaper", "dragonbone_bow", "war_maul", "glaive", "crimson_plate", "dragonscale_mail", "void_cloak", "obsidian_bastion_ring", "reaper_choker", "blood_chalice", "titan_gauntlet", "rift_shard"]),
          artisan=("Торн · стекло", "Кузница чёрного стекла", "forge"),
-         quest=("Ключ из чёрного стекла", "ore", 16, "shard", 0, "obsidian_sentinel", 5),
+         quest=("Ключ из чёрного стекла", "ore", 16, "shard", 0, "glass_inquisitor", 1),
          stock_note="Кровавые косы, драконья чешуя, граали и рукавицы титанов"),
     dict(id="garden", name="Первозданный сад", short="Там, где мир был первым", chapter="IX", min_level=31, danger=8,
          level="Уровень 31–35", accent="#d4e6a0", ground="#52734d", dark="#2d4939", light="#91ad6c",
@@ -232,6 +232,63 @@ def obstacles_for(region_id: str) -> list[dict[str, Any]]:
     return REGIONS.get(region_id, REGIONS["camp"]).get("obstacles", [])
 
 
+_COLLISION_CELL_SIZE = 96.0
+_COLLISION_INDICES: dict[str, tuple[list[dict[str, Any]], dict[tuple[int, int], list[int]], float, float]] = {}
+
+
+def _collision_index(region_id: str, obstacles: list[dict[str, Any]]):
+    cached = _COLLISION_INDICES.get(region_id)
+    if cached is not None and cached[0] is obstacles:
+        return cached[1], cached[2], cached[3]
+
+    cells: dict[tuple[int, int], list[int]] = {}
+    max_radius = 0.0
+    safe_radius = math.inf
+    for index, ob in enumerate(obstacles):
+        cx = math.floor(float(ob["x"]) / _COLLISION_CELL_SIZE)
+        cy = math.floor(float(ob["y"]) / _COLLISION_CELL_SIZE)
+        cells.setdefault((cx, cy), []).append(index)
+        max_radius = max(max_radius, float(ob["r"]))
+        for other in obstacles[:index]:
+            clearance = (math.hypot(float(ob["x"]) - float(other["x"]),
+                                    float(ob["y"]) - float(other["y"]))
+                         - float(ob["r"]) - float(other["r"])) / 2
+            safe_radius = min(safe_radius, clearance)
+    _COLLISION_INDICES[region_id] = (obstacles, cells, max_radius, max(0.0, safe_radius))
+    return cells, max_radius, max(0.0, safe_radius)
+
+
+def collision_candidates(region_id: str, x: float, y: float, radius: float = 15.0) -> list[dict[str, Any]]:
+    """Return potential circle collisions in the same order as the map props.
+
+    The index is a broad phase only: the final square-distance check exactly
+    matches the cheap rejection used by ``resolve_collision``.
+    """
+    obstacles = obstacles_for(region_id)
+    cells, max_radius, _safe_radius = _collision_index(region_id, obstacles)
+    search_radius = float(radius) + max_radius
+    if search_radius < 0:
+        return []
+
+    min_x = math.floor((float(x) - search_radius) / _COLLISION_CELL_SIZE)
+    max_x = math.floor((float(x) + search_radius) / _COLLISION_CELL_SIZE)
+    min_y = math.floor((float(y) - search_radius) / _COLLISION_CELL_SIZE)
+    max_y = math.floor((float(y) + search_radius) / _COLLISION_CELL_SIZE)
+    indices: set[int] = set()
+    for cell_x in range(min_x, max_x + 1):
+        for cell_y in range(min_y, max_y + 1):
+            indices.update(cells.get((cell_x, cell_y), ()))
+
+    result = []
+    x, y, radius = float(x), float(y), float(radius)
+    for index in sorted(indices):
+        ob = obstacles[index]
+        min_d = radius + float(ob["r"])
+        if min_d >= 0 and abs(x - ob["x"]) <= min_d and abs(y - ob["y"]) <= min_d:
+            result.append(ob)
+    return result
+
+
 def resolve_collision(region_id: str, x: float, y: float, radius: float = 15.0) -> tuple[float, float]:
     """Push a circle out of the solid scenery of one region.
 
@@ -240,9 +297,15 @@ def resolve_collision(region_id: str, x: float, y: float, radius: float = 15.0) 
     """
     x = max(25.0, min(MAP_W - 25.0, float(x)))
     y = max(25.0, min(MAP_H - 25.0, float(y)))
+    obstacles = obstacles_for(region_id)
+    _cells, _max_radius, safe_radius = _collision_index(region_id, obstacles)
     for _ in range(3):
         moved = False
-        for ob in obstacles_for(region_id):
+        # At large radii expanded prop hit circles can overlap. In that case a
+        # correction against one prop can make the body overlap a later prop,
+        # so retain the full ordered scan to preserve the linear resolver.
+        candidates = collision_candidates(region_id, x, y, radius) if radius <= safe_radius else obstacles
+        for ob in candidates:
             dx, dy = x - ob["x"], y - ob["y"]
             min_d = radius + float(ob["r"])
             if abs(dx) > min_d or abs(dy) > min_d:
@@ -264,14 +327,22 @@ def collision_blocked(region_id: str, x: float, y: float, radius: float = 15.0) 
     return any(math.hypot(x - ob["x"], y - ob["y"]) < radius + float(ob["r"])
                for ob in obstacles_for(region_id))
 POPULATION = {
-    "forest": [("slime", 8, 1), ("wolf", 5, 2)],
-    "marsh": [("boar", 6, 4), ("wisp", 5, 5), ("stone", 2, 6)],
-    "ruins": [("ashling", 6, 7), ("ashguard", 4, 8), ("colossus", 1, 10)],
-    "glacier": [("frost_wyrm", 7, 11), ("frost_wyrm", 4, 13)],
+    "forest": [("slime", 8, 1), ("wolf", 5, 2), ("bramble_warden", 1, 3)],
+    "marsh": [("boar", 6, 4), ("wisp", 5, 5), ("stone", 2, 6), ("fen_matron", 1, 6)],
+    "ruins": [("ashling", 6, 7), ("ashguard", 4, 8), ("colossus", 1, 10), ("ashbound_herald", 1, 8)],
+    "glacier": [("frost_wyrm", 7, 11), ("frost_wyrm", 4, 13), ("blueflame_siren", 1, 14)],
     "rift": [("rift_knight", 7, 15), ("echo_dragon", 1, 20)],
     "abyss": [("void_wraith", 8, 21), ("astral_titan", 1, 25)],
-    "obsidian": [("obsidian_sentinel", 7, 27), ("void_wraith", 5, 28), ("obsidian_sentinel", 1, 30)],
+    "obsidian": [("obsidian_sentinel", 7, 27), ("void_wraith", 5, 28),
+                 ("obsidian_sentinel", 1, 30), ("glass_inquisitor", 1, 30)],
     "garden": [("starseer", 7, 31), ("ancient_warden", 1, 35), ("starseer", 5, 33)],
+}
+MINI_BOSS_SPAWNS = {
+    "bramble_warden": (1250.0, 430.0),
+    "fen_matron": (1290.0, 430.0),
+    "ashbound_herald": (1350.0, 430.0),
+    "blueflame_siren": (1350.0, 430.0),
+    "glass_inquisitor": (1560.0, 1130.0),
 }
 RESOURCE_MIX = {
     "camp": ["wood", "wood", "herb", "herb", "ore"],
@@ -348,18 +419,34 @@ def populate(mob_factory: Any) -> tuple[list[dict[str, Any]], list[dict[str, Any
     mobs, nodes = [], []
     for rid, r in REGIONS.items():
         rng = random.Random(r["seed"])
+        population = POPULATION.get(rid, [])
+        boss_kinds = {"colossus", "echo_dragon", "astral_titan", "ancient_warden"}
+        reserved_arenas = [MINI_BOSS_SPAWNS[kind] for kind, _count, _level in population
+                           if kind in MINI_BOSS_SPAWNS]
+        if any(kind in boss_kinds for kind, _count, _level in population):
+            reserved_arenas.append(tuple(r["boss_arena"]))
         index = 0
-        for kind, count, level in POPULATION.get(rid, []):
+        for kind, count, level in population:
             for _ in range(count):
                 index += 1
-                boss = kind in {"colossus", "echo_dragon", "astral_titan", "ancient_warden"}
+                boss = kind in boss_kinds
+                mini_boss = kind in MINI_BOSS_SPAWNS
                 if boss:
                     x, y = r["boss_arena"]
+                elif mini_boss:
+                    x, y = MINI_BOSS_SPAWNS[kind]
                 else:
-                    x, y = rng.uniform(820, 1770), rng.uniform(180, 1320)
-                    if math.hypot(x - 1050, y - 430) < 240:
-                        y = max(650, y)
-                mob = mob_factory(kind, level + (0 if boss else rng.choice([0, 0, 1])), index, x, y)
+                    x = y = 0.0
+                    for _attempt in range(48):
+                        x, y = rng.uniform(820, 1770), rng.uniform(180, 1320)
+                        if math.hypot(x - 1050, y - 430) < 240:
+                            y = max(650, y)
+                        if any(math.hypot(x - ax, y - ay) < 185 for ax, ay in reserved_arenas):
+                            continue
+                        break
+                    else:
+                        x, y = 820.0, 1320.0
+                mob = mob_factory(kind, level + (0 if boss or mini_boss else rng.choice([0, 0, 1])), index, x, y)
                 mob["region"] = rid
                 mob["id"] = f"{rid}-{mob['id']}"
                 mobs.append(mob)

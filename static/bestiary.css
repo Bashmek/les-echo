@@ -1,0 +1,58 @@
+/* Field journal — isolated from the game's menu and HUD styles. */
+#bestiaryOverlay{position:fixed;inset:0;z-index:1500;display:flex;align-items:center;justify-content:center;padding:clamp(10px,3vw,36px);background:#050b10dd;backdrop-filter:blur(5px);color:#e6e8dc;font:13px/1.55 ui-sans-serif,system-ui,sans-serif}
+#bestiaryOverlay[hidden]{display:none}
+#bestiaryOverlay *{box-sizing:border-box}
+#bestiaryOverlay button,#bestiaryOverlay input,#bestiaryOverlay select{font:inherit}
+#bestiaryOverlay :focus-visible{outline:2px solid #d4edaa;outline-offset:4px}
+.bestiaryPanel{width:min(1280px,100%);max-height:calc(100dvh - 56px);overflow:auto;overscroll-behavior:contain;scrollbar-color:#5c745f #111b20;padding:clamp(18px,3vw,36px);border:1px solid #577368;border-top:3px solid #b2c994;border-radius:3px;background:radial-gradient(ellipse at 10% 0,#273d3380,transparent 46%),linear-gradient(120deg,#172428,#10191f 65%);box-shadow:0 24px 100px #000b,inset 0 0 0 5px #0c151944}
+.bestiaryHeader{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;margin-bottom:24px}
+.bestiaryEyebrow{font:10px/1.6 ui-monospace,monospace;letter-spacing:2.5px;color:#b4c39c}
+#bestiaryOverlay h2{margin:6px 0;color:#f1e9d2;font:normal clamp(30px,4vw,46px)/1.1 Georgia,serif;letter-spacing:.6px}
+.bestiaryIntro{margin:10px 0 0;color:#a4b8af;font-size:12px}
+.bestiaryClose{flex-shrink:0;width:38px;height:38px;display:grid;place-items:center;border:1px solid #78908066;border-radius:2px;color:#e8ecd9;background:#20312a;cursor:pointer;transition:background .15s}
+.bestiaryClose:hover{background:#38513f}
+.bestiarySummary{border:1px solid #748b6c55;padding:15px 18px;background:#10201c99}
+.bestiarySummaryLine{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:10px}
+.bestiaryProgressText{font:normal 18px/1.3 Georgia,serif;color:#e1eac9}
+.bestiaryTotals{font:10px/1.5 ui-monospace,monospace;color:#a0b5a2}
+.bestiaryProgress{height:5px;background:#08130f;overflow:hidden}
+.bestiaryProgress i{display:block;height:100%;background:linear-gradient(90deg,#577d62,#bddb92);box-shadow:0 0 10px #c0ee9666}
+.bestiaryHelp{margin:10px 0 22px;font-size:11px;color:#a3b4ab}
+.bestiaryToolbar{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr) minmax(0,1fr);gap:12px}
+.bestiaryFilter{display:flex;flex-direction:column;gap:7px;min-width:0}
+.bestiaryFilterLabel{font:9px/1.3 ui-monospace,monospace;letter-spacing:1.6px;text-transform:uppercase;color:#c5c9ae}
+#bestiaryOverlay .bestiaryInput,#bestiaryOverlay .bestiarySelect{width:100%;height:42px;border:1px solid #6e847155;border-radius:2px;background:#0a161bcc;color:#e2e6d7;padding:8px 11px;color-scheme:dark}
+.bestiaryInput::placeholder{color:#83988f}
+.bestiaryResultsLine{display:flex;justify-content:space-between;gap:12px;margin:19px 0 12px;font:10px/1.5 ui-monospace,monospace;color:#adbdad}
+.bestiaryScaleNote{color:#849b93;text-align:right}
+.bestiaryGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}
+.bestiaryCard{min-width:0;padding:17px;border:1px solid #68887566;border-top:2px solid #9bbd8a;background:linear-gradient(145deg,#22352dcc,#122026);box-shadow:0 4px 12px #0002;position:relative;overflow:hidden}
+.bestiaryCard:after{content:"";position:absolute;right:7px;top:7px;width:4px;height:4px;background:#9cb887;box-shadow:-6px 0 #9cb887,0 6px #9cb887;opacity:.4;pointer-events:none}
+.bestiaryCardTop{display:flex;gap:14px;align-items:center;min-height:96px}
+.bestiaryPortrait{flex:0 0 112px;height:96px;position:relative;background:radial-gradient(ellipse,#63845b25,transparent 65%),repeating-linear-gradient(0deg,transparent,transparent 3px,#14212655 3px,#14212655 4px);border-bottom:1px solid #85a47633}
+.bestiaryPortrait canvas{display:block;width:112px;height:96px;image-rendering:pixelated}
+.bestiaryIdentity{min-width:0}
+.bestiaryType{display:block;color:#9eb592;font:8px/1.5 ui-monospace,monospace;letter-spacing:1.1px}
+#bestiaryOverlay .bestiaryName{margin:6px 0;font:normal 21px/1.15 Georgia,serif;color:#f2e9d3;overflow-wrap:anywhere}
+.bestiaryRank{display:inline-block;color:#c4db9c;font:9px/1.4 ui-monospace,monospace}
+.bestiaryRegions{margin:12px 0 10px;padding-top:10px;border-top:1px solid #57726444;color:#9fb8ad;font-size:11px}
+.bestiaryKillCount{font:9px/1.6 ui-monospace,monospace;letter-spacing:.3px;color:#bdcba7;margin:10px 0 14px}
+.bestiaryStats{display:flex;flex-wrap:wrap;gap:10px 14px;margin:0 0 15px;padding:10px 0;border-top:1px solid #78946b33;border-bottom:1px solid #78946b33}
+.bestiaryStats div{flex:1 0 48px}.bestiaryStats dt{font:9px/1.5 ui-monospace,monospace;color:#92a79c}.bestiaryStats dd{margin:3px 0 0;color:#e8e6c9;font:14px/1.3 ui-monospace,monospace}
+.bestiaryLore{font:italic 13px/1.6 Georgia,serif;color:#c1cbb8;margin:12px 0 16px}
+#bestiaryOverlay .bestiarySectionTitle{margin:14px 0 6px;color:#b7ca9f;font:9px/1.4 ui-monospace,monospace;letter-spacing:1.4px}
+.bestiaryTactics{margin:0;padding-left:16px;color:#b0c1b8;font-size:11px;line-height:1.7}.bestiaryTactics li+li{margin-top:4px}.bestiaryTactics li::marker{color:#a8c383}
+.bestiaryLoot{margin:0;color:#d4c8a0;font-size:11px}
+.bestiaryRank-unknown{border-color:#576a6255;border-top-color:#53655e;background:linear-gradient(145deg,#1a2929,#131e24)}
+.bestiaryRank-unknown .bestiaryType,.bestiaryRank-unknown .bestiaryRank{color:#85998e}.bestiaryRank-unknown .bestiaryName{color:#9ea99a!important;font-size:20px!important}
+.bestiaryRank-unknown .bestiaryPortrait canvas{filter:brightness(0) opacity(.6)}
+.bestiaryUnknownMark{position:absolute;inset:0;display:grid;place-items:center;font:32px/1 Georgia,serif;color:#788b7f;text-shadow:0 2px 4px #000}
+.bestiaryLocked{margin:18px 0 24px;max-width:36ch;color:#889c91;font-size:12px;line-height:1.7}
+.bestiaryRank-mastered{border-top-color:#d8bf7d;background:linear-gradient(145deg,#35352899,#152326)}.bestiaryRank-mastered .bestiaryRank{color:#e2c982}
+.bestiaryRank-studied{border-top-color:#85c7b2}.bestiaryRank-studied .bestiaryRank{color:#9bd7c2}
+.bestiaryEmpty{padding:48px 20px;text-align:center;border:1px dashed #71817155;background:#0c181c;color:#aabcae;font:16px/1.6 Georgia,serif}
+.bestiaryEmpty[hidden]{display:none}
+@media(min-width:1200px){.bestiaryGrid{grid-template-columns:repeat(3,minmax(0,1fr))}.bestiaryCard{padding:15px}.bestiaryCardTop{gap:10px}}
+@media(max-width:760px){.bestiaryPanel{max-height:calc(100dvh - 24px);padding:20px}.bestiaryCardTop{gap:8px}.bestiaryPortrait{flex-basis:88px;width:88px}.bestiaryPortrait canvas{width:88px;height:76px;margin-top:10px}.bestiaryCard{padding:13px}.bestiaryName{font-size:19px!important}.bestiaryScaleNote{max-width:220px}.bestiarySummaryLine{align-items:flex-start}.bestiaryTotals{max-width:160px;text-align:right}}
+@media(max-width:580px){#bestiaryOverlay{padding:8px}.bestiaryPanel{padding:18px 14px;max-height:calc(100dvh - 16px)}.bestiaryHeader{gap:10px;margin-bottom:18px}.bestiaryEyebrow{letter-spacing:1.2px;font-size:8px}.bestiaryIntro{font-size:11px;max-width:29ch}.bestiaryGrid{grid-template-columns:minmax(0,1fr)}.bestiaryToolbar{grid-template-columns:1fr 1fr;gap:10px}.bestiaryFilter:first-child{grid-column:1/-1}.bestiarySummary{padding:12px}.bestiarySummaryLine{display:block}.bestiaryTotals{display:block;max-width:none;text-align:left;margin-top:6px}.bestiaryProgressText{font-size:17px}.bestiaryHelp{font-size:10px;margin-bottom:18px}.bestiaryResultsLine{font-size:9px}.bestiaryScaleNote{max-width:175px}.bestiaryCardTop{gap:14px}.bestiaryPortrait{flex-basis:112px;width:112px}.bestiaryPortrait canvas{width:112px;height:96px;margin-top:0}.bestiaryName{font-size:23px!important}}
+@media(prefers-reduced-motion:reduce){.bestiaryClose{transition:none}}

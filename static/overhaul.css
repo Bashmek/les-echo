@@ -82,7 +82,7 @@ body { font-family: "Trebuchet MS", ui-sans-serif, system-ui, sans-serif; }
 
 /* Region ribbon: a slim title plate, not a wall. */
 .regionRibbon {
-  top: 10px; min-width: 0; max-width: 34vw; padding: 5px 12px; gap: 8px;
+  top: 10px; bottom: auto; min-width: 0; max-width: 34vw; padding: 5px 12px; gap: 8px;
   background: #101811e6; border-width: 2px; border-radius: 4px;
 }
 .regionChapter { width: 26px; height: 26px; font-size: 13px; border-radius: 4px; }
@@ -560,7 +560,7 @@ body { font-family: "Trebuchet MS", ui-sans-serif, system-ui, sans-serif; }
   .hero { width: 220px; max-width: 45vw; padding: 6px 8px; }
   .orb { width: 38px; height: 38px; }
   .orbValue { font-size: 11px; }
-  .regionRibbon { max-width: 40vw; padding: 4px 8px; }
+  .regionRibbon { top: auto; bottom: 128px; max-width: 40vw; padding: 4px 8px; }
   .regionText b { font-size: 11px; }
   .regionChapter { width: 22px; height: 22px; font-size: 11px; }
   .questPanel { width: 176px; padding: 6px 8px; }
@@ -953,3 +953,5 @@ body { font-family: "Trebuchet MS", ui-sans-serif, system-ui, sans-serif; }
   .combatIndicator { top: 96px; left: 8px; }
   .charVitalsGrid { grid-template-columns: repeat(2, 1fr); }
 }
+
+.reforgeCatalysts{display:grid;gap:7px;margin:8px 0}.championCatalyst{border-color:#5e9d86;background:linear-gradient(100deg,#18302b,#18241f)}.championCatalyst input{accent-color:#68d8b4}.qjDescription{margin:6px 0 8px;color:#c3d0c3;font-size:11px;line-height:1.5}.heraldQuest{border-color:#467d70;background:linear-gradient(135deg,#182920,#1d302a)}

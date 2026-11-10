@@ -1,0 +1,483 @@
+/* Shared interface polish: one calm visual language across game windows. */
+#worldTools .worldShortcut { display: none !important; }
+:root {
+  --ui-panel: #17221b;
+  --ui-panel-raised: #202c22;
+  --ui-stroke: #65745a;
+  --ui-soft-stroke: #3d4c3b;
+  --ui-shadow: 0 20px 64px #050905a8, inset 0 1px #ffffff0c;
+}
+
+.game button { touch-action: manipulation; }
+.game button:focus-visible,
+#bestiaryOverlay button:focus-visible,
+#bestiaryOverlay input:focus-visible,
+#bestiaryOverlay select:focus-visible {
+  outline: 2px solid #f2d68a;
+  outline-offset: 3px;
+}
+
+.game > :is(.marketOverlay, .stationOverlay, .controlsOverlay, .guideOverlay,
+  .gameMenuOverlay, .charOverlay, .questOverlay, .classOverlay,
+  .customSpellOverlay, .invOverlay, .atlasOverlay, .npcOverlay, .mapOverlay, .overlay) {
+  background: #07100bd9;
+  backdrop-filter: blur(7px) saturate(.82);
+  -webkit-backdrop-filter: blur(7px) saturate(.82);
+}
+
+.game :is(.invCard, .marketCard, .stationCard, .customSpellCard, .controlsCard,
+  .guideCard, .gameMenuCard, .charCard, .questCard, .atlasCard, .npcCard,
+  .mapCard, .classCard, .bestiaryPanel, .dialog) {
+  border: 1px solid #607258;
+  border-radius: 14px;
+  background-color: var(--ui-panel);
+  box-shadow: var(--ui-shadow);
+  scrollbar-color: #596d53 #131b15;
+  scrollbar-width: thin;
+}
+#bestiaryOverlay .bestiaryPanel {
+  border-color: #607c69;
+  border-top: 2px solid #a9c791;
+  border-radius: 14px;
+  box-shadow: var(--ui-shadow), inset 0 0 0 1px #ffffff08;
+}
+.game :is(.marketHead, .invHeader, .controlsCard > header, .guideCard > header,
+  .gameMenuCard > header, .charHead, .atlasHead, .bestiaryHeader, .npcHead) {
+  border-color: var(--ui-soft-stroke);
+}
+.game :is(.marketCard, .stationCard, .customSpellCard, .controlsCard, .guideCard,
+  .gameMenuCard, .charCard, .questCard, .atlasCard, .npcCard, .mapCard,
+  .classCard, .invCard) { overscroll-behavior: contain; }
+.game .close {
+  min-width: 42px;
+  min-height: 38px;
+  border-radius: 8px;
+  border-color: #56674f;
+  background: #263328;
+  transition: background-color .14s, border-color .14s, transform .14s;
+}
+.game .close:hover { background: #344535; border-color: #9baa75; }
+.game :is(.marketTabs button, .forgeTabs button, .charTabs button, .invTabs button,
+  .abilityKeyList button, .keybindRow button, .qjTrack, .mcFilterBtn) {
+  border-radius: 8px;
+}
+.game :is(.marketCard, .stationCard, .customSpellCard, .controlsCard, .guideCard,
+  .gameMenuCard, .charCard, .questCard, .atlasCard, .npcCard, .mapCard,
+  .classCard, .invCard) h2 {
+  text-wrap: balance;
+}
+
+/* Controls is a reference and configuration screen, not a second copy of the HUD. */
+.controlsCard .controlActions,
+.controlsCard .touchpad,
+.controlsCard > .spellBar,
+.controlsCard .customSpellBindings,
+.controlsCard #logoutButton { display: none !important; }
+#controlsOverlay .controlsNote { max-width: 75ch; }
+#controlsOverlay .combatFieldGuide {
+  border: 1px solid var(--ui-soft-stroke);
+  border-radius: 10px;
+  background: #121c15;
+  padding: 10px 13px;
+}
+#controlsOverlay .combatFieldGuide summary {
+  color: #e9d18a;
+  cursor: pointer;
+  font-weight: 700;
+}
+#controlsOverlay .combatFieldGuide p { color: #c2ccb7; line-height: 1.55; }
+
+/* The tracked quest panel already contains progress; the extra chip is redundant on desktop. */
+@media (min-width: 761px) {
+  .localQuestChip { display: none !important; }
+}
+#miniMapLabel { display: none !important; }
+.questPanel .qStatus:empty { display: none; }
+#gameMenuChatButton { display: none !important; }.game .controlsMobileNote { display: none; }
+
+/* Compact, pause-safe menu with clear groups instead of a wall of links. */
+.gameMenuCard { width: min(680px, 100%); }
+.gameMenuList {
+  grid-template-columns: 1fr 1fr;
+  align-items: start;
+  gap: 14px;
+}
+.gameMenuGroup {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--ui-soft-stroke);
+  border-radius: 12px;
+  background: #121b15;
+}
+.gameMenuGroup h3 {
+  grid-column: 1 / -1;
+  margin: 0 0 2px;
+  color: #aabd93;
+  font: 700 10px/1.3 ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+.gameMenuList .gameMenuGroup button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 7px;
+  min-width: 0;
+  min-height: 43px;
+  padding: 9px 10px;
+  border-color: #3b4b3a;
+  border-radius: 8px;
+  background: #1c281e;
+  font-size: 12px;
+  line-height: 1.25;
+}
+.gameMenuList .gameMenuGroup button:hover {
+  border-color: #a5bd79;
+  background: #2a3b2a;
+}
+.gameMenuList kbd { float: none; flex: none; margin-left: auto; font-size: 10px; }
+.gameMenuList #classMenuAction[hidden],
+.gameMenuList #menuCharacterBadge[hidden] { display: none !important; }
+.gameMenuList #menuCharacterBadge {
+  position: static;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  margin-left: auto;
+  border-radius: 999px;
+}
+.gameMenuCard > header .close {
+  min-width: 116px;
+  border-color: #839965;
+  background: #3a4d31;
+  color: #f4e8bb;
+  font-weight: 700;
+}
+.gameMenuCard > header .close:hover { background: #4c633b; }
+
+/* Phone: retain only the combat actions and menu; show collection only in context. */
+@media (max-width: 760px), (pointer: coarse) {
+  body:has(#encounterHud:not([hidden])) .game #recallButton { display: none !important; }
+  #gameMenuChatButton { display: flex !important; }
+  .game .controlsDesktopNote { display: none; }
+  .game .controlsMobileNote { display: inline; }
+  .game .abilityBindings { display: none !important; }
+  .game .abilityPanel .abilityBtn { height: auto !important; min-height: 100px; padding: 9px; }
+  .game .abilityPanel .abilityBtn .abilityKey { display: none; }
+  .game .abilityPanel .abilityBtn .abilityName { font-size: 13px; }
+  .game .abilityPanel .abilityBtn .abilityMeta { font-size: 9px; }
+  .game .abilityPanel .abilityBtn .abilityDesc { font-size: 10px; line-height: 1.45; }
+  .game .hud { inset: max(6px, env(safe-area-inset-top)) 8px auto; }
+  .game .hero {
+    width: calc(100vw - 16px);
+    max-width: 430px;
+    margin: 0 auto;
+    padding: 6px 10px;
+    border-radius: 13px;
+    background: #101a13ed;
+  }
+  .game .heroTop { margin-bottom: 5px; font-size: 10px; }
+  .game .resourceOrbs { padding-bottom: 0; gap: 12px; }
+  .game .orb { width: 42px; height: 42px; }
+  .game .orb:before { inset: 4px; }
+  .game .orbValue { font-size: 12px; }
+  .game .orbLabel { display: none; }
+  .game .hero .xpFooter,
+  .game .hero .masteryStrip { display: none !important; }
+  .game .classLine { margin-top: 3px; }
+  .game .classBadge { font-size: 9px; }
+
+  .game .joystickZone {
+    display: block;
+    left: max(10px, env(safe-area-inset-left));
+    bottom: calc(96px + env(safe-area-inset-bottom));
+    width: clamp(112px, 34vw, 136px);
+    height: clamp(112px, 34vw, 136px);
+  }
+  .game .mobileActions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: min(194px, calc(100vw - 18px));
+    max-width: none;
+    gap: 6px;
+    right: max(8px, env(safe-area-inset-right));
+    bottom: calc(96px + env(safe-area-inset-bottom));
+    padding: 7px;
+    border: 1px solid #68765799;
+    border-radius: 15px;
+    background: linear-gradient(145deg, #131d16eF, #0d1511eF);
+    box-shadow: 0 8px 24px #03070499, inset 0 1px #ffffff12;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+  .game .mobileActions .actionBtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: auto;
+    min-width: 0;
+    min-height: 46px;
+    padding: 7px 4px;
+    border: 1px solid #58694e;
+    border-radius: 10px;
+    background: #243127f2;
+    color: #e4e8d8;
+    box-shadow: 0 2px 0 #060906, inset 0 1px #ffffff10;
+    font-size: 9px;
+    font-weight: 750;
+    letter-spacing: .04em;
+    line-height: 1.15;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: none;
+  }
+  .game .mobileActions .actionBtn:active:not(:disabled) { transform: translateY(1px); }
+  .game .mobileActions .actionBtn:disabled { opacity: .42; filter: grayscale(.55); }
+  .game .mobileActions #mAttackButton {
+    grid-column: 1 / -1;
+    width: 100%;
+    height: 48px;
+    min-height: 48px;
+    border-color: #bf9b5d;
+    border-radius: 11px;
+    background: linear-gradient(180deg, #765632, #4f3923);
+    color: #fff0c8;
+    font-size: 11px;
+    letter-spacing: .12em;
+  }
+  .game .mobileActions .charge { position: absolute; left: 12px; right: 12px; bottom: 5px; height: 3px; margin: 0; }
+  .game .mobileActions #mInteractButton:not([hidden]) { border-color: #78945f; color: #e3f0c7; }
+  .game .mobileActions #mInteractButton[hidden] ~ #mDodgeButton { grid-column: 2; }
+  .game .mobileActions #mDodgeButton { border-color: #548a9c; color: #c7ebf4; }
+  .game .mobileActions #mMenuButton { border-color: #6a7758; background: #18231bf2; }
+  .game .mobileActions #mInteractButton[hidden] { display: none !important; }
+  .game .touchpad { display: none !important; }
+  .game .leftStack { display: none !important; }
+  .game .bottom .actions { display: none !important; }
+  .game .chat:not(.chatOpen) { display: none !important; }
+  .game .chat.chatOpen {
+    display: block !important;
+    position: fixed;
+    z-index: 120;
+    left: 50%;
+    top: 50%;
+    bottom: auto;
+    width: min(92vw, 390px);
+    padding: 7px;
+    transform: translate(-50%, -50%);
+    border: 1px solid #65745a;
+    border-radius: 12px;
+    background: #101811f5;
+    box-shadow: 0 16px 40px #000a;
+    backdrop-filter: blur(9px);
+    -webkit-backdrop-filter: blur(9px);
+  }
+  .game .chat.chatOpen .messages {
+    position: static;
+    display: flex;
+    height: min(140px, 24dvh);
+    border-radius: 10px;
+    border-color: #516248;
+    background: #0b120dec;
+  }
+  .game .chat.chatOpen .messages:empty { display: none !important; }
+  .game .chat form input { min-height: 44px; padding: 7px 8px; font-size: 12px; }
+  .game .chat form button { min-width: 48px; min-height: 44px; border-radius: 8px; }
+  .game .progress { bottom: calc(184px + env(safe-area-inset-bottom)); }
+  .game .npcPrompt {
+    pointer-events: none;
+    top: calc(126px + env(safe-area-inset-top));
+    bottom: auto;
+    left: 8px;
+    max-width: min(72vw, 300px);
+    transform: none;
+    border-radius: 12px;
+  }
+  .game .abilityBar,
+  .game .abilityBar.stacked {
+    left: auto;
+    right: 7px;
+    bottom: calc(220px + env(safe-area-inset-bottom));
+    transform: none;
+    width: min(224px, 57vw);
+    max-width: min(224px, 57vw);
+    justify-content: flex-end;
+    gap: 4px;
+    padding: 5px;
+    border: 1px solid #68765799;
+    border-radius: 12px;
+    background: #101811dd;
+    box-shadow: 0 6px 18px #0008;
+    backdrop-filter: blur(7px);
+    -webkit-backdrop-filter: blur(7px);
+  }
+  .game .abilityBtn {
+    flex: 1 1 calc(33.333% - 4px);
+    min-width: calc(33.333% - 4px);
+    height: 40px;
+    padding: 3px;
+    border-radius: 8px;
+  }
+  .game .abilityName { font-size: 7px; }
+  .game .abilityBtn:last-child { flex: 0 1 calc(33.333% - 4px); min-width: calc(33.333% - 4px); }
+  .game .regionRibbon { display: none; }
+  .game .minimap { display: none; }
+  .game .worldTools { top: calc(116px + env(safe-area-inset-top)); }
+  .game .localQuestChip { top: calc(172px + env(safe-area-inset-top)); left: auto; right: 8px; transform: none; max-width: min(50vw, 220px); }
+  .game #combatIndicator { top: calc(106px + env(safe-area-inset-top)); }
+  #encounterHud {
+    top: calc(122px + env(safe-area-inset-top));
+    width: min(330px, 76vw);
+    padding: 6px 10px;
+  }
+  #encounterHud .encounterTitle { margin: 2px 0 4px; font-size: 13px; }
+  #encounterHud .encounterHealth { height: 8px; }
+  #encounterHud .encounterStatus { font-size: 7px; }
+  #encounterHud .encounterCast { padding: 2px 0 1px; }
+  #encounterHud:not([hidden]) ~ #localQuestChip { display: none !important; }
+  #combatCue {
+    left: max(8px, env(safe-area-inset-left));
+    bottom: calc(224px + env(safe-area-inset-bottom));
+    transform: none;
+    width: min(40vw, 156px);
+    max-width: min(40vw, 156px);
+    padding: 6px 8px;
+    border-radius: 10px;
+    font-size: 8px;
+    letter-spacing: .4px;
+  }
+
+  .game :is(.invOverlay, .marketOverlay, .stationOverlay, .controlsOverlay,
+    .guideOverlay, .gameMenuOverlay, .charOverlay, .questOverlay, .classOverlay,
+    .customSpellOverlay, .atlasOverlay, .npcOverlay, .mapOverlay, .overlay) {
+    padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right))
+      max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+  }
+  .game :is(.invCard, .marketCard, .stationCard, .customSpellCard, .controlsCard,
+    .guideCard, .gameMenuCard, .charCard, .questCard, .atlasCard, .npcCard,
+    .mapCard, .classCard) {
+    max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 16px);
+    border-radius: 13px;
+    padding: 14px;
+    overscroll-behavior: contain;
+  }
+  #bestiaryOverlay { padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right))
+    max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); }
+  #bestiaryOverlay .bestiaryPanel {
+    max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 16px);
+    padding: 16px;
+  }
+  .game :is(.marketTabs, .forgeTabs, .charTabs, .invTabs) {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: thin;
+  }
+  .game :is(.marketTabs, .forgeTabs, .charTabs, .invTabs) > button { flex: 0 0 auto; min-height: 42px; }
+  .game :is(.marketCard, .stationCard, .customSpellCard, .controlsCard,
+    .guideCard, .gameMenuCard, .charCard, .questCard, .atlasCard,
+    .npcCard, .mapCard, .classCard) :is(button, select, input, textarea) { min-height: 42px; }
+  .game .gameMenuCard { width: 100%; padding: 12px; }
+  .game .gameMenuCard > header { align-items: center; gap: 8px; }
+  .game .gameMenuCard h2 { font-size: 17px; }
+  .game .gameMenuCard > header .close { min-width: 106px; padding-inline: 8px; font-size: 11px; }
+  .game .gameMenuList { grid-template-columns: 1fr; gap: 8px; margin: 10px 0 2px; }
+  .game .gameMenuGroup { gap: 6px; padding: 8px; border-radius: 10px; }
+  .game .gameMenuGroup h3 { font-size: 9px; }
+  .game .gameMenuList .gameMenuGroup button { min-height: 44px; padding: 8px; font-size: 11px; }
+  .game .controlsCard { padding: 13px; }
+  .game .controlsCard header { align-items: flex-start; gap: 8px; }
+  .game .controlsCard h2 { font-size: 17px; }
+  .game .controlsCard .charHeadRight { flex-wrap: wrap; justify-content: flex-end; }
+  .game .marketHead h2 { font-size: 15px; }
+  .game .questCard { padding: 12px; }
+  .game .questJournalHead { align-items: flex-start; }
+  .game .npcPrompt { font-size: 12px; }
+}
+
+@media (max-width: 380px) {
+  .game .mobileActions { width: min(178px, calc(100vw - 14px)); gap: 5px; right: 7px; }
+  .game .mcHotbar { gap: 1px; padding: 2px; }
+  .game .mcHotSlot { width: 30px; height: 31px; }
+  .game .mcHotSlot .mcIcon { width: 22px; height: 22px; }
+  .game .mobileActions .actionBtn { min-height: 44px; font-size: 8px; }
+  .game .mobileActions #mAttackButton { height: 46px; min-height: 46px; }
+  .game .mcHotbar { gap: 1px; padding: 2px; }
+  .game .mcHotSlot { width: 30px; height: 31px; }
+  .game .mcHotSlot .mcIcon { width: 22px; height: 22px; }
+  .game .hero .heroTop { font-size: 9px; }
+  .game .orb { width: 38px; height: 38px; }
+  .game .gameMenuGroup { grid-template-columns: 1fr; }
+}
+
+@media (max-height: 650px) and (pointer: coarse) {
+  .game .joystickZone { width: 104px; height: 104px; bottom: calc(72px + env(safe-area-inset-bottom)); }
+  .game .mobileActions { bottom: calc(72px + env(safe-area-inset-bottom)); gap: 4px; padding: 5px; }
+  .game .mobileActions .actionBtn { min-height: 39px; }
+  .game .mobileActions #mAttackButton { height: 42px; min-height: 42px; }
+  .game .mobileActions .charge { bottom: 4px; }
+  .game .npcPrompt { bottom: calc(202px + env(safe-area-inset-bottom)); }
+  .game .abilityBar, .game .abilityBar.stacked { bottom: calc(204px + env(safe-area-inset-bottom)); max-height: 92px; overflow: auto; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .game *, #bestiaryOverlay * { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }
+}
+
+
+/* A mage has one live spell bar; spell controls here are for setup only. */
+.controlsCard .customSpellBindings { display: none !important; }
+.customSpellLaunch { display: grid; gap: 7px; margin: 12px 0; }
+.customSpellLaunch > div { display: flex; flex-wrap: wrap; gap: 8px; }
+.customSpellLaunch button { min-height: 42px; padding: 8px 12px; border-radius: 8px; }
+.customSpellLaunch #openSpellForge {
+  border: 1px solid #9ab877;
+  background: linear-gradient(180deg, #546c3b, #34472e);
+  color: #f1f2d8;
+  font-weight: 750;
+}
+.customSpellLaunch .spellSettings {
+  border: 1px solid #5e7060;
+  background: #202b23;
+  color: #d6e1cf;
+  cursor: pointer;
+}
+.customSpellLaunch #openSpellForge:hover,
+.customSpellLaunch .spellSettings:hover { filter: brightness(1.16); }
+
+/* Thumb-sized inventory/hotbar targets stay scrollable on narrow phones. */
+@media (max-width: 760px), (pointer: coarse) {
+  .game .mcHotbar {
+    justify-content: flex-start;
+    max-width: calc(100vw - 12px);
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+    scroll-snap-type: x mandatory;
+  }
+  .game .mcHotSlot {
+    flex: 0 0 44px;
+    width: 44px !important;
+    min-width: 44px;
+    height: 44px !important;
+    scroll-snap-align: start;
+  }
+  .game .mcHotSlot .mcIcon { width: 28px !important; height: 28px !important; }
+  .game .mcHotbarSlots {
+    display: flex;
+    overflow-x: auto;
+    gap: 6px;
+    scrollbar-width: thin;
+    overscroll-behavior-x: contain;
+  }
+  .game .mcHotbarSlots .mcSlot { flex: 0 0 44px; min-width: 44px; min-height: 44px; }
+  .game .customSpellLaunch > div { display: grid; grid-template-columns: 1fr 1fr; }
+  .game .customSpellLaunch button { min-width: 0; font-size: 11px; }
+}
+
+

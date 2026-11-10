@@ -13,6 +13,8 @@
   const lerp = (a, b, t) => a + (b - a) * t;
   const easeOut = t => 1 - Math.pow(1 - Math.max(0, Math.min(1, t)), 3);
   const easeInOut = t => (t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
+  const Motion = globalThis.EchoMotion || (typeof module === 'object' && module.exports ? require('./motion.js') : null);
+  const Transients = globalThis.EchoTransientEffects || (typeof module === 'object' && module.exports ? require('./transient-effects.js') : null);
 
   function seedOf(value) {
     let h = 2166136261;
@@ -68,7 +70,7 @@
   function vignetteAlpha() { return 1; }
 
   /* ── camera ──────────────────────────────────────────────────────────── */
-  const VIEW = { zoom: 1.85, targetZoom: 1.85, lookY: 0, ready: false, shakeX: 0, shakeY: 0, hurt: 0, punch: 0, freeze: 0, lastFrame: 0 };
+  const VIEW = { zoom: 1.85, targetZoom: 1.85, lookY: 0, ready: false, shakeX: 0, shakeY: 0, hurt: 0, punch: 0, freeze: 0, lastFrame: null };
   const coarse = () => (typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches) ||
     document.body.classList.contains('is-mobile');
   function desiredZoom(w, h) {
@@ -81,6 +83,81 @@
     const up = (h / 2 + VIEW.lookY) / Z, down = (h / 2 - VIEW.lookY) / Z;
     return { WS, Z, halfW, up, down };
   }
+
+  // Snapshots arrive at 20 Hz while the renderer runs at the display refresh
+  // rate. Keep the painter's-order list for the current packet so a 60 Hz
+  // client doesn't allocate and sort the same entities three times per tick.
+  const worldLayerCache = { sources: null, members: null, layers: [] };
+  function captureLayerMembers(items) {
+    const members = new Array(items.length);
+    for (let i = 0; i < items.length; i++) members[i] = { ref: items[i], y: items[i].y, active: items[i].active };
+    return members;
+  }
+  function sameLayerMembers(items, members) {
+    if (items.length !== members.length) return false;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i] !== members[i].ref || items[i].y !== members[i].y || items[i].active !== members[i].active) return false;
+    }
+    return true;
+  }
+  function getWorldLayers(r, state) {
+    const obstacles = r?.obstacles || [];
+    const nodes = state?.nodes || [];
+    const npcs = r?.npcs || [];
+    const mobs = state?.mobs || [];
+    const players = state?.players || [];
+    const previous = worldLayerCache.sources, oldMembers = worldLayerCache.members;
+    if (previous && previous.obstacles === obstacles && previous.nodes === nodes && previous.npcs === npcs &&
+        previous.mobs === mobs && previous.players === players &&
+        sameLayerMembers(obstacles, oldMembers.obstacles) && sameLayerMembers(nodes, oldMembers.nodes) &&
+        sameLayerMembers(npcs, oldMembers.npcs) && sameLayerMembers(mobs, oldMembers.mobs) &&
+        sameLayerMembers(players, oldMembers.players)) return worldLayerCache.layers;
+
+    const layers = [];
+    for (const ob of obstacles) layers.push({ y: ob.y, kind: 'ob', ref: ob });
+    for (const n of nodes) if (n.active) layers.push({ y: n.y, kind: 'node', ref: n });
+    for (const n of npcs) layers.push({ y: n.y, kind: 'npc', ref: n });
+    for (const m of mobs) layers.push({ y: m.y + 6, kind: 'mob', ref: m });
+    for (const q of players) layers.push({ y: q.y + 8, kind: 'player', ref: q });
+    layers.sort((a, b) => a.y - b.y);
+    worldLayerCache.sources = { obstacles, nodes, npcs, mobs, players };
+    worldLayerCache.members = {
+      obstacles: captureLayerMembers(obstacles), nodes: captureLayerMembers(nodes), npcs: captureLayerMembers(npcs),
+      mobs: captureLayerMembers(mobs), players: captureLayerMembers(players),
+    };
+    worldLayerCache.layers = layers;
+    return layers;
+  }
+
+  // Bounds are anchored at an entity's feet. The generous margins include
+  // tree crowns, elite nameplates, attack telegraphs, and the camera's shake.
+  function layerInView(layer, view, position = layer.ref) {
+    const ref = layer.ref || {};
+    const x = Number(position?.x) || 0;
+    let halfW = 34, up = 42, down = 14;
+    if (layer.kind === 'ob') {
+      const scale = Math.max(.5, Number(ref.scale) || 1);
+      const h = Math.max(8, Number(ref.h) || ({ tree: 46, bush: 16, rock: 18, pillar: 58, crystal: 34, reed: 22, stump: 18 }[ref.kind] || 24)) * scale;
+      if (ref.kind === 'tree') { const crownH = h * 1.42; halfW = crownH * .82 + 8; up = crownH * 1.22 + 8; down = 14 * scale; }
+      else if (ref.kind === 'bush') { halfW = 22 * scale; up = h * .8 + 8; down = 12 * scale; }
+      else if (ref.kind === 'reed') { halfW = 16 * scale; up = h + 8; down = 8 * scale; }
+      else if (ref.kind === 'stump') { halfW = 18 * scale; up = 22 * scale; down = 8 * scale; }
+      else { halfW = 22 * scale; up = h + 12; down = 12 * scale; }
+    } else if (layer.kind === 'node') {
+      halfW = 22; up = 30; down = 8;
+    } else if (layer.kind === 'npc') {
+      halfW = 34; up = 60; down = 16;
+    } else if (layer.kind === 'mob') {
+      const size = mobDrawSize(ref);
+      halfW = size * 1.9 + 12; up = size * 2.1 + 28; down = size * .62 + 12;
+    } else if (layer.kind === 'player') {
+      halfW = 38; up = 72; down = 18;
+    }
+    const y = Number.isFinite(position?.y) ? position.y : Number(layer.y) || 0;
+    return x + halfW >= view.left && x - halfW <= view.right &&
+      y + down >= view.top && y - up <= view.bottom;
+  }
+
   /** Convert canvas-local pixels (relative to canvas top-left) to world units. */
   function screenToWorld(cx, cy) {
     const rect = canvas.getBoundingClientRect();
@@ -89,6 +166,53 @@
   }
 
   /* ── mob sprites ─────────────────────────────────────────────────────── */
+  const MOB_SPRITE_SIZES = Object.freeze({
+    slime: 20, wolf: 22, boar: 26, wisp: 20, stone: 28, ashling: 23, ashguard: 34, colossus: 55,
+    frost_wyrm: 40, rift_knight: 32, echo_dragon: 50, void_wraith: 28, astral_titan: 58,
+    obsidian_sentinel: 36, starseer: 30, ancient_warden: 56,
+    bramble_warden: 46, fen_matron: 44, ashbound_herald: 42,
+    blueflame_siren: 48, glass_inquisitor: 46,
+  });
+  const MOB_AURA_COLORS = Object.freeze({
+    echo_dragon: '#ff6fb4', astral_titan: '#6fe8ff', ancient_warden: '#9ff06a', colossus: '#ff9a4a',
+    frost_wyrm: '#8fe8ff', void_wraith: '#a45cd8', bramble_warden: '#8bea72', fen_matron: '#58e2c9',
+    ashbound_herald: '#ff8755', blueflame_siren: '#72e8ff', glass_inquisitor: '#c67acb',
+  });
+  const MOB_NATURAL_AURAS = new Set(['echo_dragon', 'astral_titan', 'ancient_warden', 'colossus', 'frost_wyrm', 'void_wraith']);
+  function mobAuraColor(kind) { return MOB_AURA_COLORS[kind] || '#ffb066'; }
+  function mobDrawSize(mob) {
+    const m = mob || {};
+    const size = MOB_SPRITE_SIZES[m.kind] || 22;
+    return size * (m.boss ? 1.24 : m.mini_boss ? 1.14 : 1);
+  }
+
+  // Idle-pose bounds at s=20, t=1.2, seed=.4 include crowns, wings and weapons.
+  // Fit those bounds once per card instead of clipping tall elites at world scale.
+  const MOB_PORTRAIT_BOUNDS = Object.freeze({
+    slime: [-23,-31,22,6], wolf: [-38,-37,40,2], boar: [-21,-38,34,2],
+    wisp: [-33,-50,33,16], stone: [-24,-41,24,5], ashling: [-27,-51,27,8],
+    ashguard: [-26,-61,27,6], colossus: [-42,-67,42,6],
+    frost_wyrm: [-49,-70,64,-2], echo_dragon: [-49,-70,64,-2],
+    rift_knight: [-27,-60,42,5], void_wraith: [-32,-62,32,4],
+    astral_titan: [-44,-83,44,6], obsidian_sentinel: [-25,-68,26,6],
+    starseer: [-34,-70,34,0], ancient_warden: [-40,-81,42,8],
+    bramble_warden: [-24,-39,23,5], fen_matron: [-23,-40,22,6],
+    ashbound_herald: [-20,-41,24,6], blueflame_siren: [-29,-88,27,2],
+    glass_inquisitor: [-29,-72,28,11],
+  });
+  function drawMobPortrait(c, kind, width, height, discovered = true) {
+    if (!c || !Number.isFinite(width) || !Number.isFinite(height) || width <= 16 || height <= 16) return false;
+    const [left, top, right, bottom] = MOB_PORTRAIT_BOUNDS[kind] || MOB_PORTRAIT_BOUNDS.wolf;
+    const scale = Math.min((width - 16) / (right - left), (height - 16) / (bottom - top), 1.8);
+    c.save();
+    c.translate(width / 2 - (left + right) * scale / 2, height / 2 - (top + bottom) * scale / 2);
+    c.scale(scale, scale);
+    if (!discovered) { c.filter = 'brightness(0)'; c.globalAlpha = .45; }
+    drawMobModel(c, kind, 20, 1.2, .4, {});
+    c.restore();
+    return true;
+  }
+
   // Every model is drawn with its feet at (0,0), facing right before the
   // facing flip. `s` is the server hitbox size, so silhouettes stay honest.
   function drawMobModel(c, kind, s, t, seed, st) {
@@ -117,10 +241,134 @@
       case 'obsidian_sentinel': drawSentinel(c, t, seed, move, atk); break;
       case 'starseer': drawStarseer(c, t, seed); break;
       case 'ancient_warden': drawWarden(c, t, seed, move, atk); break;
+      case 'bramble_warden': drawBrambleWarden(c, t, seed, move, atk); break;
+      case 'fen_matron': drawFenMatron(c, t, seed, move, atk); break;
+      case 'ashbound_herald': drawAshboundHerald(c, t, seed, move, atk); break;
+      case 'blueflame_siren': drawBlueflameSiren(c, t, seed, move, atk); break;
+      case 'glass_inquisitor': drawGlassInquisitor(c, t, seed, move, atk); break;
       default: drawWolf(c, t, seed, move, atk);
     }
     if (hurt > 0) c.filter = 'none';
     c.restore();
+  }
+
+  function drawBlueflameSiren(c, t, seed, move, atk) {
+    const float = Math.sin(t * 1.7 + seed * 5) * 2.2;
+    const sway = move ? Math.sin(t * 6 + seed) * 1.4 : Math.sin(t * 1.2 + seed) * .6;
+    c.save(); c.translate(0, float - 7);
+    // Chime halo and the five ice shards that orbit her voice.
+    c.save(); c.translate(0, -38); c.rotate(t * .32 + seed);
+    c.globalAlpha = .7; c.strokeStyle = '#72e8ff'; c.lineWidth = 1.2;
+    c.beginPath(); c.ellipse(0, 0, 23, 7, 0, 0, TAU); c.stroke(); c.globalAlpha = 1;
+    for (let i = 0; i < 5; i++) {
+      const a = i * TAU / 5;
+      c.save(); c.rotate(a); c.translate(23, 0);
+      c.shadowColor = '#72e8ff'; c.shadowBlur = atk > 0 ? 12 : 7;
+      poly(c, [[0, -6], [3.5, 0], [0, 8], [-3.5, 0]], i % 2 ? '#d5fbff' : '#72e8ff', '#23627c', .8);
+      c.restore();
+    }
+    c.restore();
+    // Split, flowing mantle around a narrow floating silhouette.
+    poly(c, [[-8, -12], [-15, -2 + sway], [-10, 6], [-2, -2], [0, 3], [8, 7], [15, -1 - sway], [8, -12], [5, -39], [-5, -39]], '#123448', '#081c2c', 1.4);
+    poly(c, [[-5, -12], [-10, -4], [-5, 1], [-1, -12], [0, -32], [-4, -36]], '#1e6075');
+    poly(c, [[5, -12], [10, -3], [5, 2], [2, -13], [1, -31], [5, -35]], '#247e91');
+    // Frosted collar and chest sigil.
+    poly(c, [[-9, -37], [-5, -45], [0, -42], [5, -45], [10, -37], [6, -31], [-6, -31]], '#244e68', '#0b2234', 1.2);
+    c.save(); c.shadowColor = '#72e8ff'; c.shadowBlur = 13;
+    poly(c, [[0, -36], [3, -30], [0, -24], [-3, -30]], '#d5fbff', '#72e8ff', .7);
+    c.restore();
+    // Crystal mask, the eyes are the brightest point at a distance.
+    ell(c, 0, -49, 7, 8, '#b9d7dc');
+    poly(c, [[0, -59], [8, -50], [0, -41], [-8, -50]], '#d5fbff', '#39778b', 1.2);
+    poly(c, [[-5, -51], [-1, -53], [-1, -50], [-5, -49]], '#17617c');
+    poly(c, [[1, -53], [5, -51], [5, -49], [1, -50]], '#17617c');
+    // Blue flame crest and a small tuning fork staff.
+    c.save(); c.shadowColor = '#72e8ff'; c.shadowBlur = 12;
+    c.strokeStyle = '#d5fbff'; c.lineWidth = 2; c.beginPath();
+    c.moveTo(-1, -57); c.bezierCurveTo(-8, -66, 5, -67, 1, -76); c.stroke();
+    c.restore();
+    c.save(); c.translate(14, -2); c.rotate(.12 + atk * .18);
+    P(c, -1, -31, 2, 32, '#183d51'); P(c, -.3, -31, .7, 32, '#8ac9d6');
+    poly(c, [[-6, -32], [-5, -42], [-2, -38], [-1, -32]], '#72e8ff', '#1f6079', .8);
+    poly(c, [[6, -32], [5, -42], [2, -38], [1, -32]], '#d5fbff', '#1f6079', .8);
+    ell(c, 0, -34, 3.2, 3.2, '#f0ffff');
+    c.restore();
+    if (atk > 0) { c.save(); c.globalAlpha = .35 + .3 * Math.sin(t * 16); glow(c, 0, -33, 29, '#72e8ff', .5); c.restore(); }
+    c.restore();
+  }
+
+  function drawGlassInquisitor(c, t, seed, move, atk) {
+    const sway = move ? Math.sin(t * 6.5 + seed * 2) * 1.5 : Math.sin(t * 1.4 + seed) * .55;
+    c.save();
+    // Broken mirror mantle, asymmetrical to distinguish the silhouette from the sentinels.
+    poly(c, [[-10, -13], [-19, -2], [-14, 5], [-5, -6], [2, 1], [14, 8], [20, -1], [11, -16], [8, -40], [-7, -39]], '#261b30', '#100c18', 1.5);
+    poly(c, [[-11, -14], [-18, -2], [-14, 2], [-7, -10], [-3, -28]], '#6d516f');
+    poly(c, [[6, -12], [15, -4], [19, -1], [14, 3], [7, -4]], '#9c608f');
+    // Three glass plates flare over the shoulders.
+    poly(c, [[-13, -34], [-26, -47], [-21, -29], [-14, -25]], '#6d516f', '#251728', 1.2);
+    poly(c, [[11, -35], [25, -48], [21, -29], [14, -24]], '#8b5f8b', '#251728', 1.2);
+    poly(c, [[-3, -43], [2, -58], [8, -41], [3, -35]], '#c67acb', '#4c294e', 1.1);
+    // Segmented cuirass with a narrow ember-red fault line.
+    poly(c, [[-12, -14], [-15, -34], [-8, -43], [8, -43], [15, -34], [12, -13], [5, -8], [-5, -8]], '#48364d', '#18111d', 1.6);
+    poly(c, [[-9, -15], [-11, -32], [-5, -39], [6, -39], [11, -32], [9, -15], [0, -11]], '#765b78');
+    poly(c, [[-7, -34], [-3, -40], [3, -38], [8, -32], [2, -28], [-4, -29]], '#b779b8');
+    c.save(); c.shadowColor = '#ff654f'; c.shadowBlur = atk > 0 ? 14 : 6;
+    seg(c, 0, -35, 1, -15, '#ff7658', 1.6); c.restore();
+    // Mirrored visor: two offset planes catch the light like a mask.
+    poly(c, [[-9, -42], [-7, -53], [0, -58], [8, -52], [10, -41], [3, -36], [-5, -37]], '#241b2a', '#120d18', 1.5);
+    poly(c, [[-6, -48], [-2, -52], [4, -51], [7, -47], [1, -44]], '#6d516f');
+    c.save(); c.shadowColor = '#e3a1e8'; c.shadowBlur = 12;
+    seg(c, -5, -47, 5, -48, '#f0c4ef', 1.8, '#c67acb'); c.restore();
+    // Blade of black glass; the red seam flares during the committed strike.
+    c.save(); c.translate(16, -1 + sway); c.rotate(-.14 - atk * .7);
+    P(c, -2, -37, 4, 38, '#1e1825'); P(c, -1, -37, 1, 35, '#725278');
+    const blade = c.createLinearGradient(-4, -68, 4, -40);
+    blade.addColorStop(0, '#f5c8f1'); blade.addColorStop(.42, '#c67acb'); blade.addColorStop(1, '#46324d');
+    poly(c, [[-4, -38], [-3, -61], [0, -69], [4, -59], [3, -38]], blade, '#241526', 1);
+    c.save(); c.shadowColor = '#ff654f'; c.shadowBlur = 9; seg(c, 0, -62, 1, -45, '#ff795b', 1.1); c.restore();
+    P(c, -7, -39, 14, 2.4, '#c67acb'); c.restore();
+    if (atk > 0) { c.save(); c.globalAlpha = .42 + .28 * Math.sin(t * 18); glow(c, 0, -30, 26, '#c67acb', .45); c.restore(); }
+    c.restore();
+  }
+
+  function drawBrambleWarden(c, t, seed, move, atk) {
+    const sway = Math.sin(t * 1.7 + seed * 8) * 2.2 + atk * 3;
+    ell(c, 0, -2, 17, 5, '#1b3d2a');
+    seg(c, -8, -4, -15, 0, '#533c2b', 4); seg(c, 7, -4, 14, 1, '#533c2b', 4);
+    poly(c, [[-12,-5],[-10,-22],[-7,-29],[0,-32],[8,-27],[12,-10],[8,-4],[-8,-4]], '#704c32','#30271e',1.4);
+    poly(c, [[-8,-11],[-6,-25],[0,-29],[7,-24],[9,-11],[4,-7],[-6,-7]], '#9a7041','#59432e',1);
+    seg(c, -8,-20,-15+sway,-28,'#5b4029',5); seg(c,-15+sway,-28,-19+sway,-34,'#80633b',3);
+    seg(c, 7,-20,14-sway,-29,'#5b4029',5); seg(c,14-sway,-29,18-sway,-35,'#80633b',3);
+    for(let i=0;i<5;i++){const x=-13+i*6.4,y=-30-Math.sin(i*1.5+seed)*3;ell(c,x,y,5,4,i%2?'#517c45':'#79a64d');}
+    for(let i=0;i<4;i++){const x=-13+i*8;poly(c,[[x,-15],[x+2,-19],[x+4,-14]],'#d7b875','#544329',.7);}
+    glow(c,0,-15,8,'#8cff79',.45);ell(c,-4,-20,1.8,1.4,'#d9ff95');ell(c,4,-20,1.8,1.4,'#d9ff95');
+    seg(c,-7,-5,-12,0,'#bc9060',2);seg(c,6,-5,11,0,'#bc9060',2);
+  }
+
+  function drawFenMatron(c, t, seed, move, atk) {
+    const bob=Math.sin(t*2.4+seed*9)*1.7+(move?1.5:0), veil=Math.sin(t*1.2+seed)*3;
+    ell(c,0,-1,19,5,'#142f31');
+    poly(c,[[-17,-6],[-14,-19],[-8,-25],[0,-28],[9,-24],[15,-13],[18,-5],[10,-1],[-10,-1]],'#396d66','#183c40',1.5);
+    poly(c,[[-12,-5],[-11,-18],[-6,-24],[0,-26],[7,-23],[11,-11],[8,-3]],'#548e82','#28534f',1);
+    c.save();c.globalAlpha=.8;poly(c,[[-11,-20],[-21,-27+veil],[-18,-12],[-9,-7]],'#8fc2a0','#456b61',.8);poly(c,[[9,-20],[20,-28-veil],[17,-11],[8,-7]],'#709e88','#456b61',.8);c.restore();
+    ell(c,0,-25-bob,9,8,'#263f3d');poly(c,[[-10,-24],[-7,-33],[0,-37],[8,-32],[10,-24],[5,-19],[-5,-19]],'#456f68','#213c3a',1.2);
+    poly(c,[[-8,-30],[-3,-33],[0,-30],[-4,-28]],'#b8e7b3');poly(c,[[2,-30],[7,-33],[8,-29],[4,-28]],'#b8e7b3');ell(c,0,-24,3,1.5,'#d8f5c0');
+    seg(c,-7,-8,-12,-2,'#284d48',3);seg(c,7,-8,12,-2,'#284d48',3);
+    for(let i=0;i<3;i++){const x=-10+i*10,y=-9-Math.abs(Math.sin(t*2+i+seed))*5;ell(c,x,y,1.8,2.5,'#b3f2df');}
+    glow(c,0,-24,8,'#65dfcd',.32);
+  }
+
+  function drawAshboundHerald(c, t, seed, move, atk) {
+    const flare=Math.sin(t*2.8+seed*7)*2.5+atk*4;
+    ell(c,0,-1,18,5,'#311c20');
+    poly(c,[[-15,-5],[-12,-17],[-17,-24],[-10,-22],[-13,-32],[-4,-27],[0,-37],[5,-27],[13,-33],[10,-22],[17,-26],[12,-15],[15,-5],[7,-1],[-8,-1]],'#492b31','#201b22',1.4);
+    poly(c,[[-9,-6],[-8,-21],[-5,-28],[2,-30],[8,-24],[9,-8],[5,-3],[-5,-3]],'#65535a','#30272c',1);
+    poly(c,[[-7,-25],[-5,-33],[0,-36],[6,-31],[7,-24],[3,-20],[-4,-20]],'#27252d','#a16a50',1.1);
+    P(c,-5,-29,3,2,'#ffb266');P(c,3,-29,3,2,'#ffb266');
+    poly(c,[[-5,-18],[0,-25],[5,-18],[3,-10],[0,-8],[-3,-11]],'#df8050','#713b32',.8);
+    seg(c,9,-18,15+flare,-26,'#9a745b',3);seg(c,15+flare,-26,21+flare,-37,'#d6d0c1',2.2,'#ff8b52');
+    for(let i=0;i<4;i++){const a=t*1.8+i*Math.PI/2,x=Math.cos(a)*13,y=-13+Math.sin(a)*7;ell(c,x,y,1.5,2,'#ffad61');}
+    glow(c,0,-18,7,'#ff744a',.34);
   }
 
   function drawSlime(c, t, seed, move) {
@@ -1470,7 +1718,7 @@
 
   /* ── impact flourish pool (client-side, purely cosmetic) ────────────── */
   const worldFx = [];
-  const FX_LIFE = { hit: 430, crit: 680, cast: 760, level: 1500, dodge: 420, pickup: 560, heal: 820 };
+  const FX_LIFE = { hit: 430, crit: 680, cast: 760, level: 1500, dodge: 420, pickup: 560, heal: 820, defeat: 780 };
 
   function spawnWorldFx(kind, x, y, opts) {
     const o = opts || {};
@@ -1480,13 +1728,31 @@
       color2: o.color2 || '#fff6d8',
       power: clamp(o.power == null ? 1 : o.power, .2, 3),
       radius: o.radius || 46,
+      sourceKind: o.sourceKind,
+      elite: o.elite || 0,
+      reduced: !!o.reduced,
       start: (typeof performance !== 'undefined' ? performance.now() : Date.now()),
     });
     if (worldFx.length > 70) worldFx.shift();
   }
 
+  function defeat(event) {
+    if (!event || !Number.isFinite(event.x) || !Number.isFinite(event.y)) return false;
+    const elite = event.boss ? 2 : event.mini_boss ? 1 : 0;
+    const size = Number.isFinite(event.size) ? clamp(event.size, 8, 90) : mobDrawSize(event);
+    spawnWorldFx('defeat', event.x, event.y, {
+      sourceKind: event.kind, elite,
+      radius: clamp(size * (elite ? 1.4 : 1.1), 14, 125),
+      color: event.color || mobAuraColor(event.kind),
+      color2: elite ? '#fff0ba' : '#e1fff0',
+      reduced: typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches,
+    });
+    // Death echoes never request camera punch or extend hitstop.
+    return true;
+  }
+
   function punch(amount) { const a = amount == null ? .03 : Math.max(0, amount); VIEW.punch = Math.min(.075, VIEW.punch + a); }
-  function freeze(ms) { VIEW.freeze = Math.min(190, Math.max(VIEW.freeze, ms || 60)); }
+  function freeze(ms = 60, now = performance.now()) { return Motion.requestFreeze(VIEW, ms, now); }
 
   function drawWorldFx(c, now) {
     if (!worldFx.length) return;
@@ -1499,7 +1765,27 @@
       const k = fx.power;
       c.save();
       c.translate(fx.x, fx.y);
-      if (fx.kind === 'hit' || fx.kind === 'crit') {
+      if (fx.kind === 'defeat') {
+        const spread = fx.reduced ? .18 : e;
+        const seed = seedOf(fx.sourceKind);
+        c.globalAlpha = (1 - t) * .65;
+        c.strokeStyle = fx.color; c.lineWidth = fx.elite ? 2 : 1.2;
+        c.beginPath();
+        c.ellipse(0, 1, fx.radius * (.36 + spread * .7), fx.radius * (.12 + spread * .23), 0, 0, TAU);
+        c.stroke();
+        const count = fx.reduced ? 4 : 8 + fx.elite * 3;
+        // Kind-seeded facets retain each creature's palette and scale without
+        // creating per-particle objects or keeping a defeated mob alive.
+        for (let n = 0; n < count; n++) {
+          const angle = seed * TAU + n * TAU / count;
+          const distance = fx.radius * (.18 + spread * (.55 + (n % 3) * .14));
+          const x = Math.cos(angle) * distance;
+          const y = Math.sin(angle) * distance * .42 - fx.radius * .3 - (fx.reduced ? 0 : e * (5 + n % 4 * 3));
+          const shard = (fx.elite ? 3.4 : 2.4) * (fx.reduced ? 1 : 1 - t * .6);
+          c.globalAlpha = (1 - t) * (n % 3 ? .72 : .95);
+          poly(c, [[x, y-shard], [x+shard, y], [x, y+shard*1.7], [x-shard*.6, y]], n % 3 ? fx.color : fx.color2);
+        }
+      } else if (fx.kind === 'hit' || fx.kind === 'crit') {
         c.globalCompositeOperation = 'lighter';
         // ground shockwave: one bright ring, one soft echo, both squashed
         c.globalAlpha = (1 - t) * .7;
@@ -1800,6 +2086,27 @@
   /* ── animation state ─────────────────────────────────────────────────── */
   // Explicit one-shot gestures pushed by the HUD (potion, weapon swap, cast).
   const gestures = new Map();
+  function retainVisuals(players, mobs) {
+    const playerIds = new Set((players || []).map(p => p.id));
+    const mobIds = new Set((mobs || []).map(m => m.id));
+    for (const id of playerViews.keys()) if (!playerIds.has(id)) playerViews.delete(id);
+    for (const id of gestures.keys()) if (!playerIds.has(id)) gestures.delete(id);
+    for (const id of mobViews.keys()) if (!mobIds.has(id)) mobViews.delete(id);
+  }
+  function resetVisuals() {
+    playerViews.clear(); mobViews.clear(); gestures.clear(); worldFx.length = 0;
+    VIEW.lastFrame = null; VIEW.motionNow = null; VIEW.lastPos = null;
+    VIEW.leadX = 0; VIEW.leadY = 0; VIEW.freeze = 0; VIEW.freezeReadyAt = -Infinity; VIEW.punch = 0;
+  }
+  function pruneCombatEffects(now) {
+    if (typeof weaponActions !== 'undefined') Transients.pruneExpired(weaponActions, now, 96);
+    if (typeof attackFx !== 'undefined') Transients.pruneExpired(attackFx, now, 160);
+    if (typeof spellFx !== 'undefined') Transients.pruneExpired(spellFx, now, 96);
+    if (typeof abilityFx !== 'undefined') Transients.pruneExpired(abilityFx, now, 96);
+    if (typeof hitFlashes !== 'undefined') {
+      for (const id of Object.keys(hitFlashes)) if (hitFlashes[id] <= now) delete hitFlashes[id];
+    }
+  }
   function heroGesture(kind, id) {
     const key = id || (typeof myId !== 'undefined' && myId) || 'local';
     gestures.set(key, { kind, start: performance.now() });
@@ -1820,18 +2127,18 @@
 
   function playerVisual(q, now) {
     let v = playerViews.get(q.id);
-    if (!v) {
-      v = { x: q.x, y: q.y, walk: 0, move: 0, swing: 0, hurt: 0, last: now, weapon: q.weapon,
+    const pos = typeof entityPosition === 'function' ? entityPosition(q, now) : q;
+    if (!v || v.respawning !== !!q.respawning) {
+      v = { x: pos.x, y: pos.y, walk: 0, move: 0, swing: 0, hurt: 0, last: now, weapon: q.weapon,
         hp: q.hp, mana: q.mana, swap: 0, cast: 0, aim: 0, shoot: 0, gather: 0,
-        dust: 0, spark: 0, prevAttack: !!q.attack, run: !!q.run, sneak: !!q.sneak };
+        dust: 0, spark: 0, prevAttack: !!q.attack, run: !!q.run, sneak: !!q.sneak, respawning: !!q.respawning };
       playerViews.set(q.id, v);
       return v;
     }
-    const dt = Math.max(.001, (now - v.last) / 1000); v.last = now;
-    const pos = typeof entityPosition === 'function' ? entityPosition(q, now) : q;
+    const elapsedMs = Math.max(0, now - v.last), dt = elapsedMs / 1000; v.last = Math.max(v.last, now);
     const dx = pos.x - v.x, dy = pos.y - v.y;
-    const speed = Math.hypot(dx, dy) / dt;
-    v.move = lerp(v.move || 0, speed, .25);
+    const speed = dt > 0 ? Math.hypot(dx, dy) / dt : 0;
+    v.move = lerp(v.move || 0, speed, Motion.frameBlend(.25, elapsedMs));
     if (speed > 6) v.walk += Math.min(1.6, speed / 150) * dt * 14;
     v.x = pos.x; v.y = pos.y;
     v.run = !!q.run; v.sneak = !!q.sneak;
@@ -1878,37 +2185,39 @@
       mobViews.set(m.id, v);
       return v;
     }
-    const dt = Math.max(.001, (now - v.last) / 1000); v.last = now;
-    const speed = Math.hypot(pos.x - v.x, pos.y - v.y) / dt;
-    v.move = lerp(v.move || 0, speed, .3);
+    const elapsedMs = Math.max(0, now - v.last), dt = elapsedMs / 1000; v.last = Math.max(v.last, now);
+    const speed = dt > 0 ? Math.hypot(pos.x - v.x, pos.y - v.y) / dt : 0;
+    v.move = lerp(v.move || 0, speed, Motion.frameBlend(.3, elapsedMs));
     if (speed > 4) v.walk += Math.min(1.6, speed / 120) * dt * 12;
     v.x = pos.x; v.y = pos.y;
     if (m.hp < v.hp - .01) v.hurt = .22;
     v.hp = m.hp;
     v.hurt = Math.max(0, v.hurt - dt);
     const tele = !!m.telegraphing;
-    v.atk = lerp(v.atk || 0, tele ? .75 : 0, .2);
+    v.atk = lerp(v.atk || 0, tele ? .75 : 0, Motion.frameBlend(.2, elapsedMs));
     return v;
   }
 
-  function drawPlayer(c, q, now, oxUnused) {
-    const vis = playerVisual(q, now);
-    const local = q.id === myId;
-    q = { ...q, x: vis.x, y: vis.y };
-    const coatMap = {
+  const HERO_COAT_COLORS = {
       traveler: '#547c50', wolf_cloak: '#778d8d', moss_guard: '#8bb56b', marsh_armor: '#9c815e', moonweave: '#9bc8bd',
       ash_plate: '#a8aaa4', colossus_core: '#f49a60', glacier_mantle: '#8ee8f2', rift_plate: '#bd85ed', obsidian_shell: '#887090',
       starseer_robe: '#d2a4d7', elder_mantle: '#8ec884', leather_vest: '#8a6a44', chain_shirt: '#8d9599', bark_plate: '#6f8a4a',
       ember_mail: '#a25a3e', frostguard_plate: '#7fa9b8', void_cloak: '#5c4a7a',
     };
-    const trimMap = {
+  const HERO_TRIM_COLORS = {
       traveler: '#e6cf8f', wolf_cloak: '#a8d8c8', moss_guard: '#a8d878', marsh_armor: '#d8b878', moonweave: '#b8e8e0',
       ash_plate: '#e8d0b0', colossus_core: '#ffb078', glacier_mantle: '#c8f8ff', rift_plate: '#dcb0ff', obsidian_shell: '#bb9cc8',
       starseer_robe: '#f0c8f8', elder_mantle: '#c8f0a8', leather_vest: '#b89a6a', chain_shirt: '#c8d0d8', bark_plate: '#b8d890',
       ember_mail: '#ffb08a', frostguard_plate: '#c8f0ff', void_cloak: '#b8a0e0',
     };
-    const coat = coatMap[q.gear] || '#547c50';
-    const trim = trimMap[q.gear] || '#e6cf8f';
+  const HERO_CLASS_TINTS = { warrior: '#efb879', ranger: '#b5dc85', mage: '#b9acff' };
+
+  function drawPlayer(c, q, now, motionNow = now) {
+    const vis = playerVisual(q, motionNow);
+    const local = q.id === myId;
+    const x = vis.x, y = vis.y;
+    const coat = HERO_COAT_COLORS[q.gear] || '#547c50';
+    const trim = HERO_TRIM_COLORS[q.gear] || '#e6cf8f';
     const charge = q.attack ? clamp(Number(q.attack.charge) || 0, 0, 1) : 0;
     const gid = typeof myId !== 'undefined' && myId ? myId : 'local';
     const drink = local ? gestureEnvelope(gid, 'drink', 950) : 0;
@@ -1917,7 +2226,22 @@
     const cast = Math.max(vis.cast, local ? castG : 0);
     const swap = Math.max(vis.swap, swapG);
 
-    c.save(); c.translate(q.x, q.y);
+    c.save(); c.translate(x, y);
+    if (q.class) {
+      const classTint = HERO_CLASS_TINTS[q.class] || '#e8d7a5';
+      c.save();c.globalAlpha=local?.5:.25;c.strokeStyle=classTint;c.lineWidth=1;
+      c.beginPath();c.ellipse(0,2,18,6,0,0,TAU);c.stroke();c.restore();
+    }
+    if (q.combat_state?.counter_ready) {
+      c.save();c.strokeStyle='#9af2ff';c.lineWidth=1.8;c.globalAlpha=.8;
+      c.beginPath();c.ellipse(0,0,23,8,0,0,TAU);c.stroke();
+      for(let i=0;i<3;i++){const a=now/600+i*TAU/3;ell(c,Math.cos(a)*23,Math.sin(a)*8,2,2,'#d9fdff');}
+      c.restore();
+    }
+    if ((q.effects || []).some(e=>e.kind==='guard'||e.kind==='ward')) {
+      c.save();c.globalAlpha=.28;c.strokeStyle=q.class==='mage'?'#c3aeff':'#ace9f7';c.lineWidth=2;
+      c.beginPath();c.ellipse(0,-20,19,28,0,0,TAU);c.stroke();c.restore();
+    }
     // contact shadow
     c.save(); c.translate(0, 1); c.scale(1, .34); ell(c, 0, 0, 13, 4.6, local ? '#00000066' : '#0000004a'); c.restore();
     // magic circle under a casting hero
@@ -1934,7 +2258,7 @@
       c.restore();
     }
     drawHeroModel(c, q, {
-      coat, trim, local, class: q.class, weapon: q.weapon, time: now / 1000,
+      coat, trim, local, class: q.class, weapon: q.weapon, time: motionNow / 1000,
       walk: vis.walk, move: vis.move, swing: vis.swing,
       run: vis.run, sneak: vis.sneak, aim: vis.aim, cast, drink, gather: vis.gather,
       gatherKind: q.gather_kind || '',
@@ -1948,28 +2272,28 @@
     if (vis.move > 40 && now - (vis.dust || 0) > dustGap) {
       vis.dust = now;
       const col = vis.run ? '#cbb894' : '#a89a80';
-      offsetParticle(q.x - (q.face_x < 0 ? -1 : 1) * 7, q.y + 1, col, vis.run ? 4 : 2, vis.run ? 2.2 : 1.2, vis.run ? 3 : 2, .45);
+      offsetParticle(x - (q.face_x < 0 ? -1 : 1) * 7, y + 1, col, vis.run ? 4 : 2, vis.run ? 2.2 : 1.2, vis.run ? 3 : 2, .45);
     }
     // sparks fly while gathering
     if (vis.gather) {
       if (now - (vis.spark || 0) > 210) {
         vis.spark = now;
         const dir = q.face_x < 0 ? -1 : 1;
-        offsetParticle(q.x + dir * 14, q.y - 4, '#ffe6a3', 4, 2.2, 3, .5);
+        offsetParticle(x + dir * 14, y - 4, '#ffe6a3', 4, 2.2, 3, .5);
       }
     }
     // spell motes rise from the orb
     if (cast > .2 && now - (vis.castFx || 0) > 90) {
       vis.castFx = now;
-      offsetParticle(q.x + (q.face_x < 0 ? -6 : 6), q.y - 34, '#cdf6ff', 3, 1.4, 2, .6);
+      offsetParticle(x + (q.face_x < 0 ? -6 : 6), y - 34, '#cdf6ff', 3, 1.4, 2, .6);
     }
     // potion gloop
     if (drink > .3 && now - (vis.drinkFx || 0) > 140) {
       vis.drinkFx = now;
-      offsetParticle(q.x + 2, q.y - 30, '#8fe8c8', 3, 1.1, 2, .5);
+      offsetParticle(x + 2, y - 30, '#8fe8c8', 3, 1.1, 2, .5);
     }
     // bow release puff
-    if (vis.shoot > .5 && local) offsetParticle(q.x + 18, q.y - 24, '#e8f2e8', 3, 2.4, 2, .3);
+    if (vis.shoot > .5 && local) offsetParticle(x + 18, y - 24, '#e8f2e8', 3, 2.4, 2, .3);
     // wind streaks behind a sprinting hero
     if (vis.run && speed > 150) {
       const dir = q.face_x < 0 ? 1 : -1;
@@ -1989,28 +2313,24 @@
     c.restore();
   }
 
-  function drawMob(c, m, now) {
-    const vis = mobVisual(m, now);
+  function drawMob(c, m, now, motionNow = now) {
+    const vis = mobVisual(m, motionNow);
     const mx = vis.x, my = vis.y;
-    const spec = {
-      slime: 20, wolf: 22, boar: 26, wisp: 20, stone: 28, ashling: 23, ashguard: 34, colossus: 55,
-      frost_wyrm: 40, rift_knight: 32, echo_dragon: 50, void_wraith: 28, astral_titan: 58,
-      obsidian_sentinel: 36, starseer: 30, ancient_warden: 56,
-    }[m.kind] || 22;
-    const s = spec * (m.boss ? 1.24 : 1);
+    const elite = !!(m.boss || m.mini_boss);
+    const s = mobDrawSize(m);
     const feet = my + s * .5;
     const hero = me();
     const dist = hero ? Math.hypot(hero.x - mx, hero.y - my) : 999;
     const aggro = dist < 300 && snap?.region?.danger > 0;
-    const faceLeft = hero && hero.x < mx;
+    const faceLeft = m.attack_hint ? Math.cos(m.attack_hint.angle) < 0 : hero && hero.x < mx;
     c.save();
     // contact shadow
     c.save(); c.translate(mx, feet); c.scale(1, .36); ell(c, 0, 0, s * .74, s * .24, '#00000066'); c.restore();
     // boss aura
-    if (m.boss || ['echo_dragon', 'astral_titan', 'ancient_warden', 'colossus'].includes(m.kind)) {
+    if (elite || MOB_NATURAL_AURAS.has(m.kind)) {
       c.save(); c.globalCompositeOperation = 'lighter';
-      const auraCol = { echo_dragon: '#ff6fb4', astral_titan: '#6fe8ff', ancient_warden: '#9ff06a', colossus: '#ff9a4a', frost_wyrm: '#8fe8ff', void_wraith: '#a45cd8' }[m.kind] || '#ffb066';
-      c.globalAlpha = .1 + .05 * Math.sin(now / 400);
+      const auraCol = mobAuraColor(m.kind);
+      c.globalAlpha = (m.mini_boss ? .16 : .1) + .05 * Math.sin(now / 400);
       ell(c, mx, feet - s * .45, s * 1.25, s * .95, auraCol);
       c.restore();
     }
@@ -2034,6 +2354,20 @@
       c.restore();
     }
     if (m.slowed) { c.save(); c.globalAlpha = .3; ell(c, mx, feet - s * .35, s * .8, s * .6, '#a8ecff'); c.restore(); }
+    if (m.poisoned) {
+      c.save();c.globalAlpha=.6;
+      for(let i=0;i<3;i++){const ph=(now/1200+i/3)%1;ell(c,mx+Math.sin(i*3+now/500)*s*.5,feet-ph*s,2,2,'#b9ef6c');}
+      c.restore();
+    }
+    if (elite && (m.phase || 1)>1) {
+      c.save();c.globalAlpha=.65;c.strokeStyle=m.phase===3?'#ff7188':'#ffc181';c.lineWidth=1.2;
+      const radius=s*1.12;
+      for(let i=0;i<m.phase+2;i++){
+        const a=now/2000+i*TAU/(m.phase+2),x=mx+Math.cos(a)*radius,y=feet+Math.sin(a)*radius*.3;
+        c.beginPath();c.moveTo(x,y-5);c.lineTo(x+3,y);c.lineTo(x,y+5);c.lineTo(x-3,y);c.closePath();c.stroke();
+      }
+      c.restore();
+    }
     if (m.bleeding) {
       c.save(); c.globalAlpha = .8;
       for (let i = 0; i < 4; i++) {
@@ -2056,7 +2390,7 @@
       }
       c.restore();
     }
-    if (m.boss && aggro) {
+    if (elite && aggro) {
       c.save(); c.globalAlpha = .35;
       c.strokeStyle = '#ff7a5a'; c.lineWidth = 2;
       c.beginPath(); c.ellipse(mx, feet, s * 1.05 + Math.sin(now / 200) * 4, s * .42, 0, 0, TAU); c.stroke();
@@ -2064,8 +2398,9 @@
     }
     // body (flipped toward the hero)
     c.save(); c.translate(mx, feet);
+    if (m.attack_hint) c.scale(1.04, .93);
     if (faceLeft) c.scale(-1, 1);
-    drawMobModel(c, m.kind, s, now / 1000, seedOf(m.id), {
+    drawMobModel(c, m.kind, s, motionNow / 1000, seedOf(m.id), {
       walk: vis.walk, move: vis.move, hurt: vis.hurt, atk: vis.atk,
     });
     c.restore();
@@ -2075,26 +2410,29 @@
       c.restore();
     }
     // health bar + nameplate
-    const w = m.boss ? 68 : Math.max(24, s * 1.35);
-    const top = feet - s * 1.62 - (m.boss ? 17 : 12);
+    const w = elite ? (m.boss ? 68 : 58) : Math.max(24, s * 1.35);
+    const top = feet - s * 1.62 - (elite ? 17 : 12);
     c.save(); c.translate(mx, top);
-    P(c, -w / 2 - 1, -1, w + 2, m.boss ? 7 : 5, '#0a110c');
+    P(c, -w / 2 - 1, -1, w + 2, elite ? 7 : 5, '#0a110c');
     const hpFrac = clamp(m.hp / Math.max(1, m.max_hp), 0, 1);
-    P(c, -w / 2, 0, w * hpFrac, m.boss ? 5 : 3, m.boss ? '#ff6f5a' : aggro ? '#e0745c' : '#c87e5a');
+    vis.healthTrail = vis.healthTrail == null || hpFrac > vis.healthTrail ? hpFrac : Math.max(hpFrac, vis.healthTrail - .004);
+    P(c, -w / 2, 0, w * vis.healthTrail, elite ? 5 : 3, '#f5d38f');
+    P(c, -w / 2, 0, w * hpFrac, elite ? 5 : 3, m.boss ? '#ff6f5a' : m.mini_boss ? '#50d9b1' : aggro ? '#e0745c' : '#c87e5a');
     P(c, -w / 2, 0, w * hpFrac, 1, '#ffffff44');
-    if ((m.stagger_pct && m.stagger_pct > 0) || m.staggered) {
-      const pf = m.staggered ? 1 : clamp((m.stagger_pct || 0) / 100, 0, 1);
-      const py = m.boss ? 6 : 4;
+    if ((m.stagger && m.stagger > 0) || m.staggered) {
+      const pf = m.staggered ? 1 : clamp((m.stagger || 0) / 100, 0, 1);
+      const py = elite ? 6 : 4;
       P(c, -w / 2 - 1, py, w + 2, 3, '#0a110c');
       P(c, -w / 2, py + .5, w * pf, 2, m.staggered ? '#ffd45e' : '#d6a449');
     }
-    if (m.boss || aggro) {
-      c.font = `${m.boss ? 'bold 9px' : '9px'} ui-monospace, monospace`; c.textAlign = 'center';
+    if (elite || aggro) {
+      c.font = `${elite ? 'bold 9px' : '9px'} ui-monospace, monospace`; c.textAlign = 'center';
       c.lineWidth = 3; c.strokeStyle = '#0b120e';
-      const nm = `${m.boss ? '◆ ' : ''}${mobNames[m.kind] || m.kind}${m.boss ? ' ◆' : ''} · ур. ${m.level}`;
-      c.strokeText(nm, 0, m.boss ? -6 : -5);
-      c.fillStyle = m.boss ? '#ffd0b8' : aggro ? '#f3d7b0' : '#d8e0c8';
-      c.fillText(nm, 0, m.boss ? -6 : -5);
+      const prefix=m.boss?'◆ ':m.mini_boss?'✦ ':'';
+      const nm = `${prefix}${mobNames[m.kind] || m.kind}${m.boss?' ◆':''} · ур. ${m.level}`;
+      c.strokeText(nm, 0, elite ? -6 : -5);
+      c.fillStyle = m.boss ? '#ffd0b8' : m.mini_boss ? '#a7ffe0' : aggro ? '#f3d7b0' : '#d8e0c8';
+      c.fillText(nm, 0, elite ? -6 : -5);
       c.textAlign = 'left';
     }
     c.restore();
@@ -2157,31 +2495,36 @@
     c.restore();
   }
 
-  function renderFrame(now) {
+  function renderFrame(now, menuOpen = null) {
+    pruneCombatEffects(now);
     const rect = canvas.getBoundingClientRect();
     const w = rect.width, h = rect.height;
     if (!w || !h) return;
-    // frame timing drives hit-stop (freeze) and the punch-zoom kick
-    const dtMs = Math.max(0, Math.min(64, now - (VIEW.lastFrame || now)));
-    VIEW.lastFrame = now;
+    // Telegraphs/effect lifetimes use real time; hitstop only pauses motion.
+    Motion.advanceClock(VIEW, now);
+    const dtMs = VIEW.frameMs, motionNow = VIEW.motionNow;
     if (VIEW.punch > 0) VIEW.punch = Math.max(0, VIEW.punch - dtMs * .00022);
-    if (VIEW.freeze > 0) VIEW.freeze = Math.max(0, VIEW.freeze - dtMs);
-    now -= VIEW.freeze;
+    if (VIEW.resumed) { playerViews.clear(); mobViews.clear(); VIEW.lastPos = null; VIEW.leadX = 0; VIEW.leadY = 0; }
     const p = me();
+    const heroPos = p ? (typeof entityPosition === 'function' ? entityPosition(p, motionNow) : p) : null;
     // camera zoom eases gently so travel and resizes never snap.
     VIEW.targetZoom = desiredZoom(w, h);
-    VIEW.zoom = lerp(VIEW.zoom || VIEW.targetZoom, VIEW.targetZoom, .08);
+    VIEW.zoom = lerp(VIEW.zoom || VIEW.targetZoom, VIEW.targetZoom, Motion.frameBlend(.08, dtMs));
     VIEW.lookY = h * (coarse() ? .06 : .085);
 
     if (p) {
-      const pos = typeof entityPosition === 'function' ? entityPosition(p, now) : p;
-      if (VIEW.lastPos) {
-        VIEW.leadX = lerp(VIEW.leadX || 0, clamp((pos.x - VIEW.lastPos.x) * 2.4, -26, 26), .09);
-        VIEW.leadY = lerp(VIEW.leadY || 0, clamp((pos.y - VIEW.lastPos.y) * 2.4, -18, 18), .09);
+      const pos = heroPos;
+      if (VIEW.resumed) { cam.x = pos.x; cam.y = pos.y; }
+      const elapsed = VIEW.lastPos ? motionNow - VIEW.lastPos.at : 0;
+      if (elapsed > 0) {
+        const leadBlend = Motion.frameBlend(.09, VIEW.activeMs);
+        VIEW.leadX = lerp(VIEW.leadX || 0, clamp((pos.x - VIEW.lastPos.x) * 40 / elapsed, -26, 26), leadBlend);
+        VIEW.leadY = lerp(VIEW.leadY || 0, clamp((pos.y - VIEW.lastPos.y) * 40 / elapsed, -18, 18), leadBlend);
       }
-      VIEW.lastPos = { x: pos.x, y: pos.y };
-      cam.x += (pos.x + (VIEW.leadX || 0) - cam.x) * .18;
-      cam.y += (pos.y + (VIEW.leadY || 0) - cam.y) * .18;
+      VIEW.lastPos = { x: pos.x, y: pos.y, at: motionNow };
+      const follow = Motion.frameBlend(.18, VIEW.activeMs);
+      cam.x += (pos.x + (VIEW.leadX || 0) - cam.x) * follow;
+      cam.y += (pos.y + (VIEW.leadY || 0) - cam.y) * follow;
       if (hasPointerAim && typeof setAimFromPointer === 'function') setAimFromPointer();
     }
     const { WS, Z, halfW, up, down } = extendCameraBounds(w, h);
@@ -2193,7 +2536,7 @@
     if (screenShake > .1) {
       screenShakeX = (Math.random() - .5) * screenShake;
       screenShakeY = (Math.random() - .5) * screenShake;
-      screenShake *= screenShakeDecay;
+      screenShake *= Math.pow(screenShakeDecay, dtMs / (1000 / 60));
       if (screenShake < .12) { screenShake = 0; screenShakeX = 0; screenShakeY = 0; }
     }
 
@@ -2225,22 +2568,31 @@
     }
     for (const f of snap.thorn_fields || []) drawThornField(ctx, f, now);
     for (const f of snap.ground_effects || []) drawGroundEffect(ctx, f, now);
+    if (window.EncounterView) {
+      for (const m of snap.mobs || []) if (m.hp > 0) window.EncounterView.drawTelegraph(ctx, m.attack_hint);
+      window.EncounterView.drawImpacts(ctx, now);
+      window.EncounterView.update(snap.mobs || [], p, mobNames, now,
+        menuOpen ?? (typeof activeGameMenu === 'function' && activeGameMenu()));
+    }
     for (const portal of snap.portals || []) drawWaystone(ctx, portal, now, r.id);
 
-    // y-sorted cast
-    const layers = [];
-    for (const ob of r.obstacles || []) layers.push({ y: ob.y, kind: 'ob', ref: ob });
-    for (const n of snap.nodes || []) if (n.active) layers.push({ y: n.y, kind: 'node', ref: n });
-    for (const n of r.npcs || []) layers.push({ y: n.y, kind: 'npc', ref: n });
-    for (const m of snap.mobs || []) layers.push({ y: m.y + 6, kind: 'mob', ref: m });
-    for (const q of snap.players || []) layers.push({ y: q.y + 8, kind: 'player', ref: q });
-    layers.sort((a, b) => a.y - b.y);
+    // y-sorted cast; skip offscreen silhouettes before their path-heavy draw.
+    const layers = getWorldLayers(r, snap);
+    const view = {
+      left: cam.x - w / (2 * Zp) - 18,
+      right: cam.x + w / (2 * Zp) + 18,
+      top: cam.y - (h / 2 + VIEW.lookY) / Zp - 18,
+      bottom: cam.y + (h / 2 - VIEW.lookY) / Zp + 18,
+    };
     for (const layer of layers) {
+      const position = (layer.kind === 'player' || layer.kind === 'mob') && typeof entityPosition === 'function'
+        ? entityPosition(layer.ref, motionNow) : layer.ref;
+      if (!layerInView(layer, view, position)) continue;
       if (layer.kind === 'ob') drawObstacle(ctx, layer.ref, now, r.id);
       else if (layer.kind === 'node') drawNode(ctx, layer.ref, now);
       else if (layer.kind === 'npc') drawNPC(ctx, layer.ref, p, now);
-      else if (layer.kind === 'mob') drawMob(ctx, layer.ref, now);
-      else if (layer.kind === 'player') drawPlayer(ctx, layer.ref, now);
+      else if (layer.kind === 'mob') drawMob(ctx, layer.ref, now, motionNow);
+      else if (layer.kind === 'player') drawPlayer(ctx, layer.ref, now, motionNow);
     }
 
     // projectiles above bodies
@@ -2249,7 +2601,7 @@
     // melee swings (server broadcast + local prediction)
     for (const sw of weaponActions || []) {
       if (sw.weapon_kind === 'bow') continue;
-      drawSlashFx(ctx, { ...sw, x: sw.x, y: sw.y }, now);
+      drawSlashFx(ctx, sw, now);
     }
     for (const fx of attackFx || []) {
       if (fx.fx) {
@@ -2263,14 +2615,14 @@
     if (typeof drawAbilityFx === 'function') drawAbilityFx(now, 0, 0);
 
     // shared particle pool (world coordinates)
-    if (typeof updateAndDrawParticles === 'function') updateAndDrawParticles(ctx, 0, 0);
+    if (typeof updateAndDrawParticles === 'function') updateAndDrawParticles(ctx, 0, 0, now);
 
     // hero aura / targeting
     if (p) {
       ctx.save();
-      const grd = ctx.createRadialGradient(p.x, p.y - 10, 2, p.x, p.y - 10, 46);
+      const grd = ctx.createRadialGradient(heroPos.x, heroPos.y - 10, 2, heroPos.x, heroPos.y - 10, 46);
       grd.addColorStop(0, '#ffe7a314'); grd.addColorStop(1, '#ffe7a300');
-      ctx.fillStyle = grd; ctx.fillRect(p.x - 46, p.y - 56, 92, 92);
+      ctx.fillStyle = grd; ctx.fillRect(heroPos.x - 46, heroPos.y - 56, 92, 92);
       ctx.restore();
     }
     if (waypoint) {
@@ -2280,14 +2632,14 @@
     }
     if (p && hasPointerAim) {
       const tgt = pointerWorld();
-      const dx = tgt.x - p.x, dy = tgt.y - p.y;
+      const dx = tgt.x - heroPos.x, dy = tgt.y - heroPos.y;
       const isBow = p.weapon_catalog?.[p.weapon]?.kind === 'bow';
       if (isBow) {
         const charge = p.attack ? Number(p.attack.charge) || 0 : (chargeLocal ? Math.min(1, (performance.now() - chargeStart) / (attackChargeDuration(p) * 1000)) : 0);
         const range = 180 + 620 * charge;
         ctx.save(); ctx.strokeStyle = charge > .6 ? '#dfffa9cc' : '#dfffa966'; ctx.lineWidth = 1.4;
         ctx.setLineDash([6, 6]);
-        ctx.beginPath(); ctx.moveTo(p.x, p.y - 12); ctx.lineTo(p.x + aim.x * range, p.y - 12 + aim.y * range); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(heroPos.x, heroPos.y - 12); ctx.lineTo(heroPos.x + aim.x * range, heroPos.y - 12 + aim.y * range); ctx.stroke();
         ctx.setLineDash([]); ctx.restore();
       } else if (chargeLocal) {
         const charge = Math.min(1, (performance.now() - chargeStart) / (attackChargeDuration(p) * 1000));
@@ -2296,14 +2648,14 @@
         const half = Math.acos(Math.max(-.99, Math.min(.99, Number(spec.arc ?? .28))));
         const angle = Math.atan2(aim.y, aim.x);
         ctx.save(); ctx.globalAlpha = .05 + .07 * charge; ctx.fillStyle = charge > .8 ? '#ffe08c' : '#b9d889';
-        ctx.beginPath(); ctx.moveTo(p.x, p.y - 10); ctx.arc(p.x, p.y - 10, range, angle - half, angle + half); ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(heroPos.x, heroPos.y - 10); ctx.arc(heroPos.x, heroPos.y - 10, range, angle - half, angle + half); ctx.closePath(); ctx.fill();
         ctx.globalAlpha = .6; ctx.strokeStyle = charge > .8 ? '#ffe08c' : '#c8e09b'; ctx.lineWidth = 1.2;
-        ctx.beginPath(); ctx.arc(p.x, p.y - 10, range, angle - half, angle + half); ctx.stroke(); ctx.restore();
+        ctx.beginPath(); ctx.arc(heroPos.x, heroPos.y - 10, range, angle - half, angle + half); ctx.stroke(); ctx.restore();
       }
     }
     // aim reticle
     if (p) {
-      const wp = hasPointerAim ? pointerWorld() : { x: p.x + aim.x * 74, y: p.y + aim.y * 74 };
+      const wp = hasPointerAim ? pointerWorld() : { x: heroPos.x + aim.x * 74, y: heroPos.y + aim.y * 74 };
       ctx.save(); ctx.strokeStyle = '#fff1bdaa'; ctx.lineWidth = 1.2;
       ctx.beginPath(); ctx.arc(wp.x, wp.y, 5, 0, TAU);
       ctx.moveTo(wp.x - 9, wp.y); ctx.lineTo(wp.x - 3, wp.y);
@@ -2331,6 +2683,7 @@
       }
       ctx.restore();
     }
+    if (window.EchoAtmosphere) window.EchoAtmosphere.draw(ctx, w, h, r, heroPos, snap.power_sites || [], cam, Zp, VIEW.lookY, now);
     // vignette
     ctx.save();
     const vg = ctx.createRadialGradient(w / 2, h * .5, Math.min(w, h) * .3, w / 2, h * .5, Math.max(w, h) * .74);
@@ -2375,8 +2728,8 @@
       context.strokeRect(sx(portal.x) - 3, sy(portal.y) - 3, 6, 6);
     }
     for (const m of snap.mobs || []) {
-      context.fillStyle = m.boss ? '#ff6b5d' : '#edaa6d';
-      context.beginPath(); context.arc(sx(m.x), sy(m.y), m.boss ? 3.2 : 1.7, 0, TAU); context.fill();
+      context.fillStyle = m.boss ? '#ff6b5d' : m.mini_boss ? '#66e0bd' : '#edaa6d';
+      context.beginPath(); context.arc(sx(m.x), sy(m.y), m.boss ? 3.2 : m.mini_boss ? 2.7 : 1.7, 0, TAU); context.fill();
     }
     for (const q of snap.players || []) {
       context.fillStyle = q.id === myId ? '#fff6d0' : '#7de0c0';
@@ -2438,15 +2791,19 @@
       c.restore();
       return true;
     };
-    window.LesEchoView = { VIEW, screenToWorld, drawMobModel, drawHeroModel, drawObstacle, renderFrame, renderMap };
+    window.LesEchoView = { VIEW, screenToWorld, drawMobModel, drawMobPortrait, drawHeroModel, drawObstacle, mobDrawSize, mobAuraColor, getWorldLayers, layerInView, renderFrame, renderMap, reset: resetVisuals, retain: retainVisuals, pruneEffects: pruneCombatEffects };
     // ── FX bus: game.js feeds combat moments, the renderer turns them into
     //    shockwaves, runes, level columns and camera kicks. All cosmetic.
     window.LesEchoFx = {
       spawn: spawnWorldFx,
+      defeat,
       hit(x, y, crit, color) {
         spawnWorldFx(crit ? 'crit' : 'hit', x, y, { power: crit ? 1.32 : 1, radius: crit ? 34 : 24, color: color || '#ffd9a0', color2: '#fff6dc' });
-        punch(crit ? .05 : .028);
-        freeze(crit ? 110 : 64);
+        const hero = typeof me === 'function' ? me() : null;
+        if (hero && Math.hypot(hero.x - x, hero.y - y) <= 280) {
+          punch(crit ? .05 : .028);
+          freeze(crit ? 110 : 64);
+        }
       },
       cast(x, y, color) { spawnWorldFx('cast', x, y - 6, { color: color || '#a6e8ff', radius: 54 }); },
       level(x, y) { spawnWorldFx('level', x, y, {}); punch(.055); freeze(140); },
@@ -2464,6 +2821,6 @@
   if (typeof document !== 'undefined') install();
 
   if (typeof module === 'object' && module.exports) {
-    module.exports = { drawMobModel, drawHeroModel, drawObstacle, drawSlashFx, VIEW, screenToWorld, seedOf, spawnWorldFx, spawn: spawnWorldFx, drawWorldFx, punch, freeze, list: worldFx, EFFECTS: FX_LIFE };
+    module.exports = { drawMobModel, drawMobPortrait, drawHeroModel, drawObstacle, drawSlashFx, mobDrawSize, mobAuraColor, getWorldLayers, layerInView, VIEW, screenToWorld, seedOf, spawnWorldFx, spawn: spawnWorldFx, defeat, drawWorldFx, punch, freeze, list: worldFx, EFFECTS: FX_LIFE };
   }
 })();
