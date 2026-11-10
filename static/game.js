@@ -1195,8 +1195,8 @@ let joyVec={x:0,y:0},joyPointer=null;
 const joyZone=$('joystickZone'),joyKnobEl=$('joyKnob');
 function joySetKnob(dx,dy){joyKnobEl.style.transform=`translate(${dx}px,${dy}px)`}
 function joyUpdate(e){const r=joyZone.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2,max=r.width/2;let dx=e.clientX-cx,dy=e.clientY-cy,l=Math.hypot(dx,dy);if(l>max){dx*=max/l;dy*=max/l}const nl=Math.hypot(dx,dy)/max;joyVec=nl>.14?{x:dx/max,y:dy/max}:{x:0,y:0};joySetKnob(dx,dy)}
-function joyRelease(){joyPointer=null;joyVec={x:0,y:0};joySetKnob(0,0);joyZone.classList.remove('active')}
-if(joyZone){joyZone.addEventListener('pointerdown',e=>{e.preventDefault();if(joyPointer!==null)return;joyPointer=e.pointerId;joyZone.setPointerCapture(e.pointerId);joyZone.classList.add('active');joyUpdate(e)});joyZone.addEventListener('pointermove',e=>{if(e.pointerId===joyPointer)joyUpdate(e)});['pointerup','pointercancel','lostpointercapture'].forEach(ev=>joyZone.addEventListener(ev,e=>{if(ev==='lostpointercapture'?joyPointer!==null:e.pointerId===joyPointer)joyRelease()}))}
+function joyRelease(){const pointer=joyPointer;joyPointer=null;joyVec={x:0,y:0};joySetKnob(0,0);joyZone.classList.remove('active');if(pointer!==null){try{if(joyZone.hasPointerCapture(pointer))joyZone.releasePointerCapture(pointer)}catch{}}}
+if(joyZone){joyZone.addEventListener('pointerdown',e=>{e.preventDefault();if(joyPointer!==null)joyRelease();joyPointer=e.pointerId;try{joyZone.setPointerCapture(e.pointerId)}catch{}joyZone.classList.add('active');joyUpdate(e)});addEventListener('pointermove',e=>{if(e.pointerId===joyPointer)joyUpdate(e)});['pointerup','pointercancel'].forEach(ev=>addEventListener(ev,e=>{if(e.pointerId===joyPointer)joyRelease()}));joyZone.addEventListener('lostpointercapture',e=>{if(e.pointerId===joyPointer)joyRelease()})}
 (function wireMobileButtons(){
  const mAttack=$('mAttackButton');
  if(mAttack){mAttack.addEventListener('pointerdown',beginAttack);['pointerup','pointercancel','lostpointercapture'].forEach(ev=>mAttack.addEventListener(ev,e=>{if(chargeLocal)releaseAttack(e)}));mAttack.addEventListener('contextmenu',e=>e.preventDefault())}
